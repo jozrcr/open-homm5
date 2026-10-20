@@ -29,6 +29,36 @@ The phase 1 gate ("first divergence pinned in a 2-client test") and the choice b
 
 Related strings in this area: `calculate_cmd_sizes` (`0x007c9270`), `multiplayer_game_running` (`0x007c9ec0`, `0x007ca3e0`), "Drop player " (`0x007c8d10`).
 
+## Lockstep segments: when a command actually runs
+
+The multiplayer transceiver cuts time into **segments** and only lets the world advance through a segment once **every player** has reported it. (Static reading, 2026-10-20.)
+
+| What | Where | What it does |
+|---|---|---|
+| Message pump | `CMultiPlayerTransceiver` slot 3, `0x007ca7c0` | Reads every message received from the network (`this+0x34` slot `0x24`). Type 0 = "player X finished segment N" (sets a bit in `this+0xd4` and that player's segment counter in the array at `this+0x3c`), type 1 = player dropped (`0x007c8d10`), type 2 = data: a world command from another player (`NWorld::CWorldCmd`), a `CCrcTestCmd` (desync check, `0x007c9410`) or a chat message (`NMP::CChatCommand`). |
+| Segment records | `0x007c9d80` | Appends a record to the segment list at `this+0x38`: segment number, one command list per player, and a bit mask of players. |
+| Run complete segments | `0x007c98e0` | Takes the oldest segment record and, **only if every player has reported it** (`0x007c8c80`), collects all players' commands for it and executes them. |
+| Own step | slot 4, `0x007ca990` | Advances this PC's segment and announces it (`0x007c9d80`). |
+| Pacing | slot 5, `0x007c8dd0` | Compares this PC's segment with the slowest player's (capped at 20 segments ahead) and computes a speed factor; the formula uses 200 per segment. |
+| Single player | `CSinglePlayerTransceiver` slot 4, `0x007c7b20` | Executes queued commands right away and adds 200 to a time counter per step. No waiting. |
+
+So a segment is probably **200 ms of game time**, and in multiplayer **a command can only run once all PCs have confirmed its segment**. This is the mechanism behind hypothesis H1 in [ai-turn.md](ai-turn.md).
+
+### `net_batched_segments`: idle PCs report late
+
+`net_batched_segments` (global `0x00f27398`, **default 3**, registered at `0x004039a0`) is read only by `0x00402440`, which runs once per segment on each PC:
+
+- if this PC has **no commands** in its recent segments, it **holds the "segment done" reports back** and sends them in batches, up to `net_batched_segments` segments at a time;
+- as soon as a segment contains a command, everything is sent at once.
+
+During an AI turn the human players are idle, so their PCs report only every 3 segments. The PC running the AI must wait for those reports before its AI's commands can run. If H1 holds, **each AI move may wait up to ~3 segments (≈600 ms) plus the network delay**, not just one round trip.
+
+**Cheap experiment (no code):** on a test copy of the game, on **every** PC, add `setvar net_batched_segments = 1` to the profile (`profiles/default_profile/user_a2.cfg`, or the user's own profile folder). Compare AI turn times in a 2–3 player co-op game with and without it. The hook DLL's `gap=` values show the effect per move.
+
+(`net_timeout`, the other variable registered there, is global `0x00f27394`, default 20 seconds.)
+
+Not related, despite the names: `SegmentLength` / `SkipSegmentsNumber` in the data files belong to projectile animations (`GameMechanics/Shot/...`). The network constants `MaxLatency`, `TimeToAllowDropByLag`, `TimeToStartLagByNoSegmentData` and `AI_SEGMENT_DURATION` exist as field names in the exe but no data file sets them, so they keep built-in defaults (not looked up yet).
+
 ## Desync detection
 
 | What | Where | Notes |
