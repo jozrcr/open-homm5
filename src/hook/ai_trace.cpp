@@ -34,11 +34,17 @@ DWORD Field(void *self, DWORD offset)
 
 int CommandCount(void *commands)
 {
-	// a vector: { begin, end, capacity } of 4-byte elements
+	// a vector: { begin, end, capacity } of 4-byte elements. Guarded, because we
+	// only inferred what this argument is: a bad guess must not crash the game.
 	if (!commands)
 		return -1;
-	DWORD *v = static_cast<DWORD *>(commands);
-	return static_cast<int>((v[1] - v[0]) / 4);
+	__try {
+		const DWORD *v = static_cast<const DWORD *>(commands);
+		return static_cast<int>((v[1] - v[0]) / 4);
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		return -1;
+	}
 }
 
 void __fastcall TurnDriverHook(void *self, void *edx, int flag, void *commands)
