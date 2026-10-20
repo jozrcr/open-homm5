@@ -20,6 +20,11 @@ Status: **first static reading** (2026-10-20), from Ghidra's decompiled code of 
 
 ## The turn driver (`0x0086dd40`)
 
+Signature: `__thiscall`, **two** stack arguments (every exit is `ret 8`; Ghidra's decompiler shows only the first):
+
+1. a flag (only the low byte is used; when non-zero some checks are skipped),
+2. a pointer to a **command list** the caller owns: a vector `{begin, end, capacity}` of 4-byte entries (probably smart pointers to command objects). The driver stores the pointer at `this+0x130` and clears the list when a new step starts. The commands the AI produces end up in it, **so the caller receives the AI's moves as data**.
+
 The AI does not think in one go. The game calls the turn driver repeatedly, and each call works like this:
 
 1. Checks a few conditions first (one uses globals `0x00fe8304`, `0x00fe8305`, `0x00fe8308`, probably debug settings such as "skip this player's AI").
