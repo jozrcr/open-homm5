@@ -1,0 +1,45 @@
+# --- Game files: never commit (see CLAUDE.md "Hard rules") ---
+ref/
+*.exe
+*.dll
+*.pak
+*.h5m
+*.h5u
+*.h5c
+*.sav
+*.save
+saves/
+
+# --- Disassembler databases (Ghidra, IDA) ---
+analysis/**/*.gpr
+analysis/**/*.rep/
+analysis/**/*.lock
+analysis/**/*.lock~
+*.i64
+*.idb
+*.id0
+*.id1
+*.id2
+*.nam
+*.til
+
+# --- Build outputs (our own compiled code) ---
+build/
+out/
+*.obj
+*.o
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.res
+
+# --- Tooling ---
+__pycache__/
+*.pyc
+.venv/
+.vs/
+.vscode/
+.claude/settings.local.json
+Thumbs.db
+desktop.ini
