@@ -13,4 +13,23 @@ Answer: (owner fills in)
 
 ---
 
-(no open questions yet)
+## Q2: How should CI get the 2003 compiler? (2026-10-20, status: open, not urgent)
+
+Context: CLAUDE.md wants CI to re-verify every matched function on each push, which needs `cl.exe` 13.10.3077. Microsoft's license does not let us commit the compiler to a public repo.
+
+Options:
+1. **(Recommended)** CI (a GitHub Actions Windows runner) downloads the Toolkit 2003 v1.01 installer from archive.org on each run, checks its SHA-256, and unpacks it with `tools/toolchain/extract_vctoolkit2003.py`. Free and simple, but depends on archive.org being up (we can cache the download between runs).
+2. A self-hosted runner on the owner's PC, which already has the compiler. No download, but the PC must be on.
+3. Run the verifier only locally, without CI. Simplest, but regressions could slip in.
+
+Answer:
+
+## Q1: Hooking library for the hook DLL (2026-10-20, status: open, needed for session 2)
+
+Context: the hook DLL (`src/hook/`, a `dinput8.dll` proxy) must redirect some game functions to ours. That means overwriting the first bytes of a game function in memory with a jump (a "detour").
+
+Options:
+1. **(Recommended)** MinHook (BSD 2-clause license, small, widely used, handles the tricky cases such as relocating overwritten instructions). We would add its source to the repo under `src/hook/third_party/`. This is a download, so it needs your OK.
+2. Our own minimal detour code (about 100 lines). No dependency, but we would need to handle each patched function's first instructions by hand. Fine for a few hooks, error-prone for many.
+
+Answer:
