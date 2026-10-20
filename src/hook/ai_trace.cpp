@@ -2,9 +2,15 @@
 //
 // The adventure-map AI (NWorld::CPlayerAI) is driven by IPlayerAI slot 0,
 // 0x0086dd40 (docs/subsystems/ai-turn.md). It is a __thiscall method with two
-// stack arguments (it ends with "ret 8"): a flag and a list the AI fills with the
-// commands it produced. Every CPlayerAI object uses the vftable at 0x00e4c8bc, so
-// replacing slot 0 there routes all calls through us, without patching code.
+// stack arguments (it ends with "ret 8"). Its only caller, the AI manager at
+// 0x006082f0, pushes them like this (0x00608728):
+//     push flag            ; 2nd argument, a bool
+//     lea  eax,[commands]  ; 1st argument, an empty list on the caller's stack
+//     push eax
+//     call [edx]           ; ai->slot0(&commands, flag)
+// and then sends every command the AI put in the list. Every CPlayerAI object
+// uses the vftable at 0x00e4c8bc, so replacing slot 0 there routes all calls
+// through us, without patching code.
 #include <windows.h>
 
 #include "hooks.h"
@@ -22,10 +28,39 @@ const DWORD kOffTurnStart = 0x12c;   // GetTickCount() when the turn started
 
 // A __thiscall function with 2 stack arguments looks like this __fastcall one
 // (this in ecx, edx unused, callee pops the 8 bytes of arguments).
-typedef void(__fastcall *TurnDriverFn)(void *self, void *edx, int flag, void *commands);
+typedef void(__fastcall *TurnDriverFn)(void *self, void *edx, void *commands, int flag);
 TurnDriverFn g_original = reinterpret_cast<TurnDriverFn>(kTurnDriver);
 
 LARGE_INTEGER g_freq;
+
+// When each AI object's previous call returned, to measure the wait between
+// calls (hypothesis H1 in docs/subsystems/ai-turn.md: in multiplayer the AI
+// waits a network round trip after every command it sends).
+struct LastCall {
+	void *ai;
+	LARGE_INTEGER returned;
+};
+LastCall g_last[16];
+
+double Ms(LARGE_INTEGER from, LARGE_INTEGER to)
+{
+	return 1000.0 * static_cast<double>(to.QuadPart - from.QuadPart) / static_cast<double>(g_freq.QuadPart);
+}
+
+LastCall &SlotFor(void *ai)
+{
+	for (LastCall &c : g_last) {
+		if (c.ai == ai)
+			return c;
+	}
+	for (LastCall &c : g_last) {
+		if (!c.ai) {
+			c.ai = ai;
+			return c;
+		}
+	}
+	return g_last[0];  // more than 16 AI objects: share a slot (gap values get wrong, nothing worse)
+}
 
 DWORD Field(void *self, DWORD offset)
 {
@@ -47,17 +82,19 @@ int CommandCount(void *commands)
 	}
 }
 
-void __fastcall TurnDriverHook(void *self, void *edx, int flag, void *commands)
+void __fastcall TurnDriverHook(void *self, void *edx, void *commands, int flag)
 {
 	const DWORD stage_before = Field(self, kOffStage);
+	LastCall &last = SlotFor(self);
 	LARGE_INTEGER t0, t1;
 	QueryPerformanceCounter(&t0);
-	g_original(self, edx, flag, commands);
+	const double gap = last.returned.QuadPart ? Ms(last.returned, t0) : -1.0;
+	g_original(self, edx, commands, flag);
 	QueryPerformanceCounter(&t1);
-	const double ms = 1000.0 * static_cast<double>(t1.QuadPart - t0.QuadPart) / static_cast<double>(g_freq.QuadPart);
-	hooklog::Write("ai-step ai=%p flag=%d stage %lu->%lu calls=%lu cmds=%d turn_age=%lums %.2fms",
+	last.returned = t1;
+	hooklog::Write("ai-step ai=%p flag=%d stage %lu->%lu calls=%lu cmds=%d turn_age=%lums think=%.2fms gap=%.1fms",
 	               self, flag & 0xff, stage_before, Field(self, kOffStage), Field(self, kOffCallCount),
-	               CommandCount(commands), GetTickCount() - Field(self, kOffTurnStart), ms);
+	               CommandCount(commands), GetTickCount() - Field(self, kOffTurnStart), Ms(t0, t1), gap);
 }
 
 bool PatchPointer(DWORD address, DWORD expected, DWORD replacement)
@@ -76,6 +113,16 @@ bool PatchPointer(DWORD address, DWORD expected, DWORD replacement)
 }  // namespace
 
 namespace hooks {
+
+#ifdef AI_TRACE_TEST
+// For src/hook/test/ai_trace_test.cpp: call the hook without the game.
+void *AiTraceHookForTest(void *fake_driver)
+{
+	QueryPerformanceFrequency(&g_freq);
+	g_original = reinterpret_cast<TurnDriverFn>(fake_driver);
+	return reinterpret_cast<void *>(&TurnDriverHook);
+}
+#endif
 
 void InstallAiTrace()
 {

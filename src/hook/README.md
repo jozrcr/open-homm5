@@ -26,7 +26,7 @@ If the log says "unknown build" or "could not hook" in `MMH55_Utility`, MMH5.5's
 The AI turn driver (`IPlayerAI` slot 0, `0x0086dd40`, see `docs/subsystems/ai-turn.md`) is a virtual method, so we hook it by replacing one pointer in `CPlayerAI`'s vtable (`0x00e4c8bc`). No code is patched. Each call produces one log line:
 
 ```
-  123456 [ 4321] ai-step ai=0A1B2C30 flag=0 stage 3->4 calls=17 cmds=1 turn_age=850ms 12.34ms
+  123456 [ 4321] ai-step ai=0A1B2C30 flag=0 stage 3->4 calls=17 cmds=1 turn_age=850ms think=12.34ms gap=180.5ms
 ```
 
 | Field | Meaning |
@@ -38,7 +38,8 @@ The AI turn driver (`IPlayerAI` slot 0, `0x0086dd40`, see `docs/subsystems/ai-tu
 | `calls=` | the AI's own call counter |
 | `cmds=` | commands in the output list after the call |
 | `turn_age=` | ms since this AI's turn started (its own `GetTickCount()` stamp) |
-| last number | how long this call took (ms) |
+| `think=` | how long this call took (ms): the AI's thinking time |
+| `gap=` | time between this AI's previous call returning and this call starting (ms), i.e. the time the AI waited. **This is the number to look at in co-op**: if hypothesis H1 in `docs/subsystems/ai-turn.md` is right, it is about one network round trip after each command in multiplayer, and near zero in single player. |
 
 ## Build
 
@@ -48,7 +49,10 @@ Needs Visual Studio 2019 or 2022 (C++ build tools, x86). Already on the owner's 
 powershell -File src\hook\build.ps1 -Test
 ```
 
-This builds `build\hook\dinput8.dll` and runs a smoke test outside the game (`src/hook/test/proxy_test.cpp`): it loads the DLL, calls `DirectInput8Create`, and checks that a real DirectInput object comes back.
+This builds `build\hook\dinput8.dll` and runs two tests outside the game:
+
+- `test/proxy_test.cpp`: loads the DLL, calls `DirectInput8Create`, and checks that a real DirectInput object comes back.
+- `test/ai_trace_test.cpp`: calls the AI hook exactly the way the game calls the AI (`__thiscall`, command list then flag) on a fake AI object, built with the compiler's runtime stack check (`/RTCs`). It checks that the arguments reach the original function unchanged and that the log line is right. A calling-convention mistake here would crash the game, so this test matters.
 
 ## Owner test (phase 0 gate: "DLL loads and logs AI turns; game runs normally")
 
