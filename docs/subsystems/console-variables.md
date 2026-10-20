@@ -22,5 +22,7 @@ To find the global for a name: find the function that references the name string
 | `mp_check_crc` | `0x00fe4d18` | `0x007cb230` | desync check `0x007c9410` |
 | `mp_check_object_crc` | `0x00fe4d19` | `0x007cb230` | desync check `0x007c9410` (per-object report) |
 | `mp_observer_mode_for_player2` | `0x00fe4d1a` | `0x007cb230` | |
+| `net_timeout` | `0x00f27394`, default 20 | `0x004039a0` | `0x00402a80`, `0x00402c60` (network driver), seconds |
+| `net_batched_segments` | `0x00f27398`, default 3 | `0x004039a0` | `0x00402440`: how many empty segments a PC may hold back before reporting them (see multiplayer-sync.md) |
 
-Names whose globals are not looked up yet: `aai_proceed`, `aai_testmap`, `adventure_ai_timing` (`0x00609910`), `town_ai_log`, `show_ai_fog`, `show_ai_geometry`, `combat_ai_lookahead`, `combat_ai_retreat_value`, `combat_ai_use_magic_for_human`, `log_random_calls`, `log_game_calcs`, `log_client`, `net_game_port`, `net_timeout`, `net_batched_segments`, `net_load_timeout`, `net_multiplayer_init_timeout`, `net_lan_match_maker_port`, `net_tournament_active`. Console commands (not variables): `self_adventure_ai`, `aai_play_for_humans` (`0x00590830`).
+Names whose globals are not looked up yet: `aai_proceed`, `aai_testmap`, `adventure_ai_timing` (`0x00609910`), `town_ai_log`, `show_ai_fog`, `show_ai_geometry`, `combat_ai_lookahead`, `combat_ai_retreat_value`, `combat_ai_use_magic_for_human`, `log_random_calls`, `log_game_calcs`, `log_client`, `net_game_port`, `net_load_timeout`, `net_multiplayer_init_timeout`, `net_lan_match_maker_port`, `net_tournament_active`. Console commands (not variables): `self_adventure_ai`, `aai_play_for_humans` (`0x00590830`).

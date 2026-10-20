@@ -73,6 +73,8 @@ Three facts from the code:
 
 If, in multiplayer, a command only executes once it has made its way through the network (the lockstep "everyone has it" point), then **every AI move costs at least one network round trip of waiting**. A typical AI turn has many moves (each hero step, purchase, hire…). Over GameRanger's internet links (tens to hundreds of ms per round trip), and with several AI players, that easily adds up to minutes. In single player the same commands execute immediately, which matches "AI turns are fast alone, slow in co-op".
 
+Making it worse: idle PCs report finished segments only every `net_batched_segments` (default 3) segments, see [multiplayer-sync.md](multiplayer-sync.md). So each AI move may wait several segments, not just one round trip. Setting it to 1 on every PC is a no-code experiment.
+
 **Test:** the hook DLL logs `gap=` for every AI step (time the AI waited since its previous step). In single player the gaps should be close to one frame. If H1 is right, in co-op they will be close to the ping between the PCs, once per command. If H1 holds, the fix would be to let the AI run several moves without waiting (apply its own commands locally right away, and stream them to the other PCs). That's option A in CLAUDE.md, and it only touches the AI manager / transceiver boundary.
 
 ## Related settings (console variables)
