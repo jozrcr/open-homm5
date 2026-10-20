@@ -52,6 +52,21 @@ public class DumpFunctions extends GhidraScript {
 					f.getBody().getNumAddresses() + "  callers " +
 					currentProgram.getReferenceManager().getReferenceCountTo(f.getEntryPoint()));
 				w.println("// signature: " + f.getSignature().getPrototypeString());
+				StringBuilder callers = new StringBuilder();
+				for (Function c : f.getCallingFunctions(monitor)) {
+					callers.append(' ').append(c.getEntryPoint());
+				}
+				w.println("// called from:" + callers);
+				StringBuilder callees = new StringBuilder();
+				for (Function c : f.getCalledFunctions(monitor)) {
+					callees.append(' ').append(c.getEntryPoint());
+				}
+				w.println("// calls:" + callees);
+				for (var ref : currentProgram.getReferenceManager().getReferencesTo(f.getEntryPoint())) {
+					if (ref.getReferenceType().isData()) {
+						w.println("// address taken at: " + ref.getFromAddress());
+					}
+				}
 				w.println();
 				for (Instruction ins : currentProgram.getListing().getInstructions(f.getBody(), true)) {
 					StringBuilder hex = new StringBuilder();
