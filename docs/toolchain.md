@@ -65,13 +65,47 @@ Still unknown: optimization level (`/O2` vs `/Ox`, `/Oy`), CPU target (`/G6` / `
 
 ## How to get this exact compiler
 
-**Not downloaded yet**, per the phase 0 plan. Options, best first:
+We use the free **Microsoft Visual C++ Toolkit 2003, version 1.01** (owner approved the download on 2026-10-20). Microsoft released it in 2004 as a free command-line kit (compiler, linker, C/C++ runtime libraries) and withdrew it in 2006, so it now exists only in archives.
 
-1. **Microsoft Visual C++ Toolkit 2003** (free). Microsoft released it in 2004 as a free command-line kit containing the same optimizing compiler, **`cl.exe` 13.10.3077**, plus the linker and the C/C++ runtime libraries. Microsoft withdrew it in 2006, so it now exists only in archives (for example archive.org, installer `VCToolkitSetup.exe`, about 32 MB). We would verify `cl.exe` reports `Version 13.10.3077 for 80x86` and record the file's SHA-256 here. Drawbacks: no MFC/ATL and no IDE. We need neither for compiling single functions.
-2. **Visual Studio .NET 2003 Professional (RTM)** from a paid Visual Studio Subscription (formerly MSDN). Same compiler with the full IDE. Costs money: owner decision.
-3. Not usable: VS .NET 2003 SP1 (13.10.6030), the Windows Server 2003 SP1 DDK compiler (13.10.4035), or anything newer. Different code generation.
+| | |
+|---|---|
+| Installer | `VCToolkitSetup.exe`, 32,948,392 bytes |
+| SHA-256 | `c040f6ffbc2259426dd523b7561575fe1704b58bc37092fbfe27b64aefc449f6` |
+| SHA-1 | `50dc6cca1503f08a41d56816f3f1abcaf347b0bd` (identical in two independent archive.org uploads: `vc-toolkit-2003-setup` from 2023 and `20260623_202606` from 2026) |
+| Signature | Authenticode, valid: "Microsoft Corporation", timestamped by VeriSign; product "Microsoft Visual C++ Toolkit 2003" 1.01.0000 |
+| Unpacked to | `C:\tools\vctoolkit2003` (outside the repo) |
+| How | `python tools/toolchain/extract_vctoolkit2003.py VCToolkitSetup.exe C:\tools\vctoolkit2003`. The 2004 installer does not run on modern Windows, so the script unpacks the files without running it (details in the script). |
 
-The old compiler is 32-bit and runs on Windows 11 and under Wine, so it also works on the owner's Linux PC.
+Verified: `cl.exe` prints `Version 13.10.3077 for 80x86`, and an object file it compiles carries `@comp.id` = `00600c05`, the same ID as the game's 1,209 C++ objects in the Rich header.
+
+| File | SHA-256 |
+|---|---|
+| `bin/cl.exe` | `2ecf86a3edfd3deae498e08298e210e984537ce9e11759930561e43f40bd2515` |
+| `bin/c1.dll` | `11f452af93f8e686b36b348763b33d32ae2766f1b0c360a447053bf44ec50fcc` |
+| `bin/c1xx.dll` | `353f3d5dcd050b876e1c044b99c4bf47958d255f395a4919f406a19921be4dfa` |
+| `bin/c2.dll` | `bcd28f39b1798b07989c30a1df471cf87fc20e3802d130901a08f83800e6b81e` |
+| `bin/link.exe` | `0d5f9712d0da843d787bf4ce4e678abc6b737940996706b2c86101eac9df3e3c` |
+| `bin/mspdb71.dll` | `85ebd7dcbe1b9fa756f23e5f811d7dfeccdac0de14271f2c18affbf918d8cb79` |
+| `bin/msobj71.dll` | `19ce191c44e783e70c762ef13c1e918fc07745c8f64fcfc7b217e73ef667c168` |
+
+Watch out:
+
+- **Toolkit version 1.00** (installer 32,952,488 bytes, SHA-1 `956c81c3...11f4`, archive.org item `microsoft-visual-c-toolkit-2003`) contains **build 13.10.3052**, not 3077. Wrong for us, even though it is the more widely mirrored copy.
+- The Toolkit has no MFC/ATL, no Windows SDK import libraries except `kernel32.lib`, and no IDE. For compiling single functions to compare against the exe we need none of these.
+- Not usable either: VS .NET 2003 SP1 (13.10.6030), the Windows Server 2003 SP1 DDK compiler (13.10.4035), or anything newer. Different code generation.
+- The old compiler is 32-bit, so it should also run under Wine on the owner's Linux PC (not tested yet).
+
+## Modern compilers (for the hook DLL)
+
+The hook DLL does not need to byte-match anything, so it can use a modern compiler. The owner's Windows PC already has three. Step 1 missed them, because `vswhere` (Visual Studio's locator) does not list these installs:
+
+| Install | MSVC toolset |
+|---|---|
+| `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools` (17.5) | 14.35.32215 |
+| `C:\Program Files\Microsoft Visual Studio\2022\Community` (17.3) | 14.33.31629 |
+| `C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools` (16.11) | 14.29.30133 |
+
+Windows SDK 10.0.22000.0 is installed. A test 32-bit DLL builds fine with the 2022 Build Tools (`vcvarsall.bat x86`).
 
 ## Other builds, for reference
 
