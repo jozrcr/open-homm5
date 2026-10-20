@@ -9,7 +9,7 @@ Reads (from analysis/export/, see README.md):
 Writes:
     progress/inventory.csv   one row per function: address, size, name, origin, class, subsystem
     analysis/classes.txt     one row per RTTI class: name, type descriptor, vftables
-    progress/progress.json   dashboard totals (see CLAUDE.md)
+    progress/progress.json   dashboard totals, via make_progress.py (see CLAUDE.md)
     analysis/export/vtable_targets_missing.txt   vftable entries Ghidra has no function for
 
 "origin" is a guess at where a function comes from:
@@ -29,9 +29,6 @@ Writes:
 import bisect
 import collections
 import csv
-import datetime
-import hashlib
-import json
 import pathlib
 import re
 import struct
@@ -40,9 +37,9 @@ import sys
 import pefile
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 LIBRARY_ORIGINS = {"crt", "lua", "xiph", "directx", "ubi", "thunk"}
-GENERATED_ORIGINS = {"adjustor", "eh", "init"}
 
 # Layout of the tail of .text in the reference exe (H5_Game_31_vanilla.exe).
 # The linker places the game's own object files first, then static libraries,
@@ -107,7 +104,6 @@ NAMESPACE_SUBSYSTEM = {
     "NMPChat": "net",
     "NUbi": "net",
 }
-SUBSYSTEMS = ["ai", "net", "adventure", "combat", "ui", "render", "io", "lib"]
 
 
 def read_tsv(path):
@@ -299,32 +295,15 @@ def main():
                             for (v, off), s in zip(c["vftables"], c.get("slots", [])))
             fo.write("%s\t%s\t%s\n" % (name, c["td"], vts))
 
-    # --- write progress.json -----------------------------------------------------
-    game = [f for f in funcs if f["origin"] == "game"]
-    sub_counts = collections.Counter(f["subsystem"] or "unassigned" for f in game)
-    progress = {
-        "generated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "reference": "H5_Game.exe 3.1 (sha256 %s)" % hashlib.sha256(data).hexdigest(),
-        "totals": {
-            "functions": len(game),
-            "library": sum(1 for f in funcs if f["origin"] in LIBRARY_ORIGINS),
-            "generated": sum(1 for f in funcs if f["origin"] in GENERATED_ORIGINS),
-            "matched": 0,
-            "equivalent": 0,
-        },
-        "subsystems": [{"name": s, "functions": sub_counts.get(s, 0), "matched": 0}
-                       for s in SUBSYSTEMS if s != "lib"] +
-                      [{"name": "unassigned", "functions": sub_counts.get("unassigned", 0), "matched": 0}],
-        "units": [],
-    }
-    with open(REPO / "progress" / "progress.json", "w", encoding="utf-8", newline="\n") as fo:
-        json.dump(progress, fo, indent=2)
-        fo.write("\n")
+    # --- progress.json (from the committed files, so CI can redo it) ----------------
+    import make_progress
+    make_progress.main()
 
     # --- summary to stdout ---------------------------------------------------------
+    game = [f for f in funcs if f["origin"] == "game"]
+    sub_counts = collections.Counter(f["subsystem"] or "unassigned" for f in game)
     origins = collections.Counter(f["origin"] for f in funcs)
     print("functions:", len(funcs), dict(origins.most_common()))
-    print("totals:", progress["totals"])
     print("game bytes: %d of %d" % (sum(f["size"] for f in game), sum(f["size"] for f in funcs)))
     for lo, hi, n in lua_ranges:
         print("lua cluster %08x-%08x (%d seeds)" % (lo, hi, n))
