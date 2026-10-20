@@ -15,7 +15,7 @@ There are **four different builds of the game exe** in `bin\`, not one:
 
 | Build | Files | Built | Notes |
 |---|---|---|---|
-| **Vanilla ToE 3.1** (v3.1.2.98) | `H5_GameOLD.exe` (Steam DRM wrapped), `MMH55_Utility.exe` / `_64` (unwrapped, lightly patched by MMH5.5) | 2008-06-04 | **Proposed reference.** Built with Visual Studio .NET 2003 (linker 7.10). This is what co-op games run. |
+| **Vanilla ToE 3.1** (v3.1.2.98) | `H5_GameOLD.exe` (Steam DRM wrapped), `MMH55_Utility.exe` / `_64` (unwrapped, lightly patched by MMH5.5) | 2008-06-04 | **The reference** (see below). Built with Visual Studio .NET 2003 (linker 7.10). This is what co-op games run. |
 | **3.1j "enhanced AI"** (Quantomas AI) | `MMH55.exe` / `_64` + `H5_AIProcess_31j.exe` | 2011-10-20 | A later build of the game with a rewritten AI that runs in a separate process. Single player only (no LAN). |
 | **2025 Ubisoft rebuild** (v3.1.2.99) | `H5_Game.exe` (Steam DRM wrapped) | 2025-06-05 | Same game recompiled with Visual Studio 2019 (linker 14.29). Arrived with a Steam update in July 2025. |
 | Duel Mode 2025 rebuild | `binDM\H5_Game.exe` (not copied, outside `bin\`) | 2025 | Separate "Duel Mode" build; not relevant for now. |
@@ -95,16 +95,51 @@ All players in a multiplayer game must use the same exe.
 
 Every game exe exports about 11 functions with full C++ names, all starting with `SFLB` (probably markers from the StarForce copy-protection tooling), for example `NWorld::CPlayerAI::SFLB_InitDay`. They give us real namespace and class names (`NWorld`, `NUI`, `NUbi`, `NLAN`, `NDb`, `NRandom`, `nstl`) and a few known function addresses. The 3.1j build adds `NWorld::StrategicAI::SFLB_InitDay`.
 
-## Proposed reference
+## The reference exe (confirmed by the owner, 2026-10-20)
 
-**Vanilla ToE 3.1, build 2008-06-04 (v3.1.2.98).** Reasons:
+**Vanilla ToE 3.1, build 2008-06-04 (v3.1.2.98), unwrapped from Steam DRM:**
+
+| | |
+|---|---|
+| File | `ref/H5_Game_31_vanilla.exe` |
+| SHA-256 | `94309157dc65498203c1ee0c357a30ae8788184b91d73bcd5eb5c3159aa81375` |
+| Size | 13,089,792 bytes |
+| Made from | `H5_GameOLD.exe` (SHA-256 `11690919cf726a8afd60e44ea186d1af4c7daafa720693473385767c57bd2146`) |
+| Made with | Steamless v3.1.0.5 by atom0s (zip SHA-256 `e3e2d22e098ff3fb359b2876aa2bed9596f0501e6ff588cbffae90a76d2dc4f5`), default options. It detected SteamStub variant 2.1. |
+| Image base | `0x400000` |
+
+Why this one:
 
 1. It is what CLAUDE.md asks for ("vanilla ToE 3.1").
-2. It is the code our co-op games actually run (`MMH55_Utility_64.exe`), so speeding up its AI is the Phase 1–2 target.
+2. It is the code our co-op games run. The owner confirmed GameRanger launches `MMH55_Utility_64.exe`, which is this build plus a few small patches (below). Speeding up this AI is the Phase 1–2 target.
 3. Its compiler (VS .NET 2003) is old but well known.
 
-The clean copy is `H5_GameOLD.exe` (SHA-256 `11690919...2146`), but its code is encrypted by SteamStub. Next step: remove the wrapper with Steamless (open-source) **on our copy in `ref/` only**, then compare the result with `MMH55_Utility.exe` to list exactly which code MMH5.5 patched. Needs owner approval (download).
+To recreate it on another machine: copy `bin\H5_GameOLD.exe` (check the hash above), then run `Steamless.CLI.exe <copy>`. The output must match the SHA-256 above.
 
-## Open questions for the owner
+The unwrapped file has no DOS stub or Rich header (bytes `0x40`–`0x127` are zero). The Steam wrapper removed them. This does not affect any function bytes.
 
-- Which exe does GameRanger launch for your co-op games today? If it launches `bin\H5_Game.exe`, then since July 2025 that is the 2025 Ubisoft build, not MMH5.5.
+### What MMH5.5 changed (vanilla vs `MMH55_Utility.exe`)
+
+`python tools/inventory/pe_diff.py ref/H5_Game_31_vanilla.exe ref/MMH55_Utility.exe`: 526 bytes differ in 16 regions. **Every function is at the same address in both files**, so addresses from the reference work directly in the co-op exe.
+
+| Where | Address | Bytes | What (first guess) |
+|---|---|---:|---|
+| header | `0x40` | 232 | DOS stub and Rich header restored (Steam had zeroed them) |
+| .text | `0x81eeb7` | 1 | `je` → `jmp`: a check is always skipped |
+| .text | `0x847891` | 17 | constant `0x161` → `0x179` |
+| .text | `0x84c9c0` | 1 | constant `0x61` → `0x79` |
+| .text | `0x84ca7f` | 2 | jump into new code placed in padding at `0x84cad8` |
+| .text | `0x84cad8` | 7 | new code in former padding (`push 0xC4; jmp`) |
+| .text | `0x90760a` | 60 | float constants changed (e.g. 1.0 → 1.4) |
+| .text | `0x920cb2` | 2 | a call/jump target changed |
+| .text | `0xae29e0` | 1 | constant `0x09` → `0x4a` |
+| .text | `0xba77a9` | 189 | a function body rewritten in place |
+| .text | `0xba79d4` | 18 | its jump table updated |
+| .text | `0xd11f3c` | 4 | jump into new code at `0xd122e1` |
+| .text | `0xd122e1` | 15 | new code in former padding (calls a function, then jumps back) |
+| .rdata | `0xe577dc`, `0xe57818` | 51 | object path `Cartographer` → `RMGDimensionDoor` |
+| .rdata | `0xf1ce22` | 7 | import `um.dll` → `55u.dll` (MMH5.5's own DLL) |
+
+What each patch does in gameplay terms is not known yet. That comes once Ghidra has named the functions around them.
+
+The Rich header that MMH5.5 restored likely comes from the original retail (non-Steam) 3.1 exe. Step 4 reads the compiler version from it and cross-checks it against `H5_MapEditor.exe`, built the same day.
