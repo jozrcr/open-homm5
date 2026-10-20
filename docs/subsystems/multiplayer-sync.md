@@ -22,6 +22,11 @@ The phase 1 gate ("first divergence pinned in a 2-client test") and the choice b
 | `NWorld::CReplayTransceiver` | `0x00e43bec`, `0x00e43bc8` | `0x00475d20`, `0x007c7xxx` | Plays back recorded commands (replays). |
 | `NWorld::CSimpleTempTransceiver` | `0x00e43d2c`, `0x00e43d0c` | | Unknown. |
 
+**Slot 0 is "send a command from this PC".** Callers reach it through the generic send-command method `0x00604360` (16 callers: the adventure-map UI and the AI manager, see [ai-turn.md](ai-turn.md)).
+
+- `CSinglePlayerTransceiver` slot 0 (`0x007c80a0`): queue the command for execution (`0x0079edf0`).
+- `CMultiPlayerTransceiver` slot 0 (`0x007c9810`): if this PC has a player (`this+0x54 >= 0`), compute the command's size (`0x007c9270`, the `calculate_cmd_sizes` code), queue it locally (`0x0079edf0`) and **send it** through the object at `this+0x34` (slot `0x1c`). Without a local player it checks a bit mask of players (`this+0x58`) instead.
+
 Related strings in this area: `calculate_cmd_sizes` (`0x007c9270`), `multiplayer_game_running` (`0x007c9ec0`, `0x007ca3e0`), "Drop player " (`0x007c8d10`).
 
 ## Desync detection
@@ -55,7 +60,7 @@ Related strings in this area: `calculate_cmd_sizes` (`0x007c9270`), `multiplayer
 
 ## Open questions (for phase 1)
 
-1. Confirm lockstep: does every PC execute every command, and does every PC run the AI? (See [ai-turn.md](ai-turn.md).)
-2. Which `ITransceiver` slot sends a command, and which receives one? This is where a host-authoritative AI would plug in: run the AI on the host only, then send its commands like a human player's.
+1. Confirm lockstep: does every PC execute every command? Which PC runs each AI player? (See [ai-turn.md](ai-turn.md), hypothesis H1.)
+2. When does a queued command actually execute in multiplayer, and what does it wait for? (Slot 0 sends; find where received commands are released.) This is where a faster AI turn would plug in.
 3. Does the game desync in our 3+ player co-op games, and where? Use `mp_check_object_crc`.
 4. What do turn-time-limit settings (`NUI::CTurnTimeLimitNotify`, `CTurnTimeLimitForcedEOT`) do in co-op?
