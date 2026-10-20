@@ -20,10 +20,10 @@ Status: **first static reading** (2026-10-20), from Ghidra's decompiled code of 
 
 ## The turn driver (`0x0086dd40`)
 
-Signature: `__thiscall`, **two** stack arguments (every exit is `ret 8`; Ghidra's decompiler shows only the first):
+Signature: `__thiscall`, **two** stack arguments (every exit is `ret 8`; Ghidra's decompiler gets them muddled), as pushed by the only caller (see next section):
 
-1. a flag (only the low byte is used; when non-zero some checks are skipped),
-2. a pointer to a **command list** the caller owns: a vector `{begin, end, capacity}` of 4-byte entries (probably smart pointers to command objects). The driver stores the pointer at `this+0x130` and clears the list when a new step starts. The commands the AI produces end up in it, **so the caller receives the AI's moves as data**.
+1. a pointer to a **command list** the caller owns: a vector `{begin, end, capacity}` of 4-byte entries (probably smart pointers to command objects). The driver stores the pointer at `this+0x130` and clears the list when a new step starts. The commands the AI produces end up in it, **so the caller receives the AI's moves as data**.
+2. a flag (a bool; the caller computes it from two globals, see below).
 
 The AI does not think in one go. The game calls the turn driver repeatedly, and each call works like this:
 
@@ -41,11 +41,39 @@ What this means for us:
 - **The AI works in time slices.** `aai_step_limit` bounds how long one call may think, and the game stays responsive between calls. `ai_time_limit` bounds the whole turn.
 - **The owner's profile sets `ai_time_limit = 180000`** (`profiles/default_profile/user_a2.cfg`), i.e. up to 3 minutes per AI player per turn. With several AI players, waiting times add up.
 
+## Who calls it, and where the AI's commands go
+
+The only caller is the **AI manager update** at `0x006082f0` (called from `0x00608930`, which is called from `0x00597d70`). For the player whose turn it is:
+
+1. `0x00608180` returns that player's AI object, creating it if needed (factory `0x0086d720`).
+2. It prepares an empty command list on its stack and computes the flag: `flag = g_0x00fd9e78 && ai->Player()->Id() != g_0x00fd9e7c` (two globals, probably console variables such as "AI plays for player N").
+3. `ai->slot0(&list, flag)` at `0x00608732`: **the turn driver**.
+4. For **every command in the list**, it calls `0x00604360`.
+
+`0x00604360` is a generic **"send command"** method with 16 callers, many of them from the adventure-map UI (the code behind a human player's clicks). It stores the command as "last command" (at `this+0x20`) and calls slot 0 of the object at `this+0x1c`, which is the world's **transceiver** (see [multiplayer-sync.md](multiplayer-sync.md)):
+
+- in single player (`CSinglePlayerTransceiver`, slot 0 = `0x007c80a0`) the command is just queued for execution (`0x0079edf0`);
+- in multiplayer (`CMultiPlayerTransceiver`, slot 0 = `0x007c9810`) it is queued **and sent over the network** to the other players (through the object at `this+0x34`).
+
+So **the AI's moves travel exactly like a human player's moves.**
+
 ## Who creates the AI
 
 `CPlayerAI` objects are created by the factory `0x0086d720`, called from `0x00608180`. That function goes through a list of players (at `this+0x4c`), checks several virtual "is this player …" methods and the global `0x00fd9e81` (a console variable), and creates or removes AI objects. It is reached from code under `NUI::CAdventureScreen` (`0x0059d5f0` → `0x0058d630` → `0x00608180`).
 
-So the AI objects are managed from the **adventure-map screen code**, which runs on every PC that shows the map. This hints, but does not prove, that **every PC in a multiplayer game creates and runs the AI** (lockstep). It also fits a known fact: MMH5.5's faster "enhanced AI" (3.1j) cannot be used for LAN games. If only the host ran the AI and sent its commands, a different AI on the host would not matter.
+So the AI is managed from the **adventure-map screen code**, the same layer that turns a human's clicks into commands. Because the AI's commands are sent to the other players like a human's, it seems likely that **only one PC runs a given AI player and the others just apply its commands**. That would mean vanilla already works roughly like option A. This contradicts the earlier guess that every PC runs the AI; the in-game trace will decide. (Why MMH5.5's 3.1j AI cannot do LAN remains open. Its separate AI process may simply not be wired into the multiplayer code.)
+
+## Hypothesis H1: why AI turns are slow in co-op
+
+Three facts from the code:
+
+1. The turn driver **stops thinking as soon as it has produced one command** (step 4 above) and returns.
+2. The command then goes through the transceiver, in multiplayer **over the network**.
+3. The AI plans its next move from the world state, so it has to see its previous command executed first.
+
+If, in multiplayer, a command only executes once it has made its way through the network (the lockstep "everyone has it" point), then **every AI move costs at least one network round trip of waiting**. A typical AI turn has many moves (each hero step, purchase, hire…). Over GameRanger's internet links (tens to hundreds of ms per round trip), and with several AI players, that easily adds up to minutes. In single player the same commands execute immediately, which matches "AI turns are fast alone, slow in co-op".
+
+**Test:** the hook DLL logs `gap=` for every AI step (time the AI waited since its previous step). In single player the gaps should be close to one frame. If H1 is right, in co-op they will be close to the ping between the PCs, once per command. If H1 holds, the fix would be to let the AI run several moves without waiting (apply its own commands locally right away, and stream them to the other PCs). That's option A in CLAUDE.md, and it only touches the AI manager / transceiver boundary.
 
 ## Related settings (console variables)
 
@@ -63,7 +91,7 @@ From strings in the exe; most addresses of the backing globals are still unknown
 
 ## Open questions (for phase 1)
 
-1. **Does every PC run the AI in multiplayer, or only the host?** Plan: the hook DLL logs every call of the turn driver (`0x0086dd40`) with player id, time and stack trace, on two PCs in a LAN game.
-2. Where do the AI's commands go, straight into the local world or through the multiplayer transceiver? See [multiplayer-sync.md](multiplayer-sync.md).
-3. How much of a typical turn is spent where? The game's own timing logs (if `adventure_ai_timing` enables them) or our hook will tell.
-4. Is the AI deterministic? It must be if every PC runs it. Then the random-number generator (`log_random_calls`) and the pathfinder must behave the same on every PC.
+1. **Is H1 right?** Compare the hook's `gap=` values in a single-player game and in a 2-PC LAN/GameRanger game.
+2. **Which PC runs the AI in multiplayer?** Run the hook DLL on two PCs in the same game. If only one PC logs `ai-step` lines for a given AI player, only that PC runs it.
+3. When exactly does a sent command execute in multiplayer? Read `CMultiPlayerTransceiver` (`0x007c89f0`–`0x007cc1c0`): when queued commands are released for execution, and what it waits for.
+4. How is a typical turn's time split between thinking (`think=`) and waiting (`gap=`)?
