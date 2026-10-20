@@ -11,6 +11,7 @@ ref/
 saves/
 
 # --- Disassembler databases (Ghidra, IDA) ---
+analysis/export/
 analysis/**/*.gpr
 analysis/**/*.rep/
 analysis/**/*.lock
