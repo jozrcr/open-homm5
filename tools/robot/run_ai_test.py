@@ -11,16 +11,14 @@ What it does:
      redirects "My Documents" there, so the player's real profile is untouched;
   3. starts the game straight into the map with the game's own "advmap" option,
      every player controlled by the AI ("-1" = no human players);
-  4. waits until the DLL closes the game (after --turns AI turns or --seconds),
-     taking screenshots of the game window now and then;
+  4. waits until the DLL closes the game (after --turns AI turns or --seconds);
+     the DLL saves the game's frames as screenshots now and then (--shot-every);
   5. copies the DLL's log and writes a summary to build/robot/<time>/.
 
 It never runs against the Steam install: --game must be a separate copy.
 """
 import argparse
 import codecs
-import ctypes
-import ctypes.wintypes
 import datetime
 import json
 import os
@@ -58,17 +56,30 @@ def check_game_dir(game):
         sys.exit("%s does not look like a game folder (no bin/)" % game)
 
 
-def prepare(game, args):
-    bin_dir = game / "bin"
+def install_dll(game):
     dll = REPO / "build" / "hook" / "dinput8.dll"
     if not dll.is_file():
         sys.exit("build the DLL first: powershell -File src\\hook\\build.ps1")
-    shutil.copy2(dll, bin_dir / "dinput8.dll")
+    shutil.copy2(dll, game / "bin" / "dinput8.dll")
 
-    home = game / "robot_home"
+
+def instance_files(game, instance):
+    """Robot config and DLL log of one copy of the game. Several copies can run at
+    once from the same folder: the DLL adds OPEN_HOMM5_INSTANCE to the names."""
+    suffix = "-" + instance if instance else ""
+    bin_dir = game / "bin"
+    return bin_dir / ("open-homm5-robot%s.ini" % suffix), bin_dir / ("open-homm5%s.log" % suffix)
+
+
+def prepare(game, args, out, instance="", net_port=None):
+    bin_dir = game / "bin"
+    ini, log = instance_files(game, instance)
+
+    home = game / ("robot_home-" + instance if instance else "robot_home")
     profiles = home / PROFILE_DIR
     (profiles / "Robot").mkdir(parents=True, exist_ok=True)
-    (profiles / "global_a2.cfg").write_text("setvar profile_name = Robot\n", encoding="ascii")
+    port = "setvar net_game_port = %d\n" % net_port if net_port else ""
+    (profiles / "global_a2.cfg").write_text("setvar profile_name = Robot\n" + port, encoding="ascii")
     default = game / "profiles" / "default_profile"
     base = (default / "user_a2.cfg").read_text(encoding="latin-1") if (default / "user_a2.cfg").is_file() else ""
     extra = ROBOT_SETTINGS + "".join("setvar %s\n" % s for s in args.setvar)
@@ -82,13 +93,19 @@ def prepare(game, args):
     dbid = args.map if "#xpointer" in args.map else args.map + "#xpointer(/AdvMapDesc)"
     # Player 0 is a passive "human" whose turns the DLL ends by pressing Enter.
     # ("-1" for "no humans" is rejected by this build: "Invalid player index -1!")
-    command = args.command or ("advmap %s 0 %s 1" % (dbid, args.difficulty))
-    (bin_dir / "open-homm5-robot.ini").write_text(
+    command = "" if args.no_map else (args.command or ("advmap %s 0 %s 1" % (dbid, args.difficulty)))
+    # extra script steps: "<seconds>|console|<text>", "<seconds>|menu|<page> <command>", "<seconds>|shot|<label>"
+    steps = "".join("step=%s\n" % s for s in args.step)
+    # screenshots: the DLL saves the game's own frames there as .bmp (src/hook/robot_screen.cpp)
+    ini.write_text(
         "home=%s\nquit_after_ai_turns=%d\nquit_after_seconds=%d\ncommand=%s\ncommand_delay_seconds=%d\n"
         "end_turn_every_seconds=%d\npress_enter_every_seconds=%d\nrepeat_command=%s\nrepeat_every_seconds=%d\n"
-        "trace_segments=%d\nsegment_ms=%d\n"
+        "trace_segments=%d\nsegment_ms=%d\nscreenshot_dir=%s\nscreenshot_every_seconds=%d\nnet_log=%d\n"
+        "net_share_udp_ports=%d\nnet_lan_relay_ports=%s\n%s"
         % (home, args.turns, args.seconds, command, args.command_delay, args.end_turn_every, args.press_enter_every,
-           args.repeat_command or "", args.repeat_every, 1 if args.trace_segments else 0, args.segment_ms),
+           args.repeat_command or "", args.repeat_every, 1 if args.trace_segments else 0, args.segment_ms,
+           out, args.shot_every, 1 if getattr(args, "net_log", False) else 0,
+           1 if getattr(args, "share_udp_ports", False) else 0, getattr(args, "relay_ports", ""), steps),
         encoding="ascii")
 
     # Skip the start-up videos: move them aside in the TEST COPY (restore with --restore-intro).
@@ -97,11 +114,10 @@ def prepare(game, args):
         if (video / name).exists():
             parked.mkdir(exist_ok=True)
             shutil.move(str(video / name), str(parked / name))
-    log = bin_dir / "open-homm5.log"
     for stale in (log, bin_dir / "console.txt"):
         if stale.exists():
             stale.unlink()
-    return bin_dir, log, command
+    return command
 
 
 def restore_intro(game):
@@ -112,38 +128,19 @@ def restore_intro(game):
     print("intro videos restored in", game / "video")
 
 
-# --- screenshots of the game window (Win32 + PowerShell/System.Drawing) -------
-user32 = ctypes.windll.user32
-
-
-def window_rect(pid):
-    found = []
-
-    @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
-    def callback(hwnd, _):
-        owner = ctypes.wintypes.DWORD()
-        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
-        if owner.value == pid and user32.IsWindowVisible(hwnd):
-            r = ctypes.wintypes.RECT()
-            user32.GetWindowRect(hwnd, ctypes.byref(r))
-            if r.right - r.left > 200:
-                found.append((r.left, r.top, r.right, r.bottom))
-        return True
-
-    user32.EnumWindows(callback, 0)
-    return found[0] if found else None
-
-
-def screenshot(pid, path):
-    rect = window_rect(pid)
-    if not rect:
-        return False
-    l, t, r, b = rect
-    ps = ("Add-Type -AssemblyName System.Drawing; $b = New-Object System.Drawing.Bitmap %d, %d; "
-          "$g = [System.Drawing.Graphics]::FromImage($b); $g.CopyFromScreen(%d, %d, 0, 0, $b.Size); "
-          "$b.Save('%s', [System.Drawing.Imaging.ImageFormat]::Png)" % (r - l, b - t, l, t, path))
+# --- screenshots ----------------------------------------------------------------
+# The game draws nothing on the desktop while it runs in the background, so the
+# DLL saves its frames itself (.bmp). Convert them to .png (much smaller).
+def bmp_to_png(folder):
+    bmps = sorted(folder.glob("frame-*.bmp"))
+    if not bmps:
+        return 0
+    ps = ("Add-Type -AssemblyName System.Drawing; Get-ChildItem -LiteralPath '%s' -Filter 'frame-*.bmp' | "
+          "ForEach-Object { $i = [System.Drawing.Image]::FromFile($_.FullName); "
+          "$i.Save([IO.Path]::ChangeExtension($_.FullName, 'png'), [System.Drawing.Imaging.ImageFormat]::Png); "
+          "$i.Dispose(); Remove-Item -LiteralPath $_.FullName }" % folder)
     subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True)
-    return True
+    return len(bmps)
 
 
 # --- log analysis ---------------------------------------------------------------
@@ -215,6 +212,51 @@ def summarize(log_text, exit_code, elapsed):
     }
 
 
+def launch(game, exe, instance=""):
+    bin_dir = game / "bin"
+    env = dict(os.environ)
+    env.pop("OPEN_HOMM5_INSTANCE", None)
+    if instance:
+        env["OPEN_HOMM5_INSTANCE"] = instance
+    return subprocess.Popen([str(bin_dir / exe)], cwd=bin_dir, env=env)
+
+
+def wait(procs, limit_s):
+    """Wait for the games to close themselves; kill them after limit_s seconds."""
+    start = time.time()
+    try:
+        while any(p.poll() is None for p in procs):
+            if time.time() - start > limit_s:
+                print("game did not close itself in time: killing it")
+                break
+            time.sleep(1)
+    finally:
+        for p in procs:
+            if p.poll() is None:
+                p.kill()
+    return [p.wait() for p in procs], time.time() - start
+
+
+def collect(game, out, instance, exit_code, elapsed):
+    """Copy one copy's log (and the console output) to out/, remove its robot
+    config, and return its summary."""
+    ini, log = instance_files(game, instance)
+    # Leave the test copy playable by hand: without this file the DLL does not
+    # enter robot mode (it only logs AI steps).
+    ini.unlink(missing_ok=True)
+    text = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
+    (out / "open-homm5.log").write_text(text, encoding="utf-8")
+    # the game's own console output (game_writelog = 1 writes it to console.txt, UTF-16)
+    console = game / "bin" / "console.txt"
+    if console.exists():
+        raw = console.read_bytes()
+        enc = "utf-16" if raw[:2] in (codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE) else "utf-16-le" if raw[1:2] == bytes(1) else "latin-1"
+        (out / "console.txt").write_text(raw.decode(enc, errors="replace"), encoding="utf-8")
+    summary = summarize(text, exit_code, elapsed)
+    summary["screenshots"] = bmp_to_png(out)
+    return summary
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--game", default=r"C:\Games\H5_test", help="test copy of the game (never the Steam folder)")
@@ -224,7 +266,7 @@ def main():
     p.add_argument("--turns", type=int, default=8, help="stop after this many AI turns (all AI players together)")
     p.add_argument("--seconds", type=int, default=600, help="hard time limit")
     p.add_argument("--setvar", action="append", default=[], help='extra profile setting, e.g. "ai_time_limit = 20000"')
-    p.add_argument("--shot-every", type=int, default=30, help="seconds between screenshots (0 = none)")
+    p.add_argument("--shot-every", type=int, default=30, help="seconds between screenshots of the game's frames (0 = only shot steps)")
     p.add_argument("--command-delay", type=int, default=8, help="seconds after start-up before the map is started")
     p.add_argument("--end-turn-every", type=int, default=5,
                    help="the DLL ends the passive human's turn (when no AI is playing) at most every N seconds")
@@ -235,6 +277,10 @@ def main():
     p.add_argument("--trace-segments",action="store_true", help="log every single-player command segment")
     p.add_argument("--repeat-command",help="console command the DLL runs every --repeat-every seconds")
     p.add_argument("--repeat-every", type=int, default=0)
+    p.add_argument("--step", action="append", default=[],
+                   help='extra robot script step "<seconds>|<kind>|<text>", kind = console, menu, ui, msg, map '
+                        'or shot (see src/hook/robot.cpp)')
+    p.add_argument("--no-map", action="store_true", help="do not start a map (for menu experiments)")
     p.add_argument("--command",help="console command to run instead of the default advmap line")
     p.add_argument("--restore-intro", action="store_true", help="put the intro videos back in the test copy and exit")
     args = p.parse_args()
@@ -244,51 +290,21 @@ def main():
     if args.restore_intro:
         restore_intro(game)
         return
-    bin_dir, log, command = prepare(game, args)
     out = REPO / "build" / "robot" / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     out.mkdir(parents=True)
+    install_dll(game)
+    command = prepare(game, args, out)
 
     # Not "-advmap" on the command line: WinMain runs the console command
     # "mainmenu" right after it (0x00d112a7), so the game always lands in the
     # main menu. The DLL runs the "advmap" command itself instead.
-    cmd = [str(bin_dir / args.exe)]
-    (out / "command.txt").write_text(" ".join(cmd) + "\nconsole: " + command + "\n", encoding="utf-8")
-    print("starting:", " ".join(cmd), "| console command:", command)
-    start = time.time()
-    proc = subprocess.Popen(cmd, cwd=bin_dir)
-    next_shot, shots = start + 10, 0
-    try:
-        while proc.poll() is None:
-            if time.time() - start > args.seconds + 60:
-                print("game did not close itself in time: killing it")
-                proc.kill()
-                break
-            if args.shot_every and time.time() >= next_shot:
-                if screenshot(proc.pid, out / ("shot-%03d.png" % shots)):
-                    shots += 1
-                next_shot = time.time() + args.shot_every
-            time.sleep(1)
-    finally:
-        if proc.poll() is None:
-            proc.kill()
-    exit_code = proc.wait()
-    elapsed = time.time() - start
-    # Leave the test copy playable by hand: without this file the DLL does not
-    # enter robot mode (it only logs AI steps).
-    (bin_dir / "open-homm5-robot.ini").unlink(missing_ok=True)
-
-    text = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
-    (out / "open-homm5.log").write_text(text, encoding="utf-8")
-    # the game's own console output (game_writelog = 1 writes it to console.txt, UTF-16)
-    console = bin_dir / "console.txt"
-    if console.exists():
-        raw = console.read_bytes()
-        enc = "utf-16" if raw[:2] in (codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE) else "utf-16-le" if raw[1:2] == bytes(1) else "latin-1"
-        (out / "console.txt").write_text(raw.decode(enc, errors="replace"), encoding="utf-8")
-    summary = summarize(text, exit_code, elapsed)
-    summary["command"] = cmd
+    exe = game / "bin" / args.exe
+    (out / "command.txt").write_text("%s\nconsole: %s\n" % (exe, command), encoding="utf-8")
+    print("starting:", exe, "| console command:", command)
+    (exit_code,), elapsed = wait([launch(game, args.exe)], args.seconds + 60)
+    summary = collect(game, out, "", exit_code, elapsed)
+    summary["command"] = [str(exe)]
     summary["console_command"] = command
-    summary["screenshots"] = shots
     (out / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))
     print("results in", out)

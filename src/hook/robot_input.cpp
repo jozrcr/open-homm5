@@ -182,6 +182,7 @@ void OnDirectInputCreated(void *direct_input)
 {
 	if (!Active() || !direct_input)
 		return;
+	InstallMenuHooks();  // DirectInput is created before the main menu is built
 	void *orig = PatchSlot(direct_input, kCreateDevice, reinterpret_cast<void *>(&HookCreateDevice));
 	if (orig)
 		g_real_create_device = reinterpret_cast<CreateDeviceFn>(orig);

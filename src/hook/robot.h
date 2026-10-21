@@ -1,6 +1,7 @@
 // Robot mode: lets tools/robot/run_ai_test.py run the game unattended.
 //
-// Active only when a file "open-homm5-robot.ini" sits next to the game exe (only
+// Active only when a file "open-homm5-robot.ini" ("open-homm5-robot-<instance>.ini"
+// when OPEN_HOMM5_INSTANCE is set, see log.h) sits next to the game exe (only
 // ever in a test copy of the game). It then:
 //   - redirects the "My Documents" folder (SHGetFolderPathA) to a robot home
 //     folder, so the game uses its own profile and never touches the player's;
@@ -14,6 +15,11 @@
 //   command_delay_seconds=8
 //   end_turn_every_seconds=5      (ends the passive human's turns, see robot_endturn.cpp)
 //   press_enter_every_seconds=0   (robot keyboard; not read by the game in the background yet)
+//   step=12|menu|multi lan        (script steps: console, menu, ui or shot; see robot.cpp)
+//   screenshot_dir=C:\Games\H5_test\robot_frames
+//   screenshot_every_seconds=10   (robot_screen.cpp)
+//   net_log=1                     (robot_net.cpp)
+//   net_lan_relay_ports=8891      (two copies on one PC, robot_net.cpp)
 #pragma once
 #include <windows.h>
 
@@ -36,6 +42,48 @@ bool PressKey(int dik_code);
 void OnAiStep();               // from the AI trace, every AI step
 void InstallEndTurnHelper();   // from the main loop, once the build is known
 void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms);
+
+// The game's narrow string as passed to button-command handlers: {begin, end,
+// capacity} of chars (the handlers only read it).
+struct GameString {
+	const char *begin, *end, *capacity;
+};
+
+// Robot menus (robot_menu.cpp): learn the main-menu page objects, then press
+// their buttons by command string (e.g. MenuCommand("multi", "lan")).
+void InstallMenuHooks();
+bool MenuCommand(const char *page, const char *command);
+
+// Robot UI (robot_ui.cpp): send a button command to the screen of that class
+// (e.g. UiCommand("NUI::CLobbyScreen", "create")), found through the game's RTTI.
+bool UiCommand(const char *screen, const char *command);
+// The live screen object of that class (last one found), or nullptr.
+void *FindScreen(const char *screen);
+// Research: "<screen class> <hex offset> ..." logs the objects along a pointer chain.
+void Peek(const char *spec);
+// Post a game message by name, like a button with an ARSendGameMessage reaction.
+bool PostGameMessage(const char *name, int param);
+// The live object with this vftable and, at second_offset, second_vftable (last
+// one found; *count = how many), by scanning the game's memory (~0.1 s).
+void *FindLiveObject(DWORD vftable, DWORD second_offset, DWORD second_vftable, int *count);
+
+// Robot lobby (robot_lobby.cpp): highlight the first map whose file path contains
+// `wanted` on the multiplayer "create a game" screen (logs all maps).
+bool PickMap(const char *wanted);
+
+// Robot screenshots (robot_screen.cpp): the game's own frames, saved as .bmp.
+void InstallScreenshots(const char *dir);   // from Init, before Direct3D starts
+void RequestScreenshot(const char *label);  // the next frame shown is saved
+DWORD LastFrameTick();                      // GetTickCount() of the last frame shown
+
+// Robot network log (robot_net.cpp), when net_log=1: socket calls in the log.
+// For several copies of the game on one PC (LAN game discovery), see the file:
+// share_udp_ports (net_share_udp_ports=1) and relay_ports (net_lan_relay_ports=P,Q).
+void InstallNetLog(bool share_udp_ports, const char *relay_ports);
+
+// Replace one import of the exe (its import address table entry); returns the
+// original function, or nullptr if the import is not found.
+void *PatchImport(const char *dll, const char *function, void *replacement);
 
 // Optional segment trace (robot_trace.cpp), when trace_segments=1.
 void InstallSegmentTrace();
