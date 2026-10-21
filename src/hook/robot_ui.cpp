@@ -410,19 +410,22 @@ bool UiCommand(const char *screen, const char *command)
 // to wait for a human:
 //   - the combat results: its OK runs the reaction "Close" (UI/CombatResults/Ok,
 //     handled by 0x00581120);
-//   - "common boxes" (NUI::CCommonBox and the boxes built on it, e.g. the
-//     retreat box a defending hero gets): their OK button posts the game
-//     message "left" (UI/CommonBoxes/Left_ARSendGameMessage), cancel "right".
+//   - the retreat box a human player's hero gets when attacked
+//     (NUI::CRetreatBox, a NUI::CCommonBox): NOT solved yet. OK needs Flee or
+//     Surrender chosen first (buttons built in code, 0x00570cf0); neither the
+//     common boxes' OK message "left" nor the box's own close message
+//     "input_Combat_Retreat_Close" (Escape, registered at 0x00570b60) closed it
+//     in a test. The robot only logs it, so a stuck run says why.
+// Other common boxes post "left" for OK and "right" for cancel
+// (UI/CommonBoxes/*_ARSendGameMessage).
 void AutoCloseScreens()
 {
 	g_quiet = true;
 	UiCommand("NUI::CCombatResults", "Close");  // logs only when it found the window
-	const char *boxes[] = {"NUI::CRetreatBox"};
-	for (const char *box : boxes) {
-		if (FindScreen(box)) {
-			hooklog::Write("robot: %s open: pressing OK", box);
-			PostGameMessage("left", 0);
-		}
+	static bool retreat_logged = false;
+	if (!retreat_logged && FindScreen("NUI::CRetreatBox")) {
+		retreat_logged = true;
+		hooklog::Write("robot: a retreat box waits for the human player's choice (the robot cannot answer it yet)");
 	}
 	g_quiet = false;
 }
