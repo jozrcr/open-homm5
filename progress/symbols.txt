@@ -1,0 +1,5 @@
+# Known addresses of functions and globals that decompiled code refers to but that
+# are not (yet) reconstructed in a unit.json. The verifier uses this to check that
+# every call/jump/data reference in a matched function points to the right place.
+# Format: address  mangled-name   # comment
+00401330  ?Func00401330@CGameTimer@NGameTimer@@QAEXHH@Z   # called by CGameTimer slot 21

@@ -8,7 +8,9 @@ Scripts that describe the reference exe: what files exist, which compiler built 
 | `pe_diff.py <a.exe> <b.exe>` | Lists the byte regions where two same-size builds differ (used to find MMH5.5's patches). |
 | `rich_header.py <exe> [comp_id.txt]` | Decodes the MSVC Rich header: which compiler/linker builds made the exe (see `docs/toolchain.md`). |
 | `rtti_scan.py <exe> <out.tsv>` | Finds every RTTI class and vftable directly in the exe bytes, and demangles the class names with Ghidra's demangler. |
-| `build_inventory.py <export> <exe>` | Turns the Ghidra dump plus the RTTI scan into `progress/inventory.csv`, `analysis/classes.txt` and `progress/progress.json`. |
+| `build_inventory.py <export> <exe>` | Turns the Ghidra dump plus the RTTI scan into `progress/inventory.csv` and `analysis/classes.txt`, then runs `make_progress.py`. |
+| `make_progress.py` | Regenerates `progress/progress.json` from committed files only (inventory, `matched.txt`, `equivalent.txt`, `unit.json` files), so CI can run it. |
+| `ghidra/DumpFunctions.java` | Ghidra script: writes disassembly and decompiled C of chosen functions to text files, for research and decompiling. |
 | `ghidra/SetMsvcCompiler.java` | Ghidra script: marks the program as MSVC-built (see "Why the extra steps"). |
 | `ghidra/CreateFunctionsFromList.java` | Ghidra script: creates functions at a list of addresses. |
 | `ghidra/ExportInventory.java` | Ghidra script: dumps functions and the strings they reference to TSV files. |

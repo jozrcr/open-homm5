@@ -48,9 +48,24 @@ What this tells us beyond the version:
 - **About 1,200 C++ source files.** Each one is a "translation unit" in CLAUDE.md terms, and later a GitHub issue. Some belong to statically linked libraries rather than game code.
 - **No link-time code generation (`/GL`) and no profile-guided optimization.** Every function is compiled on its own, so matching one function at a time is realistic.
 
-## Compiler flags (first clues)
+## Compiler flags
 
-Collected from what the exe imports from `msvcr71.dll`. To be refined when we match the first functions.
+### Confirmed by matching (2026-10-20)
+
+`/O2 /G7` ("maximize speed", "tune for Pentium 4"), plus `/GX /GR`. Tested on the first 10 matched functions (`src/decomp/GameTimer`):
+
+| Flags | Functions matching |
+|---|---:|
+| `/O2` alone, or with `/G6`, `/G5`, `/GB` | 7 of 10 |
+| **`/O2 /G7`** | **10 of 10** |
+| `/O1 /G7` | 6 of 10 |
+| `/Ox /G7` | 1 of 10 (`/Ox` lacks `/Gy`, so functions are not packaged one per section) |
+
+`/G7` shows in the code as `add eax,1` instead of `inc eax`, and as memory operands (`add eax,[ecx+34h]`) instead of separate loads. These small functions cannot tell `/arch:SSE`, `/Oy-` or `/GS` apart. Bigger functions will.
+
+### First clues from the imports
+
+Collected from what the exe imports from `msvcr71.dll`.
 
 | Clue | Flag |
 |---|---|
