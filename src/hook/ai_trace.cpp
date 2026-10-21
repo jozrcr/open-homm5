@@ -15,6 +15,7 @@
 
 #include "hooks.h"
 #include "log.h"
+#include "robot.h"
 
 namespace {
 
@@ -92,8 +93,12 @@ void __fastcall TurnDriverHook(void *self, void *edx, void *commands, int flag)
 	g_original(self, edx, commands, flag);
 	QueryPerformanceCounter(&t1);
 	last.returned = t1;
+	const DWORD stage_after = Field(self, kOffStage);
+	robot::OnAiStep();
+	if (stage_before == 0 && stage_after != 0)  // stage 0 = InitDay: a new turn began
+		robot::OnAiTurnStart(self);
 	hooklog::Write("ai-step ai=%p flag=%d stage %lu->%lu calls=%lu cmds=%d turn_age=%lums think=%.2fms gap=%.1fms",
-	               self, flag & 0xff, stage_before, Field(self, kOffStage), Field(self, kOffCallCount),
+	               self, flag & 0xff, stage_before, stage_after, Field(self, kOffCallCount),
 	               CommandCount(commands), GetTickCount() - Field(self, kOffTurnStart), Ms(t0, t1), gap);
 }
 

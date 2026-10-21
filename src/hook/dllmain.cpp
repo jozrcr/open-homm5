@@ -12,6 +12,7 @@
 #include "game_build.h"
 #include "hooks.h"
 #include "log.h"
+#include "robot.h"
 
 namespace {
 
@@ -55,7 +56,10 @@ HRESULT WINAPI Proxy_DirectInput8Create(HINSTANCE inst, DWORD version, REFIID ri
 	InstallHooksOnce();
 	typedef HRESULT(WINAPI * Fn)(HINSTANCE, DWORD, REFIID, LPVOID *, LPUNKNOWN);
 	Fn fn = reinterpret_cast<Fn>(Real("DirectInput8Create"));
-	return fn ? fn(inst, version, riid, out, outer) : E_FAIL;
+	const HRESULT hr = fn ? fn(inst, version, riid, out, outer) : E_FAIL;
+	if (SUCCEEDED(hr) && out)
+		robot::OnDirectInputCreated(*out);  // no-op unless robot mode is on
+	return hr;
 }
 
 HRESULT WINAPI Proxy_DllCanUnloadNow()
@@ -101,6 +105,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID)
 		DisableThreadLibraryCalls(inst);
 		hooklog::Open(inst);
 		hooklog::Write("open-homm5 hook DLL loaded (built " __DATE__ " " __TIME__ ")");
+		robot::Init();  // before the game reads its profile
 	}
 	else if (reason == DLL_PROCESS_DETACH) {
 		hooklog::Write("process exiting");

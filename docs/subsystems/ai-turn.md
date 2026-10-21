@@ -63,6 +63,25 @@ So **the AI's moves travel exactly like a human player's moves.**
 
 So the AI is managed from the **adventure-map screen code**, the same layer that turns a human's clicks into commands. Because the AI's commands are sent to the other players like a human's, it seems likely that **only one PC runs a given AI player and the others just apply its commands**. That would mean vanilla already works roughly like option A. This contradicts the earlier guess that every PC runs the AI; the in-game trace will decide. (Why MMH5.5's 3.1j AI cannot do LAN remains open. Its separate AI process may simply not be wired into the multiplayer code.)
 
+## Measured (2026-10-21, robot, single player)
+
+First real measurements, made by the robot (`tools/robot/run_ai_test.py`) with the hook DLL's AI trace on map A1M4 (2 AI players, hard difficulty, MMH55_Utility_64):
+
+| Setting | AI steps per turn | Commands per turn | Think time per turn | Wait between steps (median) |
+|---|---:|---:|---:|---:|
+| default (`adventure_speed_ai = 2`) | 28–32 | 72–88 | ~110 ms | **401 ms** |
+| `adventure_speed_ai = 1` | 26–28 | 61–69 | ~90 ms | **401 ms** |
+| `adventure_speed_ai = 10` | 25–27 | 65–70 | ~78 ms | **403 ms** |
+| `AI_SEGMENT_DURATION = 10` | 25–26 | 63–65 | ~92 ms | **400 ms** |
+
+- **The AI is not slow at thinking.** A whole AI turn needs about 0.1 s of computation.
+- **It waits about 400 ms after every step**, whatever the animation speed. Over a turn that is ~12 s of waiting for ~0.1 s of work, i.e. **over 99% of the AI turn is waiting**, even in single player.
+- 400 ms is two of the 200 ms segments seen in the transceiver code, so the wait is probably the time for the AI's commands to go through the command queue (one segment to send, one to execute) before the AI is called again. Not confirmed yet.
+
+This shifts H1: the per-step wait exists even without a network; in multiplayer the network and `net_batched_segments` delays come on top of it.
+
+**Next:** find what sets the ~400 ms rhythm (how often the AI manager `0x006082f0` is called, and when queued commands execute), then test whether letting the AI take several steps per wait makes turns faster without changing the AI's decisions.
+
 ## Hypothesis H1: why AI turns are slow in co-op
 
 Three facts from the code:

@@ -75,5 +75,6 @@ On **Linux** (Wine/Proton) Wine prefers its own built-in `dinput8.dll`. Tell it 
 | `hooks.cpp/.h` | installs all hooks (honours `open-homm5.nohooks`) |
 | `ai_trace.cpp` | the AI turn trace |
 | `log.cpp/.h` | `open-homm5.log` writer |
+| `robot.cpp/.h`, `robot_endturn.cpp`, `robot_input.cpp` | robot mode for unattended test runs; only active when `open-homm5-robot.ini` is next to the exe (see `tools/robot/README.md`) |
 | `test/proxy_test.cpp` | smoke test |
 | `build.ps1` | build script |
