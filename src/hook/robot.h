@@ -80,6 +80,8 @@ bool PickMap(const char *wanted);
 bool PickSave(const char *wanted);
 // A checkbox of the multiplayer setup screen: "quick_combat|ghostmode|realtime <state>".
 bool SetCreateOption(const char *spec);
+// A slider of the multiplayer setup screen: "animationspeed|difficulty|timelimit|combatturnspeed <position>".
+bool SetCreateSlider(const char *spec);
 // Highlight game number `index` (0 = first) in the LAN lobby's games list.
 bool PickGame(int index);
 // Research: log the waiting room's player slots and whether the host can start.

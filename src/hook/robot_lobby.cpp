@@ -206,6 +206,49 @@ bool SetCreateOption(const char *spec)
 	}
 }
 
+// Sliders of the same options panel (ISlider pointers): +0x24 timelimitscroll,
+// +0x28 difficultyscroll, +0x34 animationspeedscroll, +0x40
+// combatturnspeedscroll. ISlider slot 10 SetPosition(step), slot 11 position
+// (both forwarded to the CWindowSlider inside, 0x0048f370 / 0x0048f2e0). The
+// game reads animation speed = position + 1, 1 to 4 (0x00708f10).
+bool SetCreateSlider(const char *spec)
+{
+	struct Slider {
+		const char *name;
+		DWORD offset;
+	};
+	const Slider sliders[] = {{"timelimit", 0x24}, {"difficulty", 0x28}, {"animationspeed", 0x34}, {"combatturnspeed", 0x40}};
+	const char *space = strchr(spec, ' ');
+	const Slider *slider = nullptr;
+	for (const Slider &s : sliders) {
+		if (space && strncmp(spec, s.name, static_cast<size_t>(space - spec)) == 0 && !s.name[space - spec])
+			slider = &s;
+	}
+	if (!slider) {
+		hooklog::Write("robot: unknown slider \"%s\" (timelimit, difficulty, animationspeed, combatturnspeed)", spec);
+		return false;
+	}
+	const int position = atoi(space + 1);
+	BYTE *panel = static_cast<BYTE *>(FindScreen("NUI::CMPCreateOptions"));
+	if (!panel)
+		return false;
+	typedef void(__fastcall *SetFn)(void *self, void *edx, int position);
+	typedef int(__fastcall *GetFn)(void *self, void *edx);
+	__try {
+		void *s = *reinterpret_cast<void **>(panel + slider->offset);
+		void **vt = *static_cast<void ***>(s);
+		const int before = reinterpret_cast<GetFn>(vt[11])(s, nullptr);
+		reinterpret_cast<SetFn>(vt[10])(s, nullptr, position);
+		const int after = reinterpret_cast<GetFn>(vt[11])(s, nullptr);
+		hooklog::Write("robot: slider %s: position %d -> %d", slider->name, before, after);
+		return after == position;
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		hooklog::Write("robot: setting slider %s crashed (caught)", slider->name);
+		return false;
+	}
+}
+
 // The LAN lobby (NUI::CLobbyScreen) shows the games it has heard of in a
 // NUI::CGamesView2 at +0x1dc, whose list widget (CWindowListCtrl, through its
 // IListControl part, vftable 0x00e94870) is at view+8. "join" uses the
