@@ -7,9 +7,10 @@ Usage:
 Both copies run the same exe from the TEST COPY of the game, each with its own
 robot profile, robot config, DLL log and screenshots (the runner sets
 OPEN_HOMM5_INSTANCE=host / client; see src/hook/log.h). The robot script:
-  host:   Multiplayer > LAN > Create > pick the map > create the game,
-          then wait for the client and start;
-  client: Multiplayer > LAN > join the host's game.
+  host:   Multiplayer > LAN > Create > pick the map > create the game;
+  client: Multiplayer > LAN > join the host's game;
+  both:   press their "ready" arrow; the host sets the third slot to computer
+          and starts.
 Once the game starts, both copies run it in lockstep and the DLL logs every AI
 step in both, which shows how long AI turns take in a multiplayer game (see
 docs/subsystems/multiplayer-sync.md).
@@ -56,6 +57,7 @@ def main():
     p.add_argument("--end-turn-every", type=int, default=5,
                    help="the DLL ends its human player's turn (when no AI is playing) at most every N seconds")
     p.add_argument("--setvar", action="append", default=[], help="extra profile setting for both copies")
+    p.add_argument("--start-at", type=int, default=43, help="script time of the host's start (seconds)")
     p.add_argument("--host-step", action="append", default=[], help="extra host script step (see run_ai_test.py)")
     p.add_argument("--client-step", action="append", default=[], help="extra client script step")
     args = p.parse_args()
@@ -69,11 +71,24 @@ def main():
         "15|map|" + args.map,
         "17|msg|create",
         "22|shot|host-waiting",
+        # waiting room: rows 0 = host, 1 = client, 2 = the map's third player.
+        # State arrows (src/hook/robot_lobby.cpp): the host gets ready; the empty
+        # third slot goes open -> computer, so there is an AI to time.
+        "36|arrow|0 right",
+        "37|arrow|2 right",
+        "40|slots|",
+        "41|shot|host-ready",
+        "%d|msg|start" % args.start_at,
+        "%d|shot|host-started" % (args.start_at + 12),
     ] + args.host_step
     client_steps = [
         "10|menu|multi lan",
-        "16|shot|client-lobby",
-        "24|shot|client-lobby2",
+        "24|shot|client-lobby",
+        "26|game|0",
+        "27|ui|NUI::CLobbyScreen join",
+        "32|shot|client-joined",
+        "36|arrow|1 right",
+        "%d|shot|client-started" % (args.start_at + 12),
     ] + args.client_step
 
     robot.install_dll(game)

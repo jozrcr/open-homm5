@@ -29,10 +29,11 @@ bool g_command_done = false;  // true once the first script step has run
 // "step=<seconds>|shot|<label>" (screenshot of the next frame).
 struct Step {
 	DWORD at_ms;
-	char kind;  // 'c' console, 'm' menu, 'u' ui, 'g' game message, 'p' pick map, 'k' peek, 's' screenshot
+	char kind;  // 'c' console, 'm' menu, 'u' ui, 'g' game message, 'p' pick map, 'j' pick game, 'k' peek,
+	            // 'w' waiting-room slots, 'a' slot arrow, 'v' memory, 's' screenshot
 	char text[512];
 };
-const int kMaxSteps = 16;
+const int kMaxSteps = 32;
 Step g_steps[kMaxSteps];
 int g_step_count = 0;
 int g_next_step = 0;
@@ -289,6 +290,35 @@ BOOL WINAPI RobotPeekMessageA(LPMSG msg, HWND hwnd, UINT min, UINT max, UINT rem
 			}
 			else if (s.kind == 'p') {  // "<part of a map name>"
 				PickMap(s.text);
+			}
+			else if (s.kind == 'v') {  // "<hex address> ...": log game variables (dwords)
+				char line[256] = "robot: memory:";
+				for (const char *p = s.text; p && *p;) {
+					char *end = nullptr;
+					const DWORD address = strtoul(p, &end, 16);
+					if (end == p)
+						break;
+					char item[40];
+					__try {
+						_snprintf_s(item, sizeof(item), _TRUNCATE, " [%08lx]=%ld", address,
+						            *reinterpret_cast<const LONG *>(address));
+					}
+					__except (EXCEPTION_EXECUTE_HANDLER) {
+						_snprintf_s(item, sizeof(item), _TRUNCATE, " [%08lx]=?", address);
+					}
+					strncat_s(line, sizeof(line), item, _TRUNCATE);
+					p = end;
+				}
+				hooklog::Write("%s", line);
+			}
+			else if (s.kind == 'a') {  // "<row> left|right": a waiting-room state arrow
+				PressSlotArrow(s.text);
+			}
+			else if (s.kind == 'w') {  // research: the waiting room's player slots
+				LogWaitSlots();
+			}
+			else if (s.kind == 'j') {  // "<number>": a game in the LAN lobby's list
+				PickGame(atoi(s.text));
 			}
 			else if (s.kind == 'k') {  // "<screen class> <hex offset> ..."
 				Peek(s.text);
@@ -622,6 +652,10 @@ bool ReadConfig(const wchar_t *path)
 				         : strcmp(kind, "msg") == 0  ? 'g'
 				         : strcmp(kind, "map") == 0  ? 'p'
 				         : strcmp(kind, "peek") == 0 ? 'k'
+				         : strcmp(kind, "game") == 0 ? 'j'
+				         : strcmp(kind, "slots") == 0 ? 'w'
+				         : strcmp(kind, "arrow") == 0 ? 'a'
+				         : strcmp(kind, "mem") == 0 ? 'v'
 				                                     : 'c';
 				lstrcpynA(s.text, text, sizeof(s.text));
 			}
@@ -705,6 +739,14 @@ void Init()
 		WideCharToMultiByte(CP_ACP, 0, g_command, -1, g_steps[0].text, sizeof(g_steps[0].text), nullptr, nullptr);
 		++g_step_count;
 	}
+	// steps run in time order (stable: steps given the same time keep their order)
+	for (int i = 1; i < g_step_count; ++i) {
+		for (int j = i; j > 0 && g_steps[j - 1].at_ms > g_steps[j].at_ms; --j) {
+			const Step t = g_steps[j];
+			g_steps[j] = g_steps[j - 1];
+			g_steps[j - 1] = t;
+		}
+	}
 	if (g_shot_dir[0])
 		InstallScreenshots(g_shot_dir);
 	if (g_net_log || g_share_udp_ports || g_relay_ports[0])
@@ -720,6 +762,10 @@ void Init()
 		               : g_steps[i].kind == 'g' ? "msg"
 		               : g_steps[i].kind == 'p' ? "map"
 		               : g_steps[i].kind == 'k' ? "peek"
+		               : g_steps[i].kind == 'j' ? "game"
+		               : g_steps[i].kind == 'w' ? "slots"
+		               : g_steps[i].kind == 'a' ? "arrow"
+		               : g_steps[i].kind == 'v' ? "mem"
 		               : g_steps[i].kind == 's' ? "shot"
 		                                        : "console",
 		               g_steps[i].text);

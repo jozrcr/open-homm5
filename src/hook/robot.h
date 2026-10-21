@@ -59,6 +59,9 @@ bool MenuCommand(const char *page, const char *command);
 bool UiCommand(const char *screen, const char *command);
 // The live screen object of that class (last one found), or nullptr.
 void *FindScreen(const char *screen);
+// The RTTI type descriptor of a class or struct ("IWindow"), for the game's
+// __RTDynamicCast, or nullptr.
+const void *TypeDescriptorOf(const char *name);
 // Research: "<screen class> <hex offset> ..." logs the objects along a pointer chain.
 void Peek(const char *spec);
 // Post a game message by name, like a button with an ARSendGameMessage reaction.
@@ -70,6 +73,12 @@ void *FindLiveObject(DWORD vftable, DWORD second_offset, DWORD second_vftable, i
 // Robot lobby (robot_lobby.cpp): highlight the first map whose file path contains
 // `wanted` on the multiplayer "create a game" screen (logs all maps).
 bool PickMap(const char *wanted);
+// Highlight game number `index` (0 = first) in the LAN lobby's games list.
+bool PickGame(int index);
+// Research: log the waiting room's player slots and whether the host can start.
+void LogWaitSlots();
+// Press a waiting-room row's state arrow: "<row> left|right".
+bool PressSlotArrow(const char *spec);
 
 // Robot screenshots (robot_screen.cpp): the game's own frames, saved as .bmp.
 void InstallScreenshots(const char *dir);   // from Init, before Direct3D starts

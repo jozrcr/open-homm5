@@ -136,12 +136,8 @@ DWORD FindVftable(const TypeDescriptor *type, DWORD offset, const CompleteObject
 	return vftable;
 }
 
-const Screen *Lookup(const char *name)
+void EnsureImage()
 {
-	for (int i = 0; i < g_cache_count; ++i) {
-		if (strcmp(g_cache[i].name, name) == 0)
-			return &g_cache[i];
-	}
 	if (!g_image) {
 		g_image = reinterpret_cast<const BYTE *>(GetModuleHandleW(nullptr));
 		const IMAGE_NT_HEADERS32 *nt = reinterpret_cast<const IMAGE_NT_HEADERS32 *>(
@@ -153,13 +149,28 @@ const Screen *Lookup(const char *name)
 			readable += 0x1000;
 		g_image_size = readable;
 	}
+}
+
+// "NUI::CLobbyScreen" (a class or a struct) -> its type descriptor, or nullptr.
+const TypeDescriptor *FindClass(const char *name)
+{
+	EnsureImage();
 	char mangled[128];
-	const TypeDescriptor *type = nullptr;
 	for (char kind : {'V', 'U'}) {
 		Mangle(name, kind, mangled, sizeof(mangled));
-		if ((type = FindType(mangled)) != nullptr)
-			break;
+		if (const TypeDescriptor *type = FindType(mangled))
+			return type;
 	}
+	return nullptr;
+}
+
+const Screen *Lookup(const char *name)
+{
+	for (int i = 0; i < g_cache_count; ++i) {
+		if (strcmp(g_cache[i].name, name) == 0)
+			return &g_cache[i];
+	}
+	const TypeDescriptor *type = FindClass(name);
 	if (!type) {
 		hooklog::Write("robot: ui: no class \"%s\" in the game's type information", name);
 		return nullptr;
@@ -335,6 +346,18 @@ const Screen *SafeLookup(const char *screen)
 }
 
 }  // namespace
+
+const void *TypeDescriptorOf(const char *name)
+{
+	if (!IsHookable(DetectGameBuild()))
+		return nullptr;
+	__try {
+		return FindClass(name);
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		return nullptr;
+	}
+}
 
 void *FindScreen(const char *screen)
 {
