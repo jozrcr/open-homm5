@@ -121,7 +121,7 @@ The robot experiment (`--mp-segment-ms 100|50`, `robot_trace.cpp`) now changes t
 | 100 ms | 0.49 s | 0.55 s | 0.20 s | 5,179, all equal |
 | 50 ms | 0.44 s | 0.55 s | 0.14 s | 10,251, all equal |
 
-Hero moves (most AI steps) stay at ~0.55 s, so shorter segments buy ~20% more. As a mod this needs a guard so that players with different settings cannot play together (a mismatch would break the lockstep), so it stays an experiment for now.
+Hero moves (most AI steps) stay at ~0.55 s, so shorter segments buy ~20% more. That floor is not the animation: the setup screen's animation speed at maximum (robot `slider|animationspeed 3`) and `adventure_speed_ai = 10` left hero moves at 0.64 s and 0.57 s. In single player with 50 ms segments a hero move waited only ~0.2 s, so this is still to be found in the multiplayer path. As a mod this needs a guard so that players with different settings cannot play together (a mismatch would break the lockstep), so it stays an experiment for now.
 
 Network detail seen on one PC: the game binds UDP 8889 (`net_lan_match_maker_port`, game discovery and then the game link) and 8888 (`net_game_port`), and broadcasts to 255.255.255.255 and to the subnet of each network adapter. See `tools/robot/README.md` for how two copies share one PC.
 
