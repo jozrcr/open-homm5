@@ -30,7 +30,8 @@ bool g_command_done = false;  // true once the first script step has run
 struct Step {
 	DWORD at_ms;
 	char kind;  // 'c' console, 'm' menu, 'u' ui, 'g' game message, 'p' pick map, 'l' pick save,
-	            // 'j' pick game, 'k' peek, 'w' waiting-room slots, 'a' slot arrow, 'v' memory, 's' screenshot
+	            // 'o' setup option, 'j' pick game, 'k' peek, 'w' waiting-room slots, 'a' slot arrow,
+	            // 'v' memory, 's' screenshot
 	char text[512];
 };
 const int kMaxSteps = 32;
@@ -296,6 +297,9 @@ BOOL WINAPI RobotPeekMessageA(LPMSG msg, HWND hwnd, UINT min, UINT max, UINT rem
 			}
 			else if (s.kind == 'l') {  // "<part of a save's name or file>"
 				PickSave(s.text);
+			}
+			else if (s.kind == 'o') {  // "<checkbox> <state>" on the multiplayer setup screen
+				SetCreateOption(s.text);
 			}
 			else if (s.kind == 'v') {  // "<hex address> ...": log game variables (dwords)
 				char line[256] = "robot: memory:";
@@ -672,6 +676,7 @@ bool ReadConfig(const wchar_t *path)
 				         : strcmp(kind, "msg") == 0  ? 'g'
 				         : strcmp(kind, "map") == 0  ? 'p'
 				         : strcmp(kind, "save") == 0 ? 'l'
+				         : strcmp(kind, "option") == 0 ? 'o'
 				         : strcmp(kind, "peek") == 0 ? 'k'
 				         : strcmp(kind, "game") == 0 ? 'j'
 				         : strcmp(kind, "slots") == 0 ? 'w'
@@ -789,6 +794,7 @@ void Init()
 		               : g_steps[i].kind == 'g' ? "msg"
 		               : g_steps[i].kind == 'p' ? "map"
 		               : g_steps[i].kind == 'l' ? "save"
+		               : g_steps[i].kind == 'o' ? "option"
 		               : g_steps[i].kind == 'k' ? "peek"
 		               : g_steps[i].kind == 'j' ? "game"
 		               : g_steps[i].kind == 'w' ? "slots"

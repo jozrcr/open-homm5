@@ -69,6 +69,9 @@ def main():
     p.add_argument("--net-send-interval-ms", type=int, help="mod setting: links may send every N ms (mod default 10)")
     p.add_argument("--net-batched-segments", type=int,
                    help="mod setting: idle PCs batch up to N segment reports (mod default 0)")
+    p.add_argument("--quick-combat-state", type=int, default=0,
+                   help="state of the setup screen's quick combat checkbox (0 = on, so battles resolve by "
+                        "themselves; -1 = leave it)")
     p.add_argument("--host-step", action="append", default=[], help="extra host script step (see run_ai_test.py)")
     p.add_argument("--client-step", action="append", default=[], help="extra client script step")
     args = p.parse_args()
@@ -80,6 +83,7 @@ def main():
         "8|menu|multi lan",
         "11|ui|NUI::CLobbyScreen create",
         "15|map|" + args.map,
+        "16|shot|host-options",
         "17|msg|create",
         "22|shot|host-waiting",
         # waiting room: rows 0 = host, 1 = client, 2 = the map's third player.
@@ -91,7 +95,7 @@ def main():
         "41|shot|host-ready",
         "%d|msg|start" % args.start_at,
         "%d|shot|host-started" % (args.start_at + 12),
-    ] + args.host_step
+    ] + (["16|option|quick_combat %d" % args.quick_combat_state] if args.quick_combat_state >= 0 else [])       + args.host_step
     client_steps = [
         "10|menu|multi lan",
         "24|shot|client-lobby",

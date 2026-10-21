@@ -163,6 +163,49 @@ bool PickSave(const char *wanted)
 	return picked;
 }
 
+// Checkboxes of the multiplayer setup screen's options panel
+// (NUI::CMPCreateOptions, filled in by 0x0070862c): IButton pointers at
+// +0x18 ghostmode, +0x1c quick_combat, +0x20 realtime. IButton (a window
+// interface): slot 2 next state (a click), slot 3 SetState(int), slot 5 state.
+// When the game is created (0x00708f10) quick combat = (state == 0).
+bool SetCreateOption(const char *spec)
+{
+	struct Option {
+		const char *name;
+		DWORD offset;
+	};
+	const Option options[] = {{"ghostmode", 0x18}, {"quick_combat", 0x1c}, {"realtime", 0x20}};
+	const char *space = strchr(spec, ' ');
+	const int state = space ? atoi(space + 1) : 0;
+	const Option *option = nullptr;
+	for (const Option &o : options) {
+		if (space && strncmp(spec, o.name, static_cast<size_t>(space - spec)) == 0 && !o.name[space - spec])
+			option = &o;
+	}
+	if (!option) {
+		hooklog::Write("robot: unknown option \"%s\" (ghostmode, quick_combat, realtime)", spec);
+		return false;
+	}
+	BYTE *panel = static_cast<BYTE *>(FindScreen("NUI::CMPCreateOptions"));
+	if (!panel)
+		return false;
+	typedef void(__fastcall *SetStateFn)(void *self, void *edx, int state);
+	typedef int(__fastcall *GetStateFn)(void *self, void *edx);
+	__try {
+		void *button = *reinterpret_cast<void **>(panel + option->offset);
+		void **vt = *static_cast<void ***>(button);
+		const int before = reinterpret_cast<GetStateFn>(vt[5])(button, nullptr);
+		reinterpret_cast<SetStateFn>(vt[3])(button, nullptr, state);
+		const int after = reinterpret_cast<GetStateFn>(vt[5])(button, nullptr);
+		hooklog::Write("robot: option %s: state %d -> %d", option->name, before, after);
+		return after == state;
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		hooklog::Write("robot: setting option %s crashed (caught)", option->name);
+		return false;
+	}
+}
+
 // The LAN lobby (NUI::CLobbyScreen) shows the games it has heard of in a
 // NUI::CGamesView2 at +0x1dc, whose list widget (CWindowListCtrl, through its
 // IListControl part, vftable 0x00e94870) is at view+8. "join" uses the

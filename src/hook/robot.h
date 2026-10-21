@@ -76,6 +76,8 @@ bool PickMap(const char *wanted);
 // Highlight and select the first save whose texts contain `wanted` on the
 // single-player load screen (logs all saves); then "msg|load" loads it.
 bool PickSave(const char *wanted);
+// A checkbox of the multiplayer setup screen: "quick_combat|ghostmode|realtime <state>".
+bool SetCreateOption(const char *spec);
 // Highlight game number `index` (0 = first) in the LAN lobby's games list.
 bool PickGame(int index);
 // Research: log the waiting room's player slots and whether the host can start.
