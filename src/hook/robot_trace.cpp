@@ -226,11 +226,19 @@ void SetSegmentLength(DWORD ms)
 
 // EXPERIMENT (robot mode only, mp_segment_ms=100 or 50): the multiplayer
 // segment length. Every PC of a game must use the same value (lockstep). The
-// 200 ms appears in CMultiPlayerTransceiver as three immediates and in the
-// checksum handler's catch-up formula 200*check + 30000, computed by
-//   lea ecx,[ebp+ebp*2+0x1c2]; lea edx,[ebp+ecx*8+0x96]; lea eax,[eax+edx*8]
-// = (25*check + 3750) * 8. The last lea's scale (SIB byte 0xd0 at 0x007c946f)
-// becomes 4 (0x90) or 2 (0x50): 100*check + 15000 or 50*check + 7500.
+// 200 ms appears in CMultiPlayerTransceiver as three immediates (next segment
+// time, own step, slot 12) and in a formula for the time of segment n,
+// base + 200*n + 30000 (the transceiver's clock starts at base + 30000,
+// 0x007ca024), computed twice with
+//   lea ecx,[ebp+ebp*2+0x1c2]; lea edx,[ebp+ecx*8+0x96]; lea r,[eax+edx*8]
+// = (25n + 3750) * 8: in the segment runner (0x007c9a4e, the world time used
+// to run segment n's commands, passed to 0x007cc680) and in the checksum
+// handler (0x007c945c, catch-up). For N ms segments the robot changes the last
+// scale to 8*N/200 and the displacement 0x96 to 30000/scale - 3600, so the
+// formula becomes base + N*n + 30000:
+//   100 ms: scale 4 (SIB 0x90), displacement 3900;  50 ms: scale 2 (0x50), 11400.
+// (Changing only the immediates made hero moves wait about as long as the time
+// since the turn began: the world clock ran twice as fast as the segments.)
 void SetMpSegmentLength(DWORD ms)
 {
 	static bool done = false;
@@ -238,7 +246,13 @@ void SetMpSegmentLength(DWORD ms)
 		return;
 	done = true;
 	const DWORD immediates[] = {0x007c8b20, 0x007ca9df, 0x007cc0d4};
-	BYTE sib = ms == 100 ? 0x90 : ms == 50 ? 0x50 : 0;
+	struct Formula {
+		DWORD displacement;  // the 0x96 of lea edx,[ebp+ecx*8+0x96]
+		DWORD sib;           // the SIB byte (0xd0) of lea r,[eax+edx*8]
+	};
+	const Formula formulas[] = {{0x007c9a58, 0x007c9a5e}, {0x007c9466, 0x007c946f}};
+	const BYTE sib = ms == 100 ? 0x90 : ms == 50 ? 0x50 : 0;
+	const DWORD displacement = ms == 100 ? 3900 : 11400;
 	if (!sib) {
 		hooklog::Write("robot: mp_segment_ms must be 100 or 50, not %lu: not changed", ms);
 		return;
@@ -249,10 +263,11 @@ void SetMpSegmentLength(DWORD ms)
 			return;
 		}
 	}
-	BYTE *scale = reinterpret_cast<BYTE *>(0x007c946f);
-	if (*scale != 0xd0) {
-		hooklog::Write("robot: checksum catch-up formula not as expected: not changed");
-		return;
+	for (const Formula &f : formulas) {
+		if (*reinterpret_cast<DWORD *>(f.displacement) != 0x96 || *reinterpret_cast<BYTE *>(f.sib) != 0xd0) {
+			hooklog::Write("robot: segment time formula at %08lx not as expected: not changed", f.displacement);
+			return;
+		}
 	}
 	DWORD old;
 	for (DWORD a : immediates) {
@@ -262,10 +277,14 @@ void SetMpSegmentLength(DWORD ms)
 		VirtualProtect(imm, sizeof(DWORD), old, &old);
 		FlushInstructionCache(GetCurrentProcess(), imm, sizeof(DWORD));
 	}
-	VirtualProtect(scale, 1, PAGE_EXECUTE_READWRITE, &old);
-	*scale = sib;
-	VirtualProtect(scale, 1, old, &old);
-	FlushInstructionCache(GetCurrentProcess(), scale, 1);
+	for (const Formula &f : formulas) {
+		BYTE *p = reinterpret_cast<BYTE *>(f.displacement);
+		VirtualProtect(p, 16, PAGE_EXECUTE_READWRITE, &old);
+		*reinterpret_cast<DWORD *>(f.displacement) = displacement;
+		*reinterpret_cast<BYTE *>(f.sib) = sib;
+		VirtualProtect(p, 16, old, &old);
+		FlushInstructionCache(GetCurrentProcess(), p, 16);
+	}
 	hooklog::Write("robot: EXPERIMENT multiplayer segment length set to %lu ms (was 200)", ms);
 }
 
