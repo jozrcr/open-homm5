@@ -89,6 +89,7 @@ void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms)
 	if (g_last_ai_step && now - g_last_ai_step < ai_idle_ms)
 		return;  // an AI is (or just was) playing: not the human's turn
 	g_last_end_turn = now;
+	AutoCloseScreens();  // e.g. a battle's results window waiting for "OK"
 	++g_end_turns;
 	const bool ok = CallEndTurn(controller);
 	hooklog::Write("robot: ending the human player's turn (#%ld)%s", g_end_turns, ok ? "" : " FAILED (crash caught)");

@@ -37,7 +37,11 @@ The game was built for much slower PCs and networks (2006), so many of its timin
 
 ## Is it safe? (desync check)
 
-TODO: result of the 20-AI-turn LAN game with the game's own desync checks on (`mp_check_crc`, `mp_check_object_crc`).
+A desync is when the PCs of a game stop agreeing on the state of the world. To check, the robot turns on the game's own world checksum (`mp_check_crc`: every PC computes a checksum of the whole world after every 200 ms segment and sends it to the others). It then logs every checksum on both copies, and `tools/robot/lan_report.py` compares them.
+
+- With the mod on, a 15-minute LAN game: **4,227 checksums, all identical on both copies. No desync.**
+- The game's per-object variant (`mp_check_object_crc`) froze the game, so it isn't used.
+- That run stopped making AI moves after 11 AI turns because a battle started and the robot can't play battles. The robot now ticks "quick combat" on the setup screen so battles resolve by themselves, and a longer run is in progress.
 
 ## What the owner can do next
 

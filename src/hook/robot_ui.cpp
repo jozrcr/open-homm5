@@ -64,6 +64,7 @@ struct Screen {
 };
 Screen g_cache[16];
 int g_cache_count = 0;
+bool g_quiet = false;  // routine checks (AutoCloseScreens): log only what they do
 
 const BYTE *g_image = nullptr;
 DWORD g_image_size = 0;
@@ -248,8 +249,9 @@ void *FindLiveObject(DWORD vftable, DWORD second_offset, DWORD second_vftable, i
 		}
 		p = next;
 	}
-	hooklog::Write("robot: memory scan for vftable %08lx: %lu MB in %lu ms, %d found", vftable,
-	               static_cast<unsigned long>(scanned >> 20), GetTickCount() - start, n);
+	if (!g_quiet)
+		hooklog::Write("robot: memory scan for vftable %08lx: %lu MB in %lu ms, %d found", vftable,
+		               static_cast<unsigned long>(scanned >> 20), GetTickCount() - start, n);
 	if (count)
 		*count = n;
 	return found;
@@ -369,7 +371,7 @@ void *FindScreen(const char *screen)
 		return nullptr;
 	int count = 0;
 	void *object = FindLiveObject(s->vftable, s->check_offset, s->check_vftable, &count);
-	if (!object)
+	if (!object && !g_quiet)
 		hooklog::Write("robot: ui: no %s on screen", screen);
 	return object;
 }
@@ -401,6 +403,23 @@ bool UiCommand(const char *screen, const char *command)
 	}
 	hooklog::Write("robot: ui: %s at %p \"%s\" -> %s", screen, object, command, handled ? "handled" : "not handled");
 	return handled;
+}
+
+// Windows that wait for a click a robot game cannot give, and the command their
+// button sends: the combat results (UI/CombatResults/Ok: reaction "Close",
+// handled by 0x00581120). Called by the end-turn helper when no AI has moved for
+// a while, i.e. when the game seems to wait for a human.
+void AutoCloseScreens()
+{
+	struct Closer {
+		const char *screen;
+		const char *command;
+	};
+	const Closer closers[] = {{"NUI::CCombatResults", "Close"}};
+	g_quiet = true;
+	for (const Closer &c : closers)
+		UiCommand(c.screen, c.command);  // logs only when it found the window
+	g_quiet = false;
 }
 
 }  // namespace robot

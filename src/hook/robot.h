@@ -64,6 +64,8 @@ void *FindScreen(const char *screen);
 const void *TypeDescriptorOf(const char *name);
 // Research: "<screen class> <hex offset> ..." logs the objects along a pointer chain.
 void Peek(const char *spec);
+// Close windows waiting for a click the robot cannot give (combat results).
+void AutoCloseScreens();
 // Post a game message by name, like a button with an ARSendGameMessage reaction.
 bool PostGameMessage(const char *name, int param);
 // The live object with this vftable and, at second_offset, second_vftable (last

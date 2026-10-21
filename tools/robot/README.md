@@ -36,6 +36,8 @@ Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--ho
 | `ui` | `<screen class> <command>` | a button of any screen that takes commands (`IProgrammedReactionsAndChecks`), e.g. `NUI::CLobbyScreen create`; the screen is found through the game's RTTI and a memory scan (`robot_ui.cpp`) |
 | `msg` | `<name> [number]` | posts a "game message", like buttons with an `ARSendGameMessage` reaction: e.g. `create`, `load`, `back` on the multiplayer setup screen, `start` in the waiting room (names from `UI/<screen>/*.(ARSendGameMessage).xdb` in the game data) |
 | `map` | part of a map file path | highlights that map on the multiplayer setup screen, e.g. `A1M4/` (`robot_lobby.cpp`) |
+| `save` | part of a save's name | highlights that save on the single-player load screen (`menu|single load_game`) and selects it; then `msg|load` loads it (`run_ai_test.py --save-file <path> --load-save <name>` does it all) |
+| `option` | `<checkbox> <state>` | a checkbox of the multiplayer setup screen: `quick_combat`, `ghostmode`, `realtime`; state 0 = checked (`run_lan_test.py` turns quick combat on, so battles resolve by themselves) |
 | `game` | a number | highlights that game (0 = first) in the LAN lobby's list, before `ui|NUI::CLobbyScreen join` |
 | `arrow` | `<row> left\|right` | presses a player row's state arrow in the multiplayer waiting room: on your own row it toggles "ready", on an empty slot it cycles open → computer → closed |
 | `slots` | (none) | research: logs the waiting room's rows (state, player) and whether the host can start |
