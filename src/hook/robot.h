@@ -91,13 +91,6 @@ DWORD LastFrameTick();                      // GetTickCount() of the last frame 
 // logged_packets: how many packets per socket and direction to log (-1 = default).
 void InstallNetLog(bool share_udp_ports, const char *relay_ports, int logged_packets);
 
-// Experiment (robot_net.cpp, net_keepalive_ms=N): idle LAN links send (and so
-// acknowledge) every N ms instead of every 1000 ms.
-void SetNetKeepalive(DWORD ms);
-// Experiment (net_send_interval_ms=N): a LAN link may send a packet every N ms
-// instead of every 50 ms (one ~256-byte packet per interval).
-void SetNetSendInterval(DWORD ms);
-
 // Appends the return addresses found on a stack (starting at esp) to line: the
 // first few system ones as "module+offset", then the game's own (Ghidra addresses).
 void DescribeStack(DWORD esp, char *line, size_t size, int max_frames);

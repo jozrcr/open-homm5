@@ -18,12 +18,14 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 
 
 def settings(run):
-    ini = {}
+    """The network settings the host's DLL reported (mod or older experiments)."""
+    found = []
     for line in (run / "host" / "open-homm5.log").read_text(encoding="utf-8", errors="replace").splitlines():
         if "EXPERIMENT" in line:
-            ini.setdefault("experiments", []).append(line.split("EXPERIMENT", 1)[1].strip())
-    cfg = run / "host" / "console.txt"
-    return ini
+            found.append(line.split("EXPERIMENT", 1)[1].strip())
+        elif "net tuning:" in line:
+            found.append(line.split("net tuning:", 1)[1].strip())
+    return found or ["game's own network timings"]
 
 
 def report(run):
@@ -40,8 +42,8 @@ def report(run):
     lag = [int(a) - int(b) for a, b in re.findall(r"mp-step me=0 segments=\[(\d+),(\d+)\]", "\n".join(log))]
     speed = [float(x) for x in re.findall(r"mp-step .*speed=([\d.]+)", "\n".join(log))]
     print("==", run.name)
-    for e in settings(run).get("experiments", []):
-        print("   experiment:", e)
+    for e in settings(run):
+        print("   network:", e)
     if not gaps:
         print("   no AI steps")
         return

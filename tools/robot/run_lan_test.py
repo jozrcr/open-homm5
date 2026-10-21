@@ -44,8 +44,9 @@ def instance_args(args, name, steps):
         end_turn_every=args.end_turn_every, press_enter_every=0,
         repeat_command=None, repeat_every=0, trace_segments=False, segment_ms=0,
         shot_every=args.shot_every, step=steps, net_log=True, relay_ports=others, trace_mp=args.trace_mp,
-        net_log_packets=args.net_log_packets, net_keepalive_ms=args.net_keepalive_ms,
-        net_send_interval_ms=args.net_send_interval_ms)
+        net_log_packets=args.net_log_packets, net_tuning=args.net_tuning,
+        net_keepalive_ms=args.net_keepalive_ms, net_send_interval_ms=args.net_send_interval_ms,
+        net_batched_segments=args.net_batched_segments)
 
 
 def main():
@@ -62,10 +63,12 @@ def main():
     p.add_argument("--start-at", type=int, default=43, help="script time of the host's start (seconds)")
     p.add_argument("--trace-mp", action="store_true", help="log every multiplayer segment step and command sent")
     p.add_argument("--net-log-packets", type=int, default=-1, help="packets logged per socket and direction")
-    p.add_argument("--net-keepalive-ms", type=int, default=0,
-                   help="EXPERIMENT: idle LAN links send every N ms instead of 1000 (both copies)")
-    p.add_argument("--net-send-interval-ms", type=int, default=0,
-                   help="EXPERIMENT: LAN links may send a packet every N ms instead of 50 (both copies)")
+    p.add_argument("--net-tuning", choices=["on", "off"], default="on",
+                   help="the LAN link tuning mod (src/mods/net_tuning.cpp) on both copies; off = the game's timings")
+    p.add_argument("--net-keepalive-ms", type=int, help="mod setting: idle links send every N ms (mod default 50)")
+    p.add_argument("--net-send-interval-ms", type=int, help="mod setting: links may send every N ms (mod default 10)")
+    p.add_argument("--net-batched-segments", type=int,
+                   help="mod setting: idle PCs batch up to N segment reports (mod default 0)")
     p.add_argument("--host-step", action="append", default=[], help="extra host script step (see run_ai_test.py)")
     p.add_argument("--client-step", action="append", default=[], help="extra client script step")
     args = p.parse_args()

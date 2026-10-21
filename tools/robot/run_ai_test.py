@@ -71,6 +71,23 @@ def instance_files(game, instance):
     return bin_dir / ("open-homm5-robot%s.ini" % suffix), bin_dir / ("open-homm5%s.log" % suffix)
 
 
+def mod_settings_file(game, instance):
+    """The DLL's settings for the mods (src/mods/), per copy like the log."""
+    return game / "bin" / ("open-homm5%s.ini" % ("-" + instance if instance else ""))
+
+
+def write_mod_settings(game, args, instance):
+    """[net] = the LAN link tuning mod (src/mods/net_tuning.cpp). Its defaults
+    (on, 50, 10, 0) are what a player gets without a settings file."""
+    lines = ["[net]", "tuning=%d" % (0 if getattr(args, "net_tuning", "on") == "off" else 1)]
+    for key, attr in (("keepalive_ms", "net_keepalive_ms"), ("send_interval_ms", "net_send_interval_ms"),
+                      ("batched_segments", "net_batched_segments")):
+        value = getattr(args, attr, None)
+        if value is not None:
+            lines.append("%s=%d" % (key, value))
+    mod_settings_file(game, instance).write_text("\n".join(lines) + "\n", encoding="ascii")
+
+
 def prepare(game, args, out, instance="", net_port=None):
     bin_dir = game / "bin"
     ini, log = instance_files(game, instance)
@@ -116,10 +133,9 @@ def prepare(game, args, out, instance="", net_port=None):
         ("net_share_udp_ports", int(bool(getattr(args, "share_udp_ports", False)))),
         ("net_lan_relay_ports", getattr(args, "relay_ports", "")),
         ("net_log_packets", getattr(args, "net_log_packets", -1)),
-        ("net_keepalive_ms", getattr(args, "net_keepalive_ms", 0)),
-        ("net_send_interval_ms", getattr(args, "net_send_interval_ms", 0)),
     ] + [("step", s) for s in args.step]
     ini.write_text("".join("%s=%s\n" % kv for kv in config), encoding="ascii")
+    write_mod_settings(game, args, instance)
 
     # Skip the start-up videos: move them aside in the TEST COPY (restore with --restore-intro).
     video, parked = game / "video", game / "video" / "robot_disabled"
@@ -257,6 +273,7 @@ def collect(game, out, instance, exit_code, elapsed):
     # Leave the test copy playable by hand: without this file the DLL does not
     # enter robot mode (it only logs AI steps).
     ini.unlink(missing_ok=True)
+    mod_settings_file(game, instance).unlink(missing_ok=True)
     text = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
     (out / "open-homm5.log").write_text(text, encoding="utf-8")
     # the game's own console output (game_writelog = 1 writes it to console.txt, UTF-16)
@@ -295,6 +312,8 @@ def main():
                         'or shot (see src/hook/robot.cpp)')
     p.add_argument("--no-map", action="store_true", help="do not start a map (for menu experiments)")
     p.add_argument("--command",help="console command to run instead of the default advmap line")
+    p.add_argument("--net-tuning", choices=["on", "off"], default="on",
+                   help="the LAN link tuning mod (src/mods/net_tuning.cpp); only matters in multiplayer")
     p.add_argument("--restore-intro", action="store_true", help="put the intro videos back in the test copy and exit")
     args = p.parse_args()
 

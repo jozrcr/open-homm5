@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "game_build.h"
 #include "log.h"
 #include "robot.h"
 
@@ -216,63 +215,7 @@ int WINAPI RobotRecvFrom(SOCKET s, char *buf, int len, int flags, sockaddr *from
 	return r;
 }
 
-// EXPERIMENT (robot mode only, net_keepalive_ms=N): how often an idle link
-// sends a packet. The game's reliable LAN link (per link: in-flight count at
-// +0x3c, send window at +0x38, seconds since its last send at +0x40) only sends
-// when it has data and room in its window, or when 1.0 s passed since its last
-// send (0x008fdf20, which compares with the shared constant 1.0f at 0x00e0a7e4).
-// There is no "acknowledge soon after receiving" rule, so a PC with nothing to
-// say acknowledges only once a second and the other PC's window stays shut. The
-// experiment points that one comparison at our own value instead.
-float g_keepalive_seconds = 1.0f;
-const DWORD kKeepaliveOperand = 0x008fdf25;  // fcomp dword ptr [0x00e0a7e4]
-
 }  // namespace
-
-void SetNetKeepalive(DWORD ms)
-{
-	static bool done = false;
-	if (done || !ms || !IsHookable(DetectGameBuild()))
-		return;
-	done = true;
-	DWORD *operand = reinterpret_cast<DWORD *>(kKeepaliveOperand);
-	if (*operand != 0x00e0a7e4) {
-		hooklog::Write("robot: keepalive operand at %08lx is %08lx, not 00e0a7e4: not changed", kKeepaliveOperand, *operand);
-		return;
-	}
-	g_keepalive_seconds = ms / 1000.0f;
-	DWORD old;
-	VirtualProtect(operand, sizeof(DWORD), PAGE_EXECUTE_READWRITE, &old);
-	*operand = reinterpret_cast<DWORD>(&g_keepalive_seconds);
-	VirtualProtect(operand, sizeof(DWORD), old, &old);
-	FlushInstructionCache(GetCurrentProcess(), operand, sizeof(DWORD));
-	hooklog::Write("robot: EXPERIMENT idle LAN links send every %lu ms (was 1000)", ms);
-}
-
-// EXPERIMENT (robot mode only, net_send_interval_ms=N): a link sends at most one
-// packet (about 256 bytes of game data) per send interval, 50 ms in the game:
-// about 5 KB/s, a modem-era limit. The interval is reset with the immediate
-// 0.05f in "mov dword ptr [edi+0x3e8e4], 0x3d4ccccd" at 0x0047e54d (0x0047e050,
-// the per-link update the network thread runs every 10 ms).
-void SetNetSendInterval(DWORD ms)
-{
-	static bool done = false;
-	if (done || !ms || !IsHookable(DetectGameBuild()))
-		return;
-	done = true;
-	DWORD *imm = reinterpret_cast<DWORD *>(0x0047e553);
-	if (*imm != 0x3d4ccccd) {
-		hooklog::Write("robot: send interval at 0047e553 is %08lx, not 0.05f: not changed", *imm);
-		return;
-	}
-	const float seconds = ms / 1000.0f;
-	DWORD old;
-	VirtualProtect(imm, sizeof(DWORD), PAGE_EXECUTE_READWRITE, &old);
-	memcpy(imm, &seconds, sizeof(seconds));
-	VirtualProtect(imm, sizeof(DWORD), old, &old);
-	FlushInstructionCache(GetCurrentProcess(), imm, sizeof(DWORD));
-	hooklog::Write("robot: EXPERIMENT LAN links send every %lu ms (was 50)", ms);
-}
 
 void InstallNetLog(bool share_udp_ports, const char *relay_ports, int logged_packets)
 {

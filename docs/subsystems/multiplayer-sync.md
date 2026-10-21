@@ -71,7 +71,32 @@ What happens during an AI turn (host = player 0, client = player 1):
 
 Why the reports are late: **the LAN link is throughput-starved.** All game traffic between the copies goes over UDP through `NNet::CLinksManager` (send `0x00484d30` = slot 9, receive `0x00484ea0` = slot 10; network thread `0x0047cbd0` ticks every 10 ms). The host sends full 273-byte data packets every ~50 ms, but only ~8 per burst; then it waits for an acknowledgement, and the client acknowledges about **once per second**. So the host can push only about 8 packets (~2 KB) per second, its send queue backs up, and the packets that do go out carry data that is seconds old. (The client sends little: 18–39-byte packets, about once per second.)
 
-Next: find the acknowledgement timing and the window size in the link code (the protocol state is in `NNet::CNetDriver`, vftable `0x00e131e4`, and nameless helpers around `0x0047c000`–`0x00485600`), then test, in robot mode, acknowledging every tick or a bigger window. If the AI step wait drops to ~0.4 s, that is the co-op fix (a `src/mods/` change; at least the receiving PCs need it).
+### The LAN link (reliable UDP)
+
+Found by tracing which game code calls `sendto` (`robot_net.cpp` logs the stack of the first data packets):
+
+| What | Where | Notes |
+|---|---|---|
+| Network thread | `0x0047cbd0` | `Sleep(10)`, then the driver's tick (slot 25, `0x0047e970`): queued outgoing messages, received packets, then every link's update. |
+| Per-link update | `0x0047e050` | A link sends only when its send timer (link `+0x3e8e4`) has run out, then resets it to **0.05 s** (`0x0047e54d`). It sends if (a) it has data and room in its window, or (b) more than **1.0 s** passed since its last send (`0x008fdf20`, the keepalive). So at most one packet (~256 bytes of data) per 50 ms per link, and **acknowledgements only ride on data or on the 1-second keepalive**. |
+| Reliable channel | channel at link `+0x48`: `+0x38` window (float, min 2), `+0x3c` packets in flight, `+0x40` seconds since last send; update `0x008fe430` | Round-trip estimate with a minimum timeout of 0.1 s; packets older than the timeout count as lost (window −0.5 each, min 2) and are sent again. |
+| Batching of idle reports | `0x00402440` | Reads `net_batched_segments` once (`mov edx, [0x00f27398]` at `0x0040247d`). |
+
+During an AI turn the host has a lot to send (AI commands such as `CSetPlayerAIThreatsInfoCmd` are big): its link runs at the cap, 19 full packets per second (5187 bytes/s), for 5–7 s at a time, and everything else (segment reports, the next AI move) queues behind. The client, idle, acknowledges once per second, so the host's window keeps closing.
+
+### The fix: modern link timings (`src/mods/net_tuning.cpp`)
+
+Robot-mode experiments, then the mod (same robot setup, seconds per AI move):
+
+| Change | per AI move | client behind the host | speed factor |
+|---|---|---|---|
+| none (game) | 2.51 | 4–9 segments | 0.45–0.9 |
+| send interval 10 ms | 2.22 | 5 | 0.79 |
+| keepalive 50 ms | ~1.6 | 4 | 0.79 |
+| keepalive 50 + send interval 10 | 0.90 | 2 | 0.94 |
+| keepalive 50 + send interval 10 + `net_batched_segments` 0 | **0.58** | **1** | **1.00** |
+
+The mod (`src/mods/README.md`) applies the last line by default. The remaining ~0.6 s per AI move is the game's own pacing: each AI step waits for its commands' segment (200 ms) plus one more, as in single player (0.4 s), plus the round trip.
 
 Network detail seen on one PC: the game binds UDP 8889 (`net_lan_match_maker_port`, game discovery and then the game link) and 8888 (`net_game_port`), and broadcasts to 255.255.255.255 and to the subnet of each network adapter. See `tools/robot/README.md` for how two copies share one PC.
 

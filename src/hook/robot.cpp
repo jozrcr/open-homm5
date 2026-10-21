@@ -55,8 +55,6 @@ bool g_net_log = false;  // robot_net.cpp
 bool g_share_udp_ports = false;
 char g_relay_ports[64] = {};
 int g_net_log_packets = -1;  // -1 = robot_net.cpp's default
-DWORD g_net_keepalive_ms = 0;  // 0 = leave the game's 1000 ms
-DWORD g_net_send_interval_ms = 0;  // 0 = leave the game's 50 ms
 
 // --- running a console command the way WinMain does (0x00d112a7) ---------------
 //   push L"mainmenu"; lea ecx,[str]; call 0x00456220   build a game wide string
@@ -365,10 +363,6 @@ BOOL WINAPI RobotPeekMessageA(LPMSG msg, HWND hwnd, UINT min, UINT max, UINT rem
 		InstallMpTrace();
 	if (g_segment_ms)
 		SetSegmentLength(g_segment_ms);
-	if (g_net_keepalive_ms)
-		SetNetKeepalive(g_net_keepalive_ms);
-	if (g_net_send_interval_ms)
-		SetNetSendInterval(g_net_send_interval_ms);
 	if (g_command_done)
 		MaybeEndHumanTurn(g_end_turn_ms, 3000);
 	// Screenshots now and then.
@@ -708,10 +702,6 @@ bool ReadConfig(const wchar_t *path)
 			lstrcpynA(g_relay_ports, value, sizeof(g_relay_ports));
 		else if (strcmp(line, "net_log_packets") == 0)
 			g_net_log_packets = atoi(value);
-		else if (strcmp(line, "net_keepalive_ms") == 0)
-			g_net_keepalive_ms = static_cast<DWORD>(atol(value));
-		else if (strcmp(line, "net_send_interval_ms") == 0)
-			g_net_send_interval_ms = static_cast<DWORD>(atol(value));
 	}
 	fclose(f);
 	return true;

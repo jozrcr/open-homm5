@@ -14,11 +14,16 @@ Results go to `build/robot/<date-time>/` (gitignored): `summary.json`, the DLL l
 `run_lan_test.py` runs **two copies of the game at once** on this PC, a LAN host and a LAN client (see "LAN games" below):
 
 ```
-python toolsobotun_lan_test.py                      # host creates a game on A1M4, client joins
-python toolsobotun_lan_test.py --client-step "27|peek|NUI::CLobbyScreen 1dc 8"
+python tools\robot\run_lan_test.py                      # host creates a game on A1M4, client joins
+python tools\robot\run_lan_test.py --client-step "27|peek|NUI::CLobbyScreen 1dc 8"
+python tools\robot\run_lan_test.py --seconds 400 --turns 6 --trace-mp      # time 6 AI turns, log the lockstep
+python tools\robot\run_lan_test.py --seconds 400 --turns 6 --net-tuning off  # the game's own network timings
+python tools\robot\lan_report.py --last 2                                   # compare the last two LAN runs
 ```
 
-Results go to `build/robot/<date-time>-lan/host/` and `.../client/`.
+Results go to `build/robot/<date-time>-lan/host/` and `.../client/`. The host creates a game on the chosen map, the client joins, both press "ready", the host sets the third slot to a computer player and starts; then the robot ends both humans' turns and the DLL times every AI step on both copies.
+
+Both copies run the LAN link tuning mod (`src/mods/README.md`) unless `--net-tuning off`; the runner writes its settings to `bin/open-homm5-<host|client>.ini` and removes them afterwards.
 
 ## Robot script
 
@@ -31,6 +36,10 @@ Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--ho
 | `ui` | `<screen class> <command>` | a button of any screen that takes commands (`IProgrammedReactionsAndChecks`), e.g. `NUI::CLobbyScreen create`; the screen is found through the game's RTTI and a memory scan (`robot_ui.cpp`) |
 | `msg` | `<name> [number]` | posts a "game message", like buttons with an `ARSendGameMessage` reaction: e.g. `create`, `load`, `back` on the multiplayer setup screen, `start` in the waiting room (names from `UI/<screen>/*.(ARSendGameMessage).xdb` in the game data) |
 | `map` | part of a map file path | highlights that map on the multiplayer setup screen, e.g. `A1M4/` (`robot_lobby.cpp`) |
+| `game` | a number | highlights that game (0 = first) in the LAN lobby's list, before `ui|NUI::CLobbyScreen join` |
+| `arrow` | `<row> left\|right` | presses a player row's state arrow in the multiplayer waiting room: on your own row it toggles "ready", on an empty slot it cycles open → computer → closed |
+| `slots` | (none) | research: logs the waiting room's rows (state, player) and whether the host can start |
+| `mem` | hex addresses | research: logs the 32-bit values there (e.g. `f27398` = `net_batched_segments`) |
 | `shot` | a label | saves the next frame as `frame-NNN-<label>.png` |
 | `peek` | `<screen class> <hex offset> ...` | research: logs the objects along a pointer chain from a screen, with their class names |
 
