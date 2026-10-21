@@ -39,9 +39,11 @@ The game was built for much slower PCs and networks (2006), so many of its timin
 
 A desync is when the PCs of a game stop agreeing on the state of the world. To check, the robot turns on the game's own world checksum (`mp_check_crc`: every PC computes a checksum of the whole world after every 200 ms segment and sends it to the others). It then logs every checksum on both copies, and `tools/robot/lan_report.py` compares them.
 
-- With the mod on, a 15-minute LAN game: **4,227 checksums, all identical on both copies. No desync.**
+- With the mod on, three long LAN games: **4,227, 5,730 and 5,723 checksums, all identical on both copies. No desync.**
+- The last one ran a **whole game**: 16 AI turns and three game weeks, until the AI had beaten both (passive) robot players. Along the way:
+  - battles resolved by themselves, because the robot ticks "quick combat" on the setup screen;
+  - the robot closed the combat results window, which otherwise waits for "OK".
 - The game's per-object variant (`mp_check_object_crc`) froze the game, so it isn't used.
-- That run stopped making AI moves after 11 AI turns because a battle started and the robot can't play battles. The robot now ticks "quick combat" on the setup screen so battles resolve by themselves, and a longer run is in progress.
 
 ## What the owner can do next
 

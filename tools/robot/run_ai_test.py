@@ -132,6 +132,7 @@ def prepare(game, args, out, instance="", net_port=None):
         ("trace_segments", int(bool(args.trace_segments))),
         ("trace_mp", int(bool(getattr(args, "trace_mp", False)))),
         ("trace_crc", int(bool(getattr(args, "trace_crc", False)))),
+        ("profile_ai", int(bool(getattr(args, "profile_ai", False)))),
         ("segment_ms", args.segment_ms),
         # screenshots: the DLL saves the game's own frames there as .bmp (src/hook/robot_screen.cpp)
         ("screenshot_dir", out),
@@ -281,6 +282,9 @@ def collect(game, out, instance, exit_code, elapsed):
     # enter robot mode (it only logs AI steps).
     ini.unlink(missing_ok=True)
     mod_settings_file(game, instance).unlink(missing_ok=True)
+    profile = game / "bin" / ("open-homm5-profile%s.txt" % ("-" + instance if instance else ""))
+    if profile.exists():  # AI profiler samples (profile_ai), see tools/robot/profile_report.py
+        shutil.move(str(profile), str(out / "ai-profile.txt"))
     text = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
     (out / "open-homm5.log").write_text(text, encoding="utf-8")
     # the game's own console output (game_writelog = 1 writes it to console.txt, UTF-16)
@@ -326,6 +330,8 @@ def main():
     p.add_argument("--command",help="console command to run instead of the default advmap line")
     p.add_argument("--net-tuning", choices=["on", "off"], default="on",
                    help="the LAN link tuning mod (src/mods/net_tuning.cpp); only matters in multiplayer")
+    p.add_argument("--profile-ai", action="store_true",
+                   help="sample where the AI spends its thinking time (ai-profile.txt, profile_report.py)")
     p.add_argument("--restore-intro", action="store_true", help="put the intro videos back in the test copy and exit")
     args = p.parse_args()
     if args.load_save:

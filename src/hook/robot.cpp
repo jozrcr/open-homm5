@@ -42,6 +42,7 @@ DWORD g_end_turn_ms = 0;     // 0 = never
 bool g_trace_segments = false;
 bool g_trace_mp = false;
 bool g_trace_crc = false;
+bool g_profile_ai = false;
 DWORD g_segment_ms = 0;  // 0 = leave the game's 200 ms
 DWORD g_press_enter_ms = 0;  // 0 = never
 DWORD g_last_enter = 0;
@@ -696,6 +697,8 @@ bool ReadConfig(const wchar_t *path)
 			g_trace_mp = atol(value) != 0;
 		else if (strcmp(line, "trace_crc") == 0)
 			g_trace_crc = atol(value) != 0;
+		else if (strcmp(line, "profile_ai") == 0)
+			g_profile_ai = atol(value) != 0;
 		else if (strcmp(line, "end_turn_every_seconds") == 0)
 			g_end_turn_ms = static_cast<DWORD>(atol(value)) * 1000;
 		else if (strcmp(line, "press_enter_every_seconds") == 0)
@@ -781,6 +784,8 @@ void Init()
 	}
 	if (g_shot_dir[0])
 		InstallScreenshots(g_shot_dir);
+	if (g_profile_ai)
+		StartAiProfiler();
 	if (g_net_log || g_share_udp_ports || g_relay_ports[0])
 		InstallNetLog(g_share_udp_ports, g_relay_ports, g_net_log_packets);
 	// The main loop hook runs the script and keeps the game active.

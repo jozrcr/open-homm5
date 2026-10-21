@@ -114,7 +114,9 @@ void __fastcall TurnDriverHook(void *self, void *edx, void *commands, int flag)
 	LARGE_INTEGER t0, t1;
 	QueryPerformanceCounter(&t0);
 	const double gap = last.returned.QuadPart ? Ms(last.returned, t0) : -1.0;
+	robot::OnAiThinking(true);  // for the AI profiler (robot mode only)
 	g_original(self, edx, commands, flag);
+	robot::OnAiThinking(false);
 	QueryPerformanceCounter(&t1);
 	last.returned = t1;
 	const DWORD stage_after = Field(self, kOffStage);

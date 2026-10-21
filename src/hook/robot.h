@@ -106,6 +106,11 @@ void DescribeStack(DWORD esp, char *line, size_t size, int max_frames);
 // original function, or nullptr if the import is not found.
 void *PatchImport(const char *dll, const char *function, void *replacement);
 
+// AI profiler (robot_profile.cpp), when profile_ai=1: samples the main thread
+// while the AI thinks (OnAiThinking from the AI trace) into open-homm5-profile.txt.
+void StartAiProfiler();
+void OnAiThinking(bool thinking);
+
 // Optional segment trace (robot_trace.cpp), when trace_segments=1.
 void InstallSegmentTrace();
 // Multiplayer segment trace (robot_trace.cpp), when trace_mp=1.
