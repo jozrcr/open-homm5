@@ -1,0 +1,51 @@
+# Phase 1 report: why co-op AI turns are slow, and a first fix
+
+Written 2026-10-21 (session 2, night). Phase 1's job was to understand the AI turn and the network code well enough to make co-op AI turns fast. Details live in [subsystems/ai-turn.md](subsystems/ai-turn.md), [subsystems/multiplayer-sync.md](subsystems/multiplayer-sync.md), [tools/robot/README.md](../tools/robot/README.md) and [src/mods/README.md](../src/mods/README.md).
+
+## In one paragraph
+
+A test robot now plays the game by itself: it starts two copies of the game on one PC, has one host a LAN game and the other join, gets both players ready, adds a computer player, starts the game, and times every AI move. Two findings came out of that. First, **the game already runs the AI only on the host** and sends its moves to the other PCs. Second, **each AI move waited about 2.5 seconds**, while the AI's actual thinking takes milliseconds. The waiting comes from the game's network link, which was tuned for 2006 modems: it sends at most one small packet every 50 ms, and an idle PC acknowledges what it received only once per second. A small mod in our DLL gives the link modern timings and cuts that to **0.6 s per AI move: AI turns about 4× faster** in the robot's LAN games.
+
+## What the robot can do
+
+`tools/robot/run_ai_test.py` (single player) and `tools/robot/run_lan_test.py` (LAN, two copies of the game) run in the test copy `C:\Games\H5_test`, never the Steam folder. Without anyone touching the PC, the robot:
+
+- skips the intro videos and the "press any key" screens, uses its own profile, keeps the game running at full speed in the background;
+- **sees the game**: saves the game's own frames as screenshots (the desktop shows nothing while the game is in the background);
+- **presses buttons** on menus and screens, the way the buttons do: main-menu commands, screen commands (found through the game's built-in type information), and "game messages" (names read from the game's UI files);
+- **plays a LAN game against itself**: two copies, each with its own profile, log and network ports; the robot relays LAN discovery between them over 127.0.0.1;
+- ends the human players' turns, times every AI move, logs the multiplayer lockstep and every network packet when asked;
+- **explains hangs**: if the game stops drawing or stops reading input, the log says where in the game's code it is stuck.
+
+## What we found
+
+1. **In single player** the AI thinks ~0.1 s per turn but waits ~0.4 s after each of its 25–30 moves (the game's 200 ms command segments). See [ai-turn.md](subsystems/ai-turn.md).
+2. **In a LAN game only the host runs the AI.** The other PCs receive its moves. So option A of the plan ("host-authoritative AI") is what the game already does.
+3. **Each AI move waited 1–2.5 s in a LAN game, even on one PC (no real network delay).** The causes, from the traces:
+   - A move only runs when every PC has confirmed the game segment it belongs to.
+   - The host's link is full during AI turns (the AI's commands are big) but may send only one ~256-byte packet per 50 ms, about 5 KB/s.
+   - The idle client acknowledges only once a second, so the host's send window keeps closing.
+   - Each PC therefore sees the other lagging, and both slow their game down to 45–90% speed.
+4. **The fix is network timings only.** Game commands still run in the same order on every PC.
+
+| Network timings | per AI move | typical AI turn |
+|---|---|---|
+| Game's own | 2.5 s | 15–36 s |
+| Mod (`src/mods/net_tuning.cpp`) | **0.6 s** | **2–7 s** |
+
+The game was built for much slower PCs and networks (2006), so many of its timings have room to spare. That is also why speed hacks "work". The mod changes only the timings that waste time and leaves the game's rules alone.
+
+## Is it safe? (desync check)
+
+TODO: result of the 20-AI-turn LAN game with the game's own desync checks on (`mp_check_crc`, `mp_check_object_crc`).
+
+## What the owner can do next
+
+- **Fix `main`:** PRs #2–#4 were merged into each other's branches, so `main` still has only phase 0. PR #5 (`test-robot`) contains everything. On GitHub: open PR #5, "Edit" → change the base branch to `main`, then merge. (The app blocked me from doing this myself.)
+- **Try the mod in a real game:** copy `build/hook/dinput8.dll` next to the game exe your group uses (all players), play a co-op game with AI players, and compare AI turn times. The DLL logs to `open-homm5.log` next to the exe. To turn the mod off: an `open-homm5.ini` file next to the exe with `[net]` and `tuning=0`.
+
+## Next steps
+
+1. Confirm no desync over long games (robot), then over GameRanger with real players.
+2. The remaining 0.6 s per AI move is the game's own pacing: each AI move waits for its 200 ms segment and one more. Shorter segments in multiplayer must be identical on every PC (lockstep), so the mod would need a version check between players.
+3. Late-game benchmarks from saved games (big maps, many heroes and towns), as the owner suggested.

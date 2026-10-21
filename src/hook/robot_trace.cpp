@@ -137,7 +137,54 @@ void __fastcall MpOwnStepHook(void *self, void *edx)
 	hooklog::Write("mp-step %s", state);
 }
 
+// --- world checksums (desync check) -------------------------------------------------
+// The PCs of a multiplayer game exchange world checksums (NWorld::CCrcTestCmd:
+// check number at +0x0c, checksum at +0x10) whatever the debug flags say;
+// mp_check_crc only makes the game compare them, and also saves the world at the
+// first check, which stalled the AI in our test. Instead the robot logs every
+// checksum: 0x007c9410 (__thiscall(int player, CCrcTestCmd *), ret 8) is called
+// for this PC's own checksum (0x007c9cd0) and for each one received (0x007ca8d1).
+// Matching "crc" lines from all copies = no desync.
+const DWORD kCrcHandler = 0x007c9410;
+const DWORD kCrcCallOwn = 0x007c9cd0;
+const DWORD kCrcCallReceived = 0x007ca8d1;
+typedef void(__fastcall *CrcFn)(void *self, void *edx, int player, const BYTE *cmd);
+
+void __fastcall CrcHook(void *self, void *edx, int player, const BYTE *cmd)
+{
+	if (cmd)
+		hooklog::Write("crc player=%d check=%ld crc=%08lx", player, *reinterpret_cast<const LONG *>(cmd + 0x0c),
+		               *reinterpret_cast<const DWORD *>(cmd + 0x10));
+	reinterpret_cast<CrcFn>(kCrcHandler)(self, edx, player, cmd);
+}
+
+// Redirect a "call rel32" to replacement if it still calls `expected`.
+bool PatchCall(DWORD call, DWORD expected, void *replacement)
+{
+	BYTE *p = reinterpret_cast<BYTE *>(call);
+	if (p[0] != 0xE8 || call + 5 + *reinterpret_cast<LONG *>(p + 1) != expected)
+		return false;
+	DWORD old;
+	if (!VirtualProtect(p + 1, 4, PAGE_EXECUTE_READWRITE, &old))
+		return false;
+	*reinterpret_cast<LONG *>(p + 1) = static_cast<LONG>(reinterpret_cast<DWORD>(replacement) - (call + 5));
+	VirtualProtect(p + 1, 4, old, &old);
+	FlushInstructionCache(GetCurrentProcess(), p, 5);
+	return true;
+}
+
 }  // namespace
+
+void InstallCrcTrace()
+{
+	static bool done = false;
+	if (done || !IsHookable(DetectGameBuild()))
+		return;
+	done = true;
+	const bool a = PatchCall(kCrcCallOwn, kCrcHandler, reinterpret_cast<void *>(&CrcHook));
+	const bool b = PatchCall(kCrcCallReceived, kCrcHandler, reinterpret_cast<void *>(&CrcHook));
+	hooklog::Write("robot: world checksum trace %s", a && b ? "installed" : "FAILED (code not as expected)");
+}
 
 void InstallMpTrace()
 {

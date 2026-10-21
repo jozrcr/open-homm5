@@ -43,7 +43,7 @@ def instance_args(args, name, steps):
         turns=args.turns, seconds=args.seconds, command_delay=8,
         end_turn_every=args.end_turn_every, press_enter_every=0,
         repeat_command=None, repeat_every=0, trace_segments=False, segment_ms=0,
-        shot_every=args.shot_every, step=steps, net_log=True, relay_ports=others, trace_mp=args.trace_mp,
+        shot_every=args.shot_every, step=steps, net_log=True, relay_ports=others, trace_mp=args.trace_mp, trace_crc=True,
         net_log_packets=args.net_log_packets, net_tuning=args.net_tuning,
         net_keepalive_ms=args.net_keepalive_ms, net_send_interval_ms=args.net_send_interval_ms,
         net_batched_segments=args.net_batched_segments)

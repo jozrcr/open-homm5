@@ -114,6 +114,12 @@ Network detail seen on one PC: the game binds UDP 8889 (`net_lan_match_maker_por
 
 **For phase 1:** turning on `mp_check_crc` + `mp_check_object_crc` (+ `log_random_calls`) in a 2-PC LAN game should show whether and where the game desyncs, using the game's own tools. That costs nothing to try (a console or config change on a test copy of the game).
 
+**Tried with the robot (2026-10-21):**
+
+- With `mp_check_crc` on, **every PC computes a world checksum after every segment** (`0x007c98e0`: world `[transceiver+0x20]` slot 4, the checksum; slot 5 the per-object list) and sends it as a `CCrcTestCmd` (check number at `+0x0c`, checksum at `+0x10`). Without the flag, no checksums are computed or sent. At check 0 each PC also saves the world as `zero_<player>_0.sav` (5 MB) in its profile folder.
+- **`mp_check_object_crc` freezes the game**: with it, the AI made one move and then nothing for minutes (frames kept coming), probably the per-object checksums of the whole world every segment. Don't use it for long games.
+- `mp_check_crc` alone costs nothing visible (AI timings unchanged). The robot logs every checksum on both copies (`trace_crc=1`, `robot_trace.cpp`: the two calls into `0x007c9410` are redirected to a logger) and `tools/robot/lan_report.py` compares them: **all equal = no desync**. First result, with the link tuning mod on: 303 checks, all equal.
+
 ## Network driver: `NNet`
 
 | Class | Where | Notes |

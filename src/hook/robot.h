@@ -103,6 +103,9 @@ void *PatchImport(const char *dll, const char *function, void *replacement);
 void InstallSegmentTrace();
 // Multiplayer segment trace (robot_trace.cpp), when trace_mp=1.
 void InstallMpTrace();
+// World checksum trace (robot_trace.cpp), when trace_crc=1: a "crc" log line per
+// world checksum, to compare between the copies of a LAN game (desync check).
+void InstallCrcTrace();
 // Experiment: single-player segment length in ms (segment_ms=N in the ini).
 void SetSegmentLength(DWORD ms);
 

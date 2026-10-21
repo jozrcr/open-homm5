@@ -28,6 +28,24 @@ def settings(run):
     return found or ["game's own network timings"]
 
 
+def crc_check(run):
+    """Compare the world checksums logged by both copies (trace_crc): every PC
+    computes one per check number; they must all be equal (no desync)."""
+    by_check = {}
+    for copy in ("host", "client"):
+        path = run / copy / "open-homm5.log"
+        if not path.exists():
+            continue
+        for m in re.finditer(r"crc player=(\d+) check=(-?\d+) crc=([0-9a-f]+)", path.read_text(encoding="utf-8", errors="replace")):
+            by_check.setdefault(int(m.group(2)), set()).add(m.group(3))
+    if not by_check:
+        return None
+    bad = sorted(c for c, values in by_check.items() if len(values) > 1)
+    if bad:
+        return "%d checks, %d DIFFERENT (first at check %d) -> DESYNC" % (len(by_check), len(bad), bad[0])
+    return "%d checks, all equal on both copies (no desync)" % len(by_check)
+
+
 def report(run):
     log = (run / "host" / "open-homm5.log").read_text(encoding="utf-8", errors="replace").splitlines()
     steps = [l for l in log if "ai-step" in l]
@@ -56,6 +74,9 @@ def report(run):
     if lag:
         print("   client behind host (as the host sees it): median %d segments; speed factor median %.2f" %
               (statistics.median(lag), statistics.median(speed)))
+    crc = crc_check(run)
+    if crc:
+        print("   world checksums: %s" % crc)
     summary = run / "host" / "summary.json"
     if summary.exists():
         kinds = json.loads(summary.read_text(encoding="utf-8")).get("wait_after_step_kind", {})
