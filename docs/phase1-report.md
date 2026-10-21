@@ -58,7 +58,7 @@ Shorter multiplayer segments (100 ms instead of 200, same on both PCs): no desyn
 ## What the owner can do next
 
 - **Fix `main`:** PRs #2–#4 were merged into each other's branches, so `main` still has only phase 0. PR #5 (`test-robot`) contains everything. On GitHub: open PR #5, "Edit" → change the base branch to `main`, then merge. (The app blocked me from doing this myself.)
-- **Try the mod in a real game:** copy `build/hook/dinput8.dll` next to the game exe your group uses (all players), play a co-op game with AI players, and compare AI turn times. The DLL logs to `open-homm5.log` next to the exe. To turn the mod off: an `open-homm5.ini` file next to the exe with `[net]` and `tuning=0`.
+- **Try the mod in a real game:** follow [install.md](install.md) (copy one DLL next to the game exe, on every player's PC), play a co-op game with AI players, and compare AI turn times with the mod off and on.
 
 ## Next steps
 

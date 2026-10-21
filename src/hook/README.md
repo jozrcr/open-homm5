@@ -2,7 +2,12 @@
 
 A DLL the game loads at start-up. It lets our code run inside the game, so improvements can ship before the decompilation is complete (the "hook track" in CLAUDE.md).
 
-**What it does today:** forwards DirectInput to the real Windows DLL (so the game works normally), and, if the exe is a build we know, logs every step of every AI turn with its timing to `open-homm5.log` next to the exe. Nothing else; it changes no game behaviour.
+**What it does today:** forwards DirectInput to the real Windows DLL (so the game works normally). If the exe is a build we know, it also:
+
+- logs every step of every AI turn with its timing to `open-homm5.log` next to the exe;
+- applies our mods from `src/mods/`. Today that's one: **LAN link tuning** (`net_tuning.cpp`), modern network timings that make co-op AI turns about 4× faster. It's on by default; `open-homm5.ini` next to the exe can turn it off (`[net]`, `tuning=0`). See `src/mods/README.md`.
+
+Robot mode (`robot*.cpp`, used by `tools/robot/`) only turns on when an `open-homm5-robot.ini` file sits next to the exe, i.e. in the test copy during robot runs.
 
 ## How it gets into the game
 
