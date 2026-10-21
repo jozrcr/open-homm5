@@ -51,9 +51,9 @@ The robot can load a saved game (`run_ai_test.py --save-file … --load-save …
 
 The robot can't fully play such saves yet: when the AI attacks the robot's own hero, the game asks the human to choose "flee or surrender", and the robot can't answer that box yet.
 
-## Tried and not usable yet
+## Shorter multiplayer segments (experiment)
 
-Shorter multiplayer segments (100 ms instead of 200, same on both PCs): no desync, and most AI steps got faster, but hero moves became very slow (seconds, growing). Something else assumes 200 ms. See [multiplayer-sync.md](subsystems/multiplayer-sync.md).
+The game advances in 200 ms "segments". Making them 100 or 50 ms on both PCs works once a hidden second clock is also adjusted. It gives no desync, and AI moves average 0.49 s or 0.44 s instead of 0.60 s. Hero moves (most AI moves) stay at ~0.55 s, so the gain is ~20%. Every PC must use the same value, so this needs a "same settings" guard before it can ship. See [multiplayer-sync.md](subsystems/multiplayer-sync.md).
 
 ## What the owner can do next
 

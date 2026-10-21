@@ -111,9 +111,17 @@ Shorter segments would cut the remaining wait further (in single player, 50 ms s
 
 A mod would have to change all four the same way on every PC, and make sure players with different settings cannot join the same game (for example through the version shown in the LAN game list).
 
-**Tried (2026-10-22, robot experiment `--mp-segment-ms 100`, all four changed on both copies):** no desync (5,357 checksums equal), but **hero moves took ~37 s each** instead of 0.6 s. Something else in the multiplayer path still assumes 200 ms segments (in single player, 50 ms segments worked). Not usable until that is found.
+There is one more place: **the world time of each segment.** The segment runner (`0x007c98e0`, at `0x007c9a48`–`0x007c9a5c`) computes `base + 200·n + 30000` with the same `lea` chain as the checksum handler and passes it to `0x007cc680`; the transceiver's own clock starts at `base + 30000` (`0x007ca024`). Changing only the three immediates (first try) made the world clock run twice as fast as the segments: other AI steps got faster, but hero moves waited about as long as the time since the turn began (6.5 s, 12 s, 25 s…).
 
-Lead: the other AI steps got faster (0.2 s instead of 0.4 s); only hero moves were slow, and their waits roughly equaled the time since the turn began (6.5 s, 12 s, 25 s). That looks like a clock computed as "segments × 200" somewhere (running twice as fast as the transceiver's), compared with the real one. There is no `imul …, 200` in the code, so it is computed another way (`lea` arithmetic like the checksum formula, or a stored constant).
+The robot experiment (`--mp-segment-ms 100|50`, `robot_trace.cpp`) now changes the three immediates and both `lea` chains (scale ×8 → ×4 or ×2, displacement 150 → 3,900 or 11,400, so the formula stays `base + N·n + 30000`). Results, with the link tuning mod on, 8 AI turns each:
+
+| Segment | per AI move | hero move | town swap | world checksums |
+|---|---|---|---|---|
+| 200 ms (game) | 0.60 s | 0.61 s | 0.41 s | all equal |
+| 100 ms | 0.49 s | 0.55 s | 0.20 s | 5,179, all equal |
+| 50 ms | 0.44 s | 0.55 s | 0.14 s | 10,251, all equal |
+
+Hero moves (most AI steps) stay at ~0.55 s, so shorter segments buy ~20% more. As a mod this needs a guard so that players with different settings cannot play together (a mismatch would break the lockstep), so it stays an experiment for now.
 
 Network detail seen on one PC: the game binds UDP 8889 (`net_lan_match_maker_port`, game discovery and then the game link) and 8888 (`net_game_port`), and broadcasts to 255.255.255.255 and to the subnet of each network adapter. See `tools/robot/README.md` for how two copies share one PC.
 
