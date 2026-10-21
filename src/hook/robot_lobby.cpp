@@ -105,6 +105,64 @@ bool PickMap(const char *wanted)
 	return picked;
 }
 
+// "off:text | off:text ..." for every pointer in the first `size` bytes of an
+// object that leads to text (for finding names in structures we don't know).
+void DescribeStrings(const BYTE *object, size_t size, char *out, size_t out_size)
+{
+	out[0] = 0;
+	for (size_t off = 0; off + 4 <= size; off += 4) {
+		char text[96];
+		if (TextAt(*reinterpret_cast<void *const *>(object + off), text, sizeof(text))) {
+			char item[128];
+			_snprintf_s(item, sizeof(item), _TRUNCATE, "%s%02x:%s", out[0] ? " | " : "", static_cast<unsigned>(off),
+			            text);
+			strncat_s(out, out_size, item, _TRUNCATE);
+		}
+	}
+}
+
+// The single-player load screen (NUI::CLoadScreen<SHeaderInfo>, opened by the
+// main menu's "single load_game"; UI/SaveLoad): list widget at +0x17c
+// (IScrollableContainer: slot 4 highlight, slot 5 highlighted row, slot 7 scroll
+// to), save entries at +0x18c..+0x190 (each with its row at +0xa8). The "click"
+// message makes the highlighted row the selected save (0x00800a40), "load" loads
+// it (0x00809840; from the main menu without asking).
+bool PickSave(const char *wanted)
+{
+	BYTE *screen = static_cast<BYTE *>(FindScreen(".?AV?$CLoadScreen@USHeaderInfo@@@NUI@@"));
+	if (!screen)
+		return false;
+	bool picked = false;
+	__try {
+		void *container = *reinterpret_cast<void **>(screen + 0x17c);
+		BYTE **begin = *reinterpret_cast<BYTE ***>(screen + 0x18c);
+		BYTE **end = *reinterpret_cast<BYTE ***>(screen + 0x190);
+		void **vt = *static_cast<void ***>(container);
+		hooklog::Write("robot: save list: %d saves", static_cast<int>(end - begin));
+		for (BYTE **it = begin; it != end; ++it) {
+			char text[1024];
+			DescribeStrings(*it, 0xa8, text, sizeof(text));
+			const bool match = !picked && wanted[0] && ContainsNoCase(text, wanted);
+			hooklog::Write("robot: save %d%s: %s", static_cast<int>(it - begin), match ? " (picked)" : "", text);
+			if (match) {
+				void *row = *reinterpret_cast<void **>(*it + 0xa8);
+				reinterpret_cast<SelectFn>(vt[4])(container, nullptr, row);
+				reinterpret_cast<SelectFn>(vt[7])(container, nullptr, row);
+				picked = reinterpret_cast<GetSelectedFn>(vt[5])(container, nullptr) == row;
+			}
+		}
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		hooklog::Write("robot: save list crashed (caught)");
+		return false;
+	}
+	if (picked)
+		PostGameMessage("click", 0);  // the screen takes the highlighted row as its selection
+	else
+		hooklog::Write("robot: no save matching \"%s\"", wanted);
+	return picked;
+}
+
 // The LAN lobby (NUI::CLobbyScreen) shows the games it has heard of in a
 // NUI::CGamesView2 at +0x1dc, whose list widget (CWindowListCtrl, through its
 // IListControl part, vftable 0x00e94870) is at view+8. "join" uses the

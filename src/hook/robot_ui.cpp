@@ -152,9 +152,12 @@ void EnsureImage()
 }
 
 // "NUI::CLobbyScreen" (a class or a struct) -> its type descriptor, or nullptr.
+// Templates must be given mangled, e.g. ".?AV?$CLoadScreen@USHeaderInfo@@@NUI@@".
 const TypeDescriptor *FindClass(const char *name)
 {
 	EnsureImage();
+	if (strncmp(name, ".?A", 3) == 0)
+		return FindType(name);
 	char mangled[128];
 	for (char kind : {'V', 'U'}) {
 		Mangle(name, kind, mangled, sizeof(mangled));

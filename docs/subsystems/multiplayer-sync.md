@@ -98,6 +98,19 @@ Robot-mode experiments, then the mod (same robot setup, seconds per AI move):
 
 The mod (`src/mods/README.md`) applies the last line by default. The remaining ~0.6 s per AI move is the game's own pacing: each AI step waits for its commands' segment (200 ms) plus one more, as in single player (0.4 s), plus the round trip.
 
+### Segment length in multiplayer (not changed yet)
+
+Shorter segments would cut the remaining wait further (in single player, 50 ms segments took a 6-turn run from 49 s to 34 s, see [ai-turn.md](ai-turn.md)). In multiplayer every PC must use the same length, or the lockstep breaks. The 200 ms appears in `CMultiPlayerTransceiver` as:
+
+| Where | Instruction | Role |
+|---|---|---|
+| `0x007c8b1f` (slot 6, segment due) | `add eax, 200` (immediate at `0x007c8b20`) | time of the next segment |
+| `0x007ca9dc` (slot 4, own step) | `add dword ptr [esi+0x2c], 200` (immediate at `0x007ca9df`) | advance this PC's segment time |
+| `0x007cc0d0` (slot 12) | `add eax, 200` (immediate at `0x007cc0d4`) | next segment time, for other code |
+| `0x007c9456`–`0x007c946d` (checksum handler) | two `lea`s computing `200·check + 30000` | catch-up: a PC whose segment time is 30 s behind the checks jumps forward |
+
+A mod would have to change all four the same way on every PC, and make sure players with different settings cannot join the same game (for example through the version shown in the LAN game list).
+
 Network detail seen on one PC: the game binds UDP 8889 (`net_lan_match_maker_port`, game discovery and then the game link) and 8888 (`net_game_port`), and broadcasts to 255.255.255.255 and to the subnet of each network adapter. See `tools/robot/README.md` for how two copies share one PC.
 
 ## Desync detection

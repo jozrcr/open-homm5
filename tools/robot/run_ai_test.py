@@ -103,6 +103,12 @@ def prepare(game, args, out, instance="", net_port=None):
     (profiles / "Robot" / "user_a2.cfg").write_text(base + extra, encoding="latin-1")
     if (default / "input_a2.cfg").is_file():
         shutil.copy2(default / "input_a2.cfg", profiles / "Robot" / "input_a2.cfg")
+    # Saved games to load (--save-file): copied (never moved) into the robot
+    # profile's Saves folder, where the game's load screen lists them.
+    saves = profiles / "Robot" / "Saves"
+    for save in getattr(args, "save_file", None) or []:
+        saves.mkdir(exist_ok=True)
+        shutil.copy2(save, saves / pathlib.Path(save).name)
 
     # The console command that starts the map, run by the DLL from the game's
     # main loop once the main menu is up (src/hook/robot.cpp):
@@ -312,11 +318,21 @@ def main():
                    help='extra robot script step "<seconds>|<kind>|<text>", kind = console, menu, ui, msg, map '
                         'or shot (see src/hook/robot.cpp)')
     p.add_argument("--no-map", action="store_true", help="do not start a map (for menu experiments)")
+    p.add_argument("--save-file", action="append", default=[],
+                   help="a saved game to copy into the robot profile (then load it with steps, see README)")
+    p.add_argument("--load-save", metavar="PART_OF_NAME",
+                   help="load the save whose name contains this from the main menu instead of starting a map "
+                        "(implies --no-map)")
     p.add_argument("--command",help="console command to run instead of the default advmap line")
     p.add_argument("--net-tuning", choices=["on", "off"], default="on",
                    help="the LAN link tuning mod (src/mods/net_tuning.cpp); only matters in multiplayer")
     p.add_argument("--restore-intro", action="store_true", help="put the intro videos back in the test copy and exit")
     args = p.parse_args()
+    if args.load_save:
+        # main menu > Single player > Load > pick the save > load (src/hook/robot_lobby.cpp)
+        args.no_map = True
+        args.step = ["8|menu|single load_game", "11|shot|load-screen", "13|save|" + args.load_save,
+                     "15|msg|load", "40|shot|loaded"] + args.step
 
     game = pathlib.Path(args.game)
     check_game_dir(game)
