@@ -80,7 +80,32 @@ First real measurements, made by the robot (`tools/robot/run_ai_test.py`) with t
 
 This shifts H1: the per-step wait exists even without a network; in multiplayer the network and `net_batched_segments` delays come on top of it.
 
-**Next:** find what sets the ~400 ms rhythm (how often the AI manager `0x006082f0` is called, and when queued commands execute), then test whether letting the AI take several steps per wait makes turns faster without changing the AI's decisions.
+### What sets the 400 ms rhythm (2026-10-21)
+
+Traced with the robot (`--trace-segments`, and the command types each AI step sends):
+
+- **The AI manager calls the AI once per command segment.** `0x006082f0` runs a loop each frame: `while (transceiver->slot6(&segment)) { transceiver->slot4(); …the current AI player's turn driver… ; transceiver->slot1(…) }`. In single player, slot 6 (`0x007c7ea0`) says a segment is due when game time has passed the transceiver's time, and slot 4 (`0x007c7b20`) runs the queued commands and adds **200 ms** to the transceiver's time. The value 200 is an immediate operand at `0x007c7ba9` and `0x007c7ecf`.
+- Game time runs at real time, but advances in steps of ~47 ms (three ticks of the 15.6 ms Windows clock), so a segment cannot be shorter than that.
+- **Each AI step waits two segments** before the AI is called again (its commands run in the next segment; the AI only resumes after the world has changed).
+- **Hero moves**, which are most AI steps (`CSetHeroAITargetCmd` + `CSetWalkPathCmd` + `CStartMoveHeroCmd`), additionally take **~200 ms of game time** to play out, whatever `adventure_speed_ai` is.
+
+Robot experiment `--segment-ms 50` (memory patch of the two immediates, robot mode only), 6 AI turns on A1M4:
+
+| Wait before the AI's next step, by what the step sent | 200 ms segments (game default) | 50 ms segments |
+|---|---:|---:|
+| hero move (27 steps) | 401 ms | 199 ms |
+| buy creatures + threats info (5) | 392 ms | 109 ms |
+| puzzle map + demand/threats info (4) | 399 ms | 89 ms |
+| hero roles / town swaps (5) | ~400 ms | 49–92 ms |
+| **whole run (6 AI turns)** | **49 s** | **34 s** |
+
+The game kept playing normally with 50 ms segments (AI built, recruited, ended turns; no console errors). Not tested yet: battles, multiplayer, long games.
+
+Also tried, **no effect** on the rhythm: `adventure_speed_ai` 1–10, the `AI_SEGMENT_DURATION` variable (default 50; read at start-up by `0x0092b250`), and the `game_speed <n>` console command (handler `0x00401440`, calls method `0x60` of the game timer interface).
+
+Side finding: the robot game was running "inactive" (40 ms sleep per frame) until robot mode held the active flags `0x00f7a207`/`0x00f7a208` at 1. The main loop (`0x00c3b490`) sets them from queued `WM_ACTIVATEAPP` messages (`0x00c3b3c0`), not from the window procedure.
+
+**Next:** (1) find what makes a hero move take ~200 ms of game time; (2) measure the same in a 2-PC LAN game, where each segment also needs every PC's confirmation; (3) design a real mod (`src/mods/`) for shorter segments, which in multiplayer every PC must run identically.
 
 ## Hypothesis H1: why AI turns are slow in co-op
 

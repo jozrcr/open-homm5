@@ -86,8 +86,10 @@ def prepare(game, args):
     (bin_dir / "open-homm5-robot.ini").write_text(
         "home=%s\nquit_after_ai_turns=%d\nquit_after_seconds=%d\ncommand=%s\ncommand_delay_seconds=%d\n"
         "end_turn_every_seconds=%d\npress_enter_every_seconds=%d\nrepeat_command=%s\nrepeat_every_seconds=%d\n"
+        "trace_segments=%d\nsegment_ms=%d\n"
         % (home, args.turns, args.seconds, command, args.command_delay, args.end_turn_every, args.press_enter_every,
-           args.repeat_command or "", args.repeat_every), encoding="ascii")
+           args.repeat_command or "", args.repeat_every, 1 if args.trace_segments else 0, args.segment_ms),
+        encoding="ascii")
 
     # Skip the start-up videos: move them aside in the TEST COPY (restore with --restore-intro).
     video, parked = game / "video", game / "video" / "robot_disabled"
@@ -146,14 +148,45 @@ def screenshot(pid, path):
 
 # --- log analysis ---------------------------------------------------------------
 STEP = re.compile(r"ai-step ai=(\w+) flag=(\d+) stage (\d+)->(\d+) calls=(\d+) cmds=(-?\d+) "
-                  r"turn_age=(\d+)ms think=([\d.]+)ms gap=(-?[\d.]+)ms")
+                  r"turn_age=(\d+)ms think=([\d.]+)ms gap=(-?[\d.]+)ms(?: types=([0-9a-f,]*))?")
+
+
+def vtable_names():
+    """vftable address -> class name, from analysis/classes.txt."""
+    names = {}
+    path = REPO / "analysis" / "classes.txt"
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("#"):
+                continue
+            parts = line.split("\t")
+            if len(parts) == 3:
+                for vt in filter(None, parts[2].split(", ")):
+                    names[int(vt.split("+")[0], 16)] = parts[0].split("::")[-1]
+    return names
+
+
+def wait_after_steps(steps):
+    """Median wait before the SAME AI's next step, grouped by what this step sent."""
+    names = vtable_names()
+    by_kind = {}
+    for i, s in enumerate(steps):
+        ai, types = s[0], s[9] or ""
+        nxt = next((t for t in steps[i + 1:] if t[0] == ai), None)
+        if not nxt or float(nxt[8]) < 0:
+            continue
+        kinds = sorted({names.get(int(v, 16), v) for v in types.split(",") if v})
+        key = "+".join(kinds) or "(no commands)"
+        by_kind.setdefault(key, []).append(float(nxt[8]))
+    return {k: {"count": len(v), "median_wait_ms": round(statistics.median(v), 1)}
+            for k, v in sorted(by_kind.items(), key=lambda kv: -len(kv[1]))}
 
 
 def summarize(log_text, exit_code, elapsed):
     lines = log_text.splitlines()
     steps = [m.groups() for m in map(STEP.search, lines) if m]
     per_ai = {}
-    for ai, _flag, _s0, _s1, _calls, cmds, _age, think, gap in steps:
+    for ai, _flag, _s0, _s1, _calls, cmds, _age, think, gap, _types in steps:
         a = per_ai.setdefault(ai, {"steps": 0, "commands": 0, "think_ms": 0.0, "gaps_ms": []})
         a["steps"] += 1
         a["commands"] += max(0, int(cmds))
@@ -178,6 +211,7 @@ def summarize(log_text, exit_code, elapsed):
         "ai_steps": len(steps),
         "finished_by": "turn limit" if has("AI turns done") else "time limit" if has("time limit of") else "other (crash or closed)",
         "per_ai": per_ai,
+        "wait_after_step_kind": wait_after_steps(steps),
     }
 
 
@@ -196,7 +230,10 @@ def main():
                    help="the DLL ends the passive human's turn (when no AI is playing) at most every N seconds")
     p.add_argument("--press-enter-every", type=int, default=0,
                    help="robot keyboard: press Enter every N seconds (experimental; 0 = never)")
-    p.add_argument("--repeat-command", help="console command the DLL runs every --repeat-every seconds")
+    p.add_argument("--segment-ms", type=int, default=0,
+                   help="EXPERIMENT: single-player command segment length in ms (game default 200)")
+    p.add_argument("--trace-segments",action="store_true", help="log every single-player command segment")
+    p.add_argument("--repeat-command",help="console command the DLL runs every --repeat-every seconds")
     p.add_argument("--repeat-every", type=int, default=0)
     p.add_argument("--command",help="console command to run instead of the default advmap line")
     p.add_argument("--restore-intro", action="store_true", help="put the intro videos back in the test copy and exit")

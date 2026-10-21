@@ -23,6 +23,8 @@ DWORD g_command_delay_ms = 10000;  // after the first message-loop call
 DWORD g_first_peek = 0;
 bool g_command_done = false;
 DWORD g_end_turn_ms = 0;     // 0 = never
+bool g_trace_segments = false;
+DWORD g_segment_ms = 0;  // 0 = leave the game's 200 ms
 DWORD g_press_enter_ms = 0;  // 0 = never
 DWORD g_last_enter = 0;
 wchar_t g_repeat_command[256] = {};  // console command run every repeat_every_seconds
@@ -231,6 +233,15 @@ PeekMessageAFn g_real_PeekMessageA = nullptr;
 BOOL WINAPI RobotPeekMessageA(LPMSG msg, HWND hwnd, UINT min, UINT max, UINT remove)
 {
 	const BOOL result = g_real_PeekMessageA(msg, hwnd, min, max, remove);
+	// The main loop (0x00c3b490) sets the game's "active" flags from queued
+	// WM_ACTIVATEAPP messages (0x00c3b3c0); while inactive it sleeps 40 ms per
+	// frame. Keep it active: flip deactivation messages and hold the flags at 1.
+	if (result && msg && msg->message == WM_ACTIVATEAPP && msg->wParam == 0)
+		msg->wParam = 1;
+	if (IsHookable(DetectGameBuild())) {
+		*reinterpret_cast<volatile BYTE *>(0x00f7a207) = 1;  // "app active" (read by 0x00c3b0a0)
+		*reinterpret_cast<volatile BYTE *>(0x00f7a208) = 1;
+	}
 	static bool activated = false;
 	if (g_game_hwnd && !activated) {  // tell the game once that it is active
 		activated = true;
@@ -252,6 +263,10 @@ BOOL WINAPI RobotPeekMessageA(LPMSG msg, HWND hwnd, UINT min, UINT max, UINT rem
 	}
 	// End the passive human player's turn when no AI is playing.
 	InstallEndTurnHelper();
+	if (g_trace_segments)
+		InstallSegmentTrace();
+	if (g_segment_ms)
+		SetSegmentLength(g_segment_ms);
 	if (g_command_done)
 		MaybeEndHumanTurn(g_end_turn_ms, 3000);
 	// Repeat a console command now and then.
@@ -361,6 +376,10 @@ bool ReadConfig(const wchar_t *path)
 			MultiByteToWideChar(CP_ACP, 0, value, -1, g_command, 1024);
 		else if (strcmp(line, "command_delay_seconds") == 0)
 			g_command_delay_ms = static_cast<DWORD>(atol(value)) * 1000;
+		else if (strcmp(line, "segment_ms") == 0)
+			g_segment_ms = static_cast<DWORD>(atol(value));
+		else if (strcmp(line, "trace_segments") == 0)
+			g_trace_segments = atol(value) != 0;
 		else if (strcmp(line, "end_turn_every_seconds") == 0)
 			g_end_turn_ms = static_cast<DWORD>(atol(value)) * 1000;
 		else if (strcmp(line, "press_enter_every_seconds") == 0)

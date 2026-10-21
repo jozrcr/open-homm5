@@ -37,4 +37,9 @@ void OnAiStep();               // from the AI trace, every AI step
 void InstallEndTurnHelper();   // from the main loop, once the build is known
 void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms);
 
+// Optional segment trace (robot_trace.cpp), when trace_segments=1.
+void InstallSegmentTrace();
+// Experiment: single-player segment length in ms (segment_ms=N in the ini).
+void SetSegmentLength(DWORD ms);
+
 }  // namespace robot
