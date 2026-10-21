@@ -134,6 +134,7 @@ def prepare(game, args, out, instance="", net_port=None):
         ("trace_crc", int(bool(getattr(args, "trace_crc", False)))),
         ("profile_ai", int(bool(getattr(args, "profile_ai", False)))),
         ("segment_ms", args.segment_ms),
+        ("mp_segment_ms", getattr(args, "mp_segment_ms", 0)),
         # screenshots: the DLL saves the game's own frames there as .bmp (src/hook/robot_screen.cpp)
         ("screenshot_dir", out),
         ("screenshot_every_seconds", args.shot_every),

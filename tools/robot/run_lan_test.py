@@ -46,7 +46,7 @@ def instance_args(args, name, steps):
         shot_every=args.shot_every, step=steps, net_log=True, relay_ports=others, trace_mp=args.trace_mp, trace_crc=True,
         net_log_packets=args.net_log_packets, net_tuning=args.net_tuning,
         net_keepalive_ms=args.net_keepalive_ms, net_send_interval_ms=args.net_send_interval_ms,
-        net_batched_segments=args.net_batched_segments)
+        net_batched_segments=args.net_batched_segments, mp_segment_ms=args.mp_segment_ms)
 
 
 def main():
@@ -62,6 +62,8 @@ def main():
     p.add_argument("--setvar", action="append", default=[], help="extra profile setting for both copies")
     p.add_argument("--start-at", type=int, default=43, help="script time of the host's start (seconds)")
     p.add_argument("--trace-mp", action="store_true", help="log every multiplayer segment step and command sent")
+    p.add_argument("--mp-segment-ms", type=int, default=0,
+                   help="EXPERIMENT: multiplayer segment length 100 or 50 ms on both copies (game: 200)")
     p.add_argument("--net-log-packets", type=int, default=-1, help="packets logged per socket and direction")
     p.add_argument("--net-tuning", choices=["on", "off"], default="on",
                    help="the LAN link tuning mod (src/mods/net_tuning.cpp) on both copies; off = the game's timings")

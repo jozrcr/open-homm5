@@ -43,7 +43,8 @@ bool g_trace_segments = false;
 bool g_trace_mp = false;
 bool g_trace_crc = false;
 bool g_profile_ai = false;
-DWORD g_segment_ms = 0;  // 0 = leave the game's 200 ms
+DWORD g_segment_ms = 0;
+DWORD g_mp_segment_ms = 0;  // 0 = leave the game's 200 ms (experiment, robot_trace.cpp)  // 0 = leave the game's 200 ms
 DWORD g_press_enter_ms = 0;  // 0 = never
 DWORD g_last_enter = 0;
 wchar_t g_repeat_command[256] = {};  // console command run every repeat_every_seconds
@@ -374,6 +375,8 @@ BOOL WINAPI RobotPeekMessageA(LPMSG msg, HWND hwnd, UINT min, UINT max, UINT rem
 		InstallCrcTrace();
 	if (g_segment_ms)
 		SetSegmentLength(g_segment_ms);
+	if (g_mp_segment_ms)
+		SetMpSegmentLength(g_mp_segment_ms);
 	if (g_command_done)
 		MaybeEndHumanTurn(g_end_turn_ms, 3000);
 	// Screenshots now and then.
@@ -691,6 +694,8 @@ bool ReadConfig(const wchar_t *path)
 			g_command_delay_ms = static_cast<DWORD>(atol(value)) * 1000;
 		else if (strcmp(line, "segment_ms") == 0)
 			g_segment_ms = static_cast<DWORD>(atol(value));
+		else if (strcmp(line, "mp_segment_ms") == 0)
+			g_mp_segment_ms = static_cast<DWORD>(atol(value));
 		else if (strcmp(line, "trace_segments") == 0)
 			g_trace_segments = atol(value) != 0;
 		else if (strcmp(line, "trace_mp") == 0)

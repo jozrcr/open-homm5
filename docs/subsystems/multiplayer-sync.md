@@ -111,6 +111,8 @@ Shorter segments would cut the remaining wait further (in single player, 50 ms s
 
 A mod would have to change all four the same way on every PC, and make sure players with different settings cannot join the same game (for example through the version shown in the LAN game list).
 
+**Tried (2026-10-22, robot experiment `--mp-segment-ms 100`, all four changed on both copies):** no desync (5,357 checksums equal), but **hero moves took ~37 s each** instead of 0.6 s. Something else in the multiplayer path still assumes 200 ms segments (in single player, 50 ms segments worked). Not usable until that is found.
+
 Network detail seen on one PC: the game binds UDP 8889 (`net_lan_match_maker_port`, game discovery and then the game link) and 8888 (`net_game_port`), and broadcasts to 255.255.255.255 and to the subnet of each network adapter. See `tools/robot/README.md` for how two copies share one PC.
 
 ## Desync detection

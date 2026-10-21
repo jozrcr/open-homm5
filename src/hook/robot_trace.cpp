@@ -224,6 +224,51 @@ void SetSegmentLength(DWORD ms)
 	hooklog::Write("robot: EXPERIMENT single-player segment length set to %lu ms (was 200)", ms);
 }
 
+// EXPERIMENT (robot mode only, mp_segment_ms=100 or 50): the multiplayer
+// segment length. Every PC of a game must use the same value (lockstep). The
+// 200 ms appears in CMultiPlayerTransceiver as three immediates and in the
+// checksum handler's catch-up formula 200*check + 30000, computed by
+//   lea ecx,[ebp+ebp*2+0x1c2]; lea edx,[ebp+ecx*8+0x96]; lea eax,[eax+edx*8]
+// = (25*check + 3750) * 8. The last lea's scale (SIB byte 0xd0 at 0x007c946f)
+// becomes 4 (0x90) or 2 (0x50): 100*check + 15000 or 50*check + 7500.
+void SetMpSegmentLength(DWORD ms)
+{
+	static bool done = false;
+	if (done || !ms || !IsHookable(DetectGameBuild()))
+		return;
+	done = true;
+	const DWORD immediates[] = {0x007c8b20, 0x007ca9df, 0x007cc0d4};
+	BYTE sib = ms == 100 ? 0x90 : ms == 50 ? 0x50 : 0;
+	if (!sib) {
+		hooklog::Write("robot: mp_segment_ms must be 100 or 50, not %lu: not changed", ms);
+		return;
+	}
+	for (DWORD a : immediates) {
+		if (*reinterpret_cast<DWORD *>(a) != 200) {
+			hooklog::Write("robot: multiplayer segment length at %08lx is not 200: not changed", a);
+			return;
+		}
+	}
+	BYTE *scale = reinterpret_cast<BYTE *>(0x007c946f);
+	if (*scale != 0xd0) {
+		hooklog::Write("robot: checksum catch-up formula not as expected: not changed");
+		return;
+	}
+	DWORD old;
+	for (DWORD a : immediates) {
+		DWORD *imm = reinterpret_cast<DWORD *>(a);
+		VirtualProtect(imm, sizeof(DWORD), PAGE_EXECUTE_READWRITE, &old);
+		*imm = ms;
+		VirtualProtect(imm, sizeof(DWORD), old, &old);
+		FlushInstructionCache(GetCurrentProcess(), imm, sizeof(DWORD));
+	}
+	VirtualProtect(scale, 1, PAGE_EXECUTE_READWRITE, &old);
+	*scale = sib;
+	VirtualProtect(scale, 1, old, &old);
+	FlushInstructionCache(GetCurrentProcess(), scale, 1);
+	hooklog::Write("robot: EXPERIMENT multiplayer segment length set to %lu ms (was 200)", ms);
+}
+
 void InstallSegmentTrace()
 {
 	static bool done = false;

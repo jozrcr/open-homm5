@@ -120,5 +120,8 @@ void InstallMpTrace();
 void InstallCrcTrace();
 // Experiment: single-player segment length in ms (segment_ms=N in the ini).
 void SetSegmentLength(DWORD ms);
+// Experiment: multiplayer segment length, 100 or 50 ms (mp_segment_ms=N); every
+// copy of the game must use the same value.
+void SetMpSegmentLength(DWORD ms);
 
 }  // namespace robot
