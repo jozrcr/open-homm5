@@ -116,6 +116,8 @@ def prepare(game, args, out, instance="", net_port=None):
         ("net_share_udp_ports", int(bool(getattr(args, "share_udp_ports", False)))),
         ("net_lan_relay_ports", getattr(args, "relay_ports", "")),
         ("net_log_packets", getattr(args, "net_log_packets", -1)),
+        ("net_keepalive_ms", getattr(args, "net_keepalive_ms", 0)),
+        ("net_send_interval_ms", getattr(args, "net_send_interval_ms", 0)),
     ] + [("step", s) for s in args.step]
     ini.write_text("".join("%s=%s\n" % kv for kv in config), encoding="ascii")
 

@@ -55,6 +55,8 @@ bool g_net_log = false;  // robot_net.cpp
 bool g_share_udp_ports = false;
 char g_relay_ports[64] = {};
 int g_net_log_packets = -1;  // -1 = robot_net.cpp's default
+DWORD g_net_keepalive_ms = 0;  // 0 = leave the game's 1000 ms
+DWORD g_net_send_interval_ms = 0;  // 0 = leave the game's 50 ms
 
 // --- running a console command the way WinMain does (0x00d112a7) ---------------
 //   push L"mainmenu"; lea ecx,[str]; call 0x00456220   build a game wide string
@@ -363,6 +365,10 @@ BOOL WINAPI RobotPeekMessageA(LPMSG msg, HWND hwnd, UINT min, UINT max, UINT rem
 		InstallMpTrace();
 	if (g_segment_ms)
 		SetSegmentLength(g_segment_ms);
+	if (g_net_keepalive_ms)
+		SetNetKeepalive(g_net_keepalive_ms);
+	if (g_net_send_interval_ms)
+		SetNetSendInterval(g_net_send_interval_ms);
 	if (g_command_done)
 		MaybeEndHumanTurn(g_end_turn_ms, 3000);
 	// Screenshots now and then.
@@ -512,6 +518,44 @@ void DescribeAddress(DWORD a, char *out, size_t size)
 	_snprintf_s(out, size, _TRUNCATE, "%08lx?", a);
 }
 
+}  // namespace
+
+void DescribeStack(DWORD esp, char *line, size_t size, int max_frames)
+{
+	// the first few system frames, then only the game's own (the exe image)
+	const BYTE *exe = reinterpret_cast<const BYTE *>(GetModuleHandleW(nullptr));
+	const DWORD exe_end = reinterpret_cast<DWORD>(exe) + reinterpret_cast<const IMAGE_NT_HEADERS32 *>(
+	                          exe + reinterpret_cast<const IMAGE_DOS_HEADER *>(exe)->e_lfanew)
+	                          ->OptionalHeader.SizeOfImage;
+	const DWORD *stack = reinterpret_cast<const DWORD *>(esp);
+	int found = 0, system = 0;
+	for (int i = 0; i < 16384 && found < max_frames; ++i) {
+		__try {
+			const DWORD v = stack[i];
+			const bool in_exe = v >= reinterpret_cast<DWORD>(exe) && v < exe_end;
+			if (!in_exe && system >= 3)
+				continue;
+			MEMORY_BASIC_INFORMATION mbi;
+			if (v > 0x10000 && VirtualQuery(reinterpret_cast<void *>(v), &mbi, sizeof(mbi)) && mbi.Type == MEM_IMAGE &&
+			    (mbi.Protect & (PAGE_EXECUTE_READ | PAGE_EXECUTE | PAGE_EXECUTE_READWRITE)) &&
+			    AfterCall(reinterpret_cast<const BYTE *>(v))) {
+				if (!in_exe)
+					++system;
+				char where[128];
+				DescribeAddress(v, where, sizeof(where));
+				strncat_s(line, size, " ", _TRUNCATE);
+				strncat_s(line, size, where, _TRUNCATE);
+				++found;
+			}
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER) {
+			break;  // end of the stack
+		}
+	}
+}
+
+namespace {
+
 void ReportStall(DWORD stalled_ms, const char *what)
 {
 	if (!g_main_thread || SuspendThread(g_main_thread) == static_cast<DWORD>(-1))
@@ -524,35 +568,7 @@ void ReportStall(DWORD stalled_ms, const char *what)
 		DescribeAddress(ctx.Eip, where, sizeof(where));
 		_snprintf_s(line, sizeof(line), _TRUNCATE, "robot: stall (%s for %lu ms); main thread at %s, called from", what,
 		            stalled_ms, where);
-		// the first few system frames, then only the game's own (the exe image)
-		const BYTE *exe = reinterpret_cast<const BYTE *>(GetModuleHandleW(nullptr));
-		const DWORD exe_end = reinterpret_cast<DWORD>(exe) + reinterpret_cast<const IMAGE_NT_HEADERS32 *>(
-		                          exe + reinterpret_cast<const IMAGE_DOS_HEADER *>(exe)->e_lfanew)
-		                          ->OptionalHeader.SizeOfImage;
-		const DWORD *stack = reinterpret_cast<const DWORD *>(ctx.Esp);
-		int found = 0, system = 0;
-		for (int i = 0; i < 16384 && found < 24; ++i) {
-			__try {
-				const DWORD v = stack[i];
-				const bool in_exe = v >= reinterpret_cast<DWORD>(exe) && v < exe_end;
-				if (!in_exe && system >= 3)
-					continue;
-				MEMORY_BASIC_INFORMATION mbi;
-				if (v > 0x10000 && VirtualQuery(reinterpret_cast<void *>(v), &mbi, sizeof(mbi)) && mbi.Type == MEM_IMAGE &&
-				    (mbi.Protect & (PAGE_EXECUTE_READ | PAGE_EXECUTE | PAGE_EXECUTE_READWRITE)) &&
-				    AfterCall(reinterpret_cast<const BYTE *>(v))) {
-					if (!in_exe)
-						++system;
-					DescribeAddress(v, where, sizeof(where));
-					strncat_s(line, sizeof(line), " ", _TRUNCATE);
-					strncat_s(line, sizeof(line), where, _TRUNCATE);
-					++found;
-				}
-			}
-			__except (EXCEPTION_EXECUTE_HANDLER) {
-				break;  // end of the stack
-			}
-		}
+		DescribeStack(ctx.Esp, line, sizeof(line), 24);
 	}
 	else {
 		_snprintf_s(line, sizeof(line), _TRUNCATE, "robot: stall (%s for %lu ms), no thread context", what, stalled_ms);
@@ -692,6 +708,10 @@ bool ReadConfig(const wchar_t *path)
 			lstrcpynA(g_relay_ports, value, sizeof(g_relay_ports));
 		else if (strcmp(line, "net_log_packets") == 0)
 			g_net_log_packets = atoi(value);
+		else if (strcmp(line, "net_keepalive_ms") == 0)
+			g_net_keepalive_ms = static_cast<DWORD>(atol(value));
+		else if (strcmp(line, "net_send_interval_ms") == 0)
+			g_net_send_interval_ms = static_cast<DWORD>(atol(value));
 	}
 	fclose(f);
 	return true;
