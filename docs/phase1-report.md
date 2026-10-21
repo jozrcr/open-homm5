@@ -64,5 +64,5 @@ The game advances in 200 ms "segments". Making them 100 or 50 ms on both PCs wor
 
 1. **Test the mod in a real co-op game** (GameRanger, all players with the DLL), then over long games. The robot found no desync in three long LAN games, including one played to the end.
 2. **Faster hero pathfinding** for late games: decompile the pathfinder (byte-matched first), then a faster version with identical results as a mod.
-3. **The remaining 0.6 s per AI move** is the game's segment pacing. Shorter multiplayer segments need the hidden "× 200" found first, and a check that all players use the same setting.
+3. **The remaining 0.6 s per AI move** is mostly hero moves playing out. Shorter segments (tested, ~20% faster, no desync) need a "same settings for every player" guard before they can be part of the mod. Then: what makes a hero move take ~0.5 s.
 4. **Robot:** answer the retreat box, so the robot can play through late-game saves, including your group's co-op saves (`sauvegarde_14/15`, a 6-player map).
