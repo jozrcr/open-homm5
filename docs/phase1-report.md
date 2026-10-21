@@ -45,6 +45,16 @@ A desync is when the PCs of a game stop agreeing on the state of the world. To c
   - the robot closed the combat results window, which otherwise waits for "OK".
 - The game's per-object variant (`mp_check_object_crc`) froze the game, so it isn't used.
 
+## Late game: the AI's own thinking
+
+The robot can load a saved game (`run_ai_test.py --save-file … --load-save …`). On the owner's single-player save `save_11.sav` (huge random map, day 50), one AI turn **thought for 21 seconds**, one move alone for 9 s, against ~0.1 s per turn early in a game. A sampling profiler built into the robot shows where the time goes: **97% is hero pathfinding**. That's a search over the map whose priority queue copies 64-byte entries around on every step. A faster pathfinder that finds exactly the same paths would make late-game AI turns much quicker. It changes nothing for the other PCs, because only the host runs the AI. Details: [ai-turn.md](subsystems/ai-turn.md).
+
+The robot can't fully play such saves yet: when the AI attacks the robot's own hero, the game asks the human to choose "flee or surrender", and the robot can't answer that box yet.
+
+## Tried and not usable yet
+
+Shorter multiplayer segments (100 ms instead of 200, same on both PCs): no desync, and most AI steps got faster, but hero moves became very slow (seconds, growing). Something else assumes 200 ms. See [multiplayer-sync.md](subsystems/multiplayer-sync.md).
+
 ## What the owner can do next
 
 - **Fix `main`:** PRs #2–#4 were merged into each other's branches, so `main` still has only phase 0. PR #5 (`test-robot`) contains everything. On GitHub: open PR #5, "Edit" → change the base branch to `main`, then merge. (The app blocked me from doing this myself.)
@@ -52,6 +62,7 @@ A desync is when the PCs of a game stop agreeing on the state of the world. To c
 
 ## Next steps
 
-1. Confirm no desync over long games (robot), then over GameRanger with real players.
-2. The remaining 0.6 s per AI move is the game's own pacing: each AI move waits for its 200 ms segment and one more. Shorter segments in multiplayer must be identical on every PC (lockstep), so the mod would need a version check between players.
-3. Late-game benchmarks from saved games (big maps, many heroes and towns), as the owner suggested.
+1. **Test the mod in a real co-op game** (GameRanger, all players with the DLL), then over long games. The robot found no desync in three long LAN games, including one played to the end.
+2. **Faster hero pathfinding** for late games: decompile the pathfinder (byte-matched first), then a faster version with identical results as a mod.
+3. **The remaining 0.6 s per AI move** is the game's segment pacing. Shorter multiplayer segments need the hidden "× 200" found first, and a check that all players use the same setting.
+4. **Robot:** answer the retreat box, so the robot can play through late-game saves, including your group's co-op saves (`sauvegarde_14/15`, a 6-player map).
