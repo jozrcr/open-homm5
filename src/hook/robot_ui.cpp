@@ -405,20 +405,25 @@ bool UiCommand(const char *screen, const char *command)
 	return handled;
 }
 
-// Windows that wait for a click a robot game cannot give, and the command their
-// button sends: the combat results (UI/CombatResults/Ok: reaction "Close",
-// handled by 0x00581120). Called by the end-turn helper when no AI has moved for
-// a while, i.e. when the game seems to wait for a human.
+// Windows that wait for a click a robot game cannot give. Called by the
+// end-turn helper when no AI has moved for a while, i.e. when the game seems
+// to wait for a human:
+//   - the combat results: its OK runs the reaction "Close" (UI/CombatResults/Ok,
+//     handled by 0x00581120);
+//   - "common boxes" (NUI::CCommonBox and the boxes built on it, e.g. the
+//     retreat box a defending hero gets): their OK button posts the game
+//     message "left" (UI/CommonBoxes/Left_ARSendGameMessage), cancel "right".
 void AutoCloseScreens()
 {
-	struct Closer {
-		const char *screen;
-		const char *command;
-	};
-	const Closer closers[] = {{"NUI::CCombatResults", "Close"}};
 	g_quiet = true;
-	for (const Closer &c : closers)
-		UiCommand(c.screen, c.command);  // logs only when it found the window
+	UiCommand("NUI::CCombatResults", "Close");  // logs only when it found the window
+	const char *boxes[] = {"NUI::CRetreatBox"};
+	for (const char *box : boxes) {
+		if (FindScreen(box)) {
+			hooklog::Write("robot: %s open: pressing OK", box);
+			PostGameMessage("left", 0);
+		}
+	}
 	g_quiet = false;
 }
 

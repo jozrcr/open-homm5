@@ -132,6 +132,23 @@ Making it worse: idle PCs report finished segments only every `net_batched_segme
 
 So **H1 is right in spirit**: every AI step waits for the network. But even on one PC (no real network delay) the wait is ~1.3 s per step, because of how the game's LAN link sends data. Over the Internet (GameRanger) the ping comes on top.
 
+## Late game: the AI's thinking is mostly pathfinding (2026-10-22)
+
+Measured with the robot on the owner's single-player save `save_11.sav` (MMH5.5 random map "4p-cps-solo", huge, day 50, loaded with `run_ai_test.py --load-save`): in one AI turn of 12 steps the AI **thought for 21 s** (one step alone 9 s) and waited 9 s. Early-game turns think ~0.1 s. So on big, late maps the AI's own computation becomes the main cost, on top of the per-step waiting.
+
+The robot's AI profiler (`--profile-ai`, `src/hook/robot_profile.cpp`; `tools/robot/profile_report.py`) samples the main thread every ~2 ms while the AI thinks. 8,550 samples (17 s) of that turn:
+
+| Function | On the stack | Notes |
+|---|---:|---|
+| `0x00c08be0` | 95% | path query entry; called from 12 places in the AI (`0x0086c010`, `0x0086cd10`, `0x008675f0`, …) |
+| `0x00c08890` | 97% | the search loop |
+| `0x00c095b0`, `0x00c09500` (self 13.5% + 10%) | | **binary heap** push/pop (`(i-1)/2` sift-up) of **64-byte nodes copied by value** (16 dwords per move); comparator `0x00c08fd0` |
+| `0x00c07f80` (self 8%) | 69% | node expansion (2,306 bytes) |
+
+Neighbouring classes: `NWorld::CHeroTraceTile`, `NWorld::CHeroesFilter`, `NWorld::CDangerPool`. So this is the **hero pathfinder** (a Dijkstra/A*-like search over the adventure map), run again and again by the AI. A pathfinder that returns exactly the same paths, faster (nodes by index instead of 64-byte copies, reuse between queries), would be a pure speed-up. In multiplayer only the host runs the AI and its moves carry their paths, so this changes nothing for the other PCs. Candidate for phase 5 (and a good first decompilation target: the functions are small and self-contained).
+
+The rest of the late-game run was blocked by dialogs for the robot's own human player (a battle's retreat box, which needs Flee or Surrender chosen). Benchmarks on such saves need those handled, or the human player switched to AI.
+
 ## Related settings (console variables)
 
 From strings in the exe; most addresses of the backing globals are still unknown.
