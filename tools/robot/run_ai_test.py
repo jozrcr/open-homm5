@@ -95,18 +95,29 @@ def prepare(game, args, out, instance="", net_port=None):
     # ("-1" for "no humans" is rejected by this build: "Invalid player index -1!")
     command = "" if args.no_map else (args.command or ("advmap %s 0 %s 1" % (dbid, args.difficulty)))
     # extra script steps: "<seconds>|console|<text>", "<seconds>|menu|<page> <command>", "<seconds>|shot|<label>"
-    steps = "".join("step=%s\n" % s for s in args.step)
-    # screenshots: the DLL saves the game's own frames there as .bmp (src/hook/robot_screen.cpp)
-    ini.write_text(
-        "home=%s\nquit_after_ai_turns=%d\nquit_after_seconds=%d\ncommand=%s\ncommand_delay_seconds=%d\n"
-        "end_turn_every_seconds=%d\npress_enter_every_seconds=%d\nrepeat_command=%s\nrepeat_every_seconds=%d\n"
-        "trace_segments=%d\nsegment_ms=%d\nscreenshot_dir=%s\nscreenshot_every_seconds=%d\nnet_log=%d\n"
-        "net_share_udp_ports=%d\nnet_lan_relay_ports=%s\n%s"
-        % (home, args.turns, args.seconds, command, args.command_delay, args.end_turn_every, args.press_enter_every,
-           args.repeat_command or "", args.repeat_every, 1 if args.trace_segments else 0, args.segment_ms,
-           out, args.shot_every, 1 if getattr(args, "net_log", False) else 0,
-           1 if getattr(args, "share_udp_ports", False) else 0, getattr(args, "relay_ports", ""), steps),
-        encoding="ascii")
+    # the DLL's robot config (src/hook/robot.h lists the keys)
+    config = [
+        ("home", home),
+        ("quit_after_ai_turns", args.turns),
+        ("quit_after_seconds", args.seconds),
+        ("command", command),
+        ("command_delay_seconds", args.command_delay),
+        ("end_turn_every_seconds", args.end_turn_every),
+        ("press_enter_every_seconds", args.press_enter_every),
+        ("repeat_command", args.repeat_command or ""),
+        ("repeat_every_seconds", args.repeat_every),
+        ("trace_segments", int(bool(args.trace_segments))),
+        ("trace_mp", int(bool(getattr(args, "trace_mp", False)))),
+        ("segment_ms", args.segment_ms),
+        # screenshots: the DLL saves the game's own frames there as .bmp (src/hook/robot_screen.cpp)
+        ("screenshot_dir", out),
+        ("screenshot_every_seconds", args.shot_every),
+        ("net_log", int(bool(getattr(args, "net_log", False)))),
+        ("net_share_udp_ports", int(bool(getattr(args, "share_udp_ports", False)))),
+        ("net_lan_relay_ports", getattr(args, "relay_ports", "")),
+        ("net_log_packets", getattr(args, "net_log_packets", -1)),
+    ] + [("step", s) for s in args.step]
+    ini.write_text("".join("%s=%s\n" % kv for kv in config), encoding="ascii")
 
     # Skip the start-up videos: move them aside in the TEST COPY (restore with --restore-intro).
     video, parked = game / "video", game / "video" / "robot_disabled"

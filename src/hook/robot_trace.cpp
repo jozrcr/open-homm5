@@ -8,7 +8,10 @@
 //   slot 4 = 0x007c7b20  void RunSegment()               __thiscall, ret
 //            executes the queued commands, then this+0x14 += 200
 // Enabled with trace_segments=1 in open-homm5-robot.ini. Vftable entries only.
+// The multiplayer version (trace_mp=1) is further down.
 #include <windows.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "game_build.h"
 #include "log.h"
@@ -68,7 +71,84 @@ bool Patch(DWORD slot_address, DWORD expected, void *replacement)
 //   0x007c7ece  05 c8 00 00 00         add eax, 200                   (SegmentDue)
 const DWORD kSegmentImmediates[] = {0x007c7ba9, 0x007c7ecf};
 
+// --- multiplayer -------------------------------------------------------------------
+// NWorld::CMultiPlayerTransceiver (main vftable 0x00e43f1c), fields used here:
+//   +0x28 timer (game time at timer+0x14)   +0x2c this PC's segment time
+//   +0x38 segment records (circular list, record+8 = segment number)
+//   +0x3c..0x40 each player's last reported segment   +0x54 this PC's player (-1 none)
+//   0x00f3fa5c game speed factor set by the pacing (slot 5, 0x007c8dd0): a PC
+//   that is ahead of the slowest player slows down.
+// A command sent from this PC (slot 0, 0x007c9810) joins this PC's current
+// segment; a segment runs only when every player has reported a later one
+// (0x007c8c80). Slot 4 (0x007ca990) is this PC's own step (+200 ms).
+const DWORD kMpTransceiverVftable = 0x00e43f1c;
+const DWORD kMpSend = 0x007c9810;
+const DWORD kMpOwnStep = 0x007ca990;
+typedef void(__fastcall *MpSendFn)(void *self, void *edx, void *command);
+typedef void(__fastcall *MpOwnStepFn)(void *self, void *edx);
+
+void DescribeMp(void *self, char *out, size_t size)
+{
+	const int me = static_cast<int>(Read(self, 0x54));
+	const DWORD *seg = reinterpret_cast<const DWORD *>(Read(self, 0x3c));
+	const int players = static_cast<int>((Read(self, 0x40) - Read(self, 0x3c)) / 4);
+	char list[96] = "";
+	for (int i = 0; i < players && i < 8; ++i) {
+		char item[16];
+		_snprintf_s(item, sizeof(item), _TRUNCATE, "%s%ld", i ? "," : "", static_cast<LONG>(seg[i]));
+		strncat_s(list, sizeof(list), item, _TRUNCATE);
+	}
+	const DWORD *head = reinterpret_cast<const DWORD *>(Read(self, 0x38));
+	int records = 0;
+	LONG oldest = -1;
+	for (const DWORD *r = reinterpret_cast<const DWORD *>(head[0]); r != head && records < 1000;
+	     r = reinterpret_cast<const DWORD *>(r[0]), ++records) {
+		if (records == 0)
+			oldest = static_cast<LONG>(r[2]);
+	}
+	const float speed = *reinterpret_cast<const float *>(0x00f3fa5c);
+	_snprintf_s(out, size, _TRUNCATE, "me=%d segments=[%s] oldest_waiting=%ld records=%d speed=%.2f tx=%lu game=%lu", me,
+	            list, oldest, records, speed, Read(self, 0x2c), Read(reinterpret_cast<void *>(Read(self, 0x28)), 0x14));
+}
+
+void SafeDescribeMp(void *self, char *out, size_t size)
+{
+	__try {
+		DescribeMp(self, out, size);
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		_snprintf_s(out, size, _TRUNCATE, "(unreadable)");
+	}
+}
+
+void __fastcall MpSendHook(void *self, void *edx, void *command)
+{
+	char state[256];
+	SafeDescribeMp(self, state, sizeof(state));
+	hooklog::Write("mp-send cmd=%08lx %s", command ? *static_cast<DWORD *>(command) : 0, state);
+	reinterpret_cast<MpSendFn>(kMpSend)(self, edx, command);
+}
+
+void __fastcall MpOwnStepHook(void *self, void *edx)
+{
+	reinterpret_cast<MpOwnStepFn>(kMpOwnStep)(self, edx);
+	char state[256];
+	SafeDescribeMp(self, state, sizeof(state));
+	hooklog::Write("mp-step %s", state);
+}
+
 }  // namespace
+
+void InstallMpTrace()
+{
+	static bool done = false;
+	if (done || !IsHookable(DetectGameBuild()))
+		return;
+	done = true;
+	const bool a = Patch(kMpTransceiverVftable + 0 * 4, kMpSend, reinterpret_cast<void *>(&MpSendHook));
+	const bool b = Patch(kMpTransceiverVftable + 4 * 4, kMpOwnStep, reinterpret_cast<void *>(&MpOwnStepHook));
+	hooklog::Write("robot: multiplayer segment trace %s", a && b ? "installed" : "FAILED (vftable not as expected)");
+}
 
 // EXPERIMENT (robot mode only, segment_ms=N): change the single-player segment
 // length in memory, to measure how much it paces the AI. Not a mod: a real

@@ -20,6 +20,7 @@
 //                           separate machines and can answer.
 #include <winsock2.h>
 #include <windows.h>
+#include <intrin.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -68,7 +69,7 @@ int Error()
 
 // The first few sends and receives per socket are logged.
 const int kTracked = 64;
-const int kLoggedPackets = 100;
+int g_logged_packets = 100;  // per socket and direction (net_log_packets)
 const int kLoggedHellos = 3;
 SOCKET g_udp[kTracked];  // UDP sockets
 struct Counter {
@@ -83,7 +84,7 @@ bool Wanted(Counter *c, const char *buf, int len, bool sent)
 		return false;
 	if (buf && len == 5 && buf[0] == 0x02)
 		return (sent ? c->hellos_sent++ : c->hellos_received++) < kLoggedHellos;
-	return (sent ? c->sent++ : c->received++) < kLoggedPackets;
+	return (sent ? c->sent++ : c->received++) < g_logged_packets;
 }
 Counter g_counters[kTracked];
 
@@ -187,8 +188,8 @@ int WINAPI RobotSendTo(SOCKET s, const char *buf, int len, int flags, const sock
 		char where[32], bytes[32];
 		Address(to, where, sizeof(where));
 		Bytes(buf, len, bytes, sizeof(bytes));
-		hooklog::Write("robot: net: sendto(%u, %d bytes %s, %s) -> %d (error %d)", static_cast<unsigned>(s), len, bytes,
-		               where, r, r < 0 ? Error() : 0);
+		hooklog::Write("robot: net: sendto(%u, %d bytes %s, %s) -> %d (error %d) from %p", static_cast<unsigned>(s), len,
+		               bytes, where, r, r < 0 ? Error() : 0, _ReturnAddress());
 	}
 	return r;
 }
@@ -200,16 +201,19 @@ int WINAPI RobotRecvFrom(SOCKET s, char *buf, int len, int flags, sockaddr *from
 		char where[32], bytes[32];
 		Address(from, where, sizeof(where));
 		Bytes(buf, r, bytes, sizeof(bytes));
-		hooklog::Write("robot: net: recvfrom(%u) -> %d bytes %s from %s", static_cast<unsigned>(s), r, bytes, where);
+		hooklog::Write("robot: net: recvfrom(%u) -> %d bytes %s from %s, called from %p", static_cast<unsigned>(s), r, bytes,
+		               where, _ReturnAddress());
 	}
 	return r;
 }
 
 }  // namespace
 
-void InstallNetLog(bool share_udp_ports, const char *relay_ports)
+void InstallNetLog(bool share_udp_ports, const char *relay_ports, int logged_packets)
 {
 	g_share_udp_ports = share_udp_ports;
+	if (logged_packets >= 0)
+		g_logged_packets = logged_packets;
 	for (const char *p = relay_ports; p && *p && g_relay_count < kMaxRelays;) {
 		const int port = atoi(p);
 		if (port > 0 && port < 65536)

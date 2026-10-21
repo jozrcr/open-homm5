@@ -121,6 +121,17 @@ Making it worse: idle PCs report finished segments only every `net_batched_segme
 
 **Test:** the hook DLL logs `gap=` for every AI step (time the AI waited since its previous step). In single player the gaps should be close to one frame. If H1 is right, in co-op they will be close to the ping between the PCs, once per command. If H1 holds, the fix would be to let the AI run several moves without waiting (apply its own commands locally right away, and stream them to the other PCs). That's option A in CLAUDE.md, and it only touches the AI manager / transceiver boundary.
 
+## Measured in a LAN game (2026-10-21, robot, 2 copies on one PC)
+
+`tools/robot/run_lan_test.py` plays a LAN game between two copies of the game on one PC: map A1M4 (Trèfle), 2 humans (both played by the robot, which only ends their turns) and 1 computer player. Results:
+
+- **Only the host runs the AI.** While both copies are connected, only the host logs `ai-step` lines; the client logs none. (When the host closes, the client starts running the AI itself.) So the game already computes AI turns on one PC and sends the resulting commands to the others, much like option A in CLAUDE.md.
+- **Each AI step waits 0.9–2.5 s** for its commands (median 1.27 s, hero moves 1.56 s), against 0.4 s in single player. The AI's own thinking is tiny: 0.23 s in total for 57 steps. A 7–13-step AI turn took 15–36 s.
+- **`net_batched_segments = 1` changes nothing** (checked in memory: both copies had 1).
+- The wait comes from the multiplayer pipe (see [multiplayer-sync.md](multiplayer-sync.md), "Measured"): a command sent by the AI joins the host's current segment, which runs only when the other PC has reported a later segment. Those reports arrive seconds late, because the LAN link's send queue is backed up.
+
+So **H1 is right in spirit**: every AI step waits for the network. But even on one PC (no real network delay) the wait is ~1.3 s per step, because of how the game's LAN link sends data. Over the Internet (GameRanger) the ping comes on top.
+
 ## Related settings (console variables)
 
 From strings in the exe; most addresses of the backing globals are still unknown.
@@ -137,7 +148,7 @@ From strings in the exe; most addresses of the backing globals are still unknown
 
 ## Open questions (for phase 1)
 
-1. **Is H1 right?** Compare the hook's `gap=` values in a single-player game and in a 2-PC LAN/GameRanger game.
-2. **Which PC runs the AI in multiplayer?** Run the hook DLL on two PCs in the same game. If only one PC logs `ai-step` lines for a given AI player, only that PC runs it.
+1. ~~Is H1 right?~~ Yes, measured above: ~1.3 s per AI step in a LAN game on one PC, against 0.4 s alone.
+2. ~~Which PC runs the AI in multiplayer?~~ The host (measured above).
 3. When exactly does a sent command execute in multiplayer? Read `CMultiPlayerTransceiver` (`0x007c89f0`–`0x007cc1c0`): when queued commands are released for execution, and what it waits for.
 4. How is a typical turn's time split between thinking (`think=`) and waiting (`gap=`)?

@@ -88,7 +88,8 @@ DWORD LastFrameTick();                      // GetTickCount() of the last frame 
 // Robot network log (robot_net.cpp), when net_log=1: socket calls in the log.
 // For several copies of the game on one PC (LAN game discovery), see the file:
 // share_udp_ports (net_share_udp_ports=1) and relay_ports (net_lan_relay_ports=P,Q).
-void InstallNetLog(bool share_udp_ports, const char *relay_ports);
+// logged_packets: how many packets per socket and direction to log (-1 = default).
+void InstallNetLog(bool share_udp_ports, const char *relay_ports, int logged_packets);
 
 // Replace one import of the exe (its import address table entry); returns the
 // original function, or nullptr if the import is not found.
@@ -96,6 +97,8 @@ void *PatchImport(const char *dll, const char *function, void *replacement);
 
 // Optional segment trace (robot_trace.cpp), when trace_segments=1.
 void InstallSegmentTrace();
+// Multiplayer segment trace (robot_trace.cpp), when trace_mp=1.
+void InstallMpTrace();
 // Experiment: single-player segment length in ms (segment_ms=N in the ini).
 void SetSegmentLength(DWORD ms);
 

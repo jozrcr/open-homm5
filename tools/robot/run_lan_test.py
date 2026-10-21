@@ -43,7 +43,8 @@ def instance_args(args, name, steps):
         turns=args.turns, seconds=args.seconds, command_delay=8,
         end_turn_every=args.end_turn_every, press_enter_every=0,
         repeat_command=None, repeat_every=0, trace_segments=False, segment_ms=0,
-        shot_every=args.shot_every, step=steps, net_log=True, relay_ports=others)
+        shot_every=args.shot_every, step=steps, net_log=True, relay_ports=others, trace_mp=args.trace_mp,
+        net_log_packets=args.net_log_packets)
 
 
 def main():
@@ -58,6 +59,8 @@ def main():
                    help="the DLL ends its human player's turn (when no AI is playing) at most every N seconds")
     p.add_argument("--setvar", action="append", default=[], help="extra profile setting for both copies")
     p.add_argument("--start-at", type=int, default=43, help="script time of the host's start (seconds)")
+    p.add_argument("--trace-mp", action="store_true", help="log every multiplayer segment step and command sent")
+    p.add_argument("--net-log-packets", type=int, default=-1, help="packets logged per socket and direction")
     p.add_argument("--host-step", action="append", default=[], help="extra host script step (see run_ai_test.py)")
     p.add_argument("--client-step", action="append", default=[], help="extra client script step")
     args = p.parse_args()

@@ -59,6 +59,22 @@ During an AI turn the human players are idle, so their PCs report only every 3 s
 
 Not related, despite the names: `SegmentLength` / `SkipSegmentsNumber` in the data files belong to projectile animations (`GameMechanics/Shot/...`). The network constants `MaxLatency`, `TimeToAllowDropByLag`, `TimeToStartLagByNoSegmentData` and `AI_SEGMENT_DURATION` exist as field names in the exe but no data file sets them, so they keep built-in defaults (not looked up yet).
 
+## Measured (2026-10-21, robot LAN game, 2 copies on one PC)
+
+With `trace_mp=1` the DLL logs every own step (`mp-step`) and every command sent (`mp-send`) of `CMultiPlayerTransceiver`, and `net_log=1` logs the packets (`src/hook/robot_trace.cpp`, `robot_net.cpp`). Fields used: `+0x28` timer (game time at `+0x14`), `+0x2c` this PC's segment time, `+0x38` segment records (record+8 = segment number), `+0x3c` each player's last reported segment, `+0x54` this PC's player, `0x00f3fa5c` the speed factor set by the pacing.
+
+What happens during an AI turn (host = player 0, client = player 1):
+
+1. **Each PC sees the other one lagging.** The host sees the client 4–9 segments behind; at the same moment the client sees the host stuck 2–13 segments behind (for example the client saw the host at segment 120 for 3 s while the host was at 122–133).
+2. **So both slow down.** The pacing (slot 5) slows a PC that is ahead of the slowest player: speed factor 0.45–0.9 on both, i.e. a 200 ms segment takes 260–470 ms of real time.
+3. **AI commands wait for the slow reports.** A command sent in host segment N runs only when the client's report for a segment after N arrives: 1.8–2.5 s later in the traces.
+
+Why the reports are late: **the LAN link is throughput-starved.** All game traffic between the copies goes over UDP through `NNet::CLinksManager` (send `0x00484d30` = slot 9, receive `0x00484ea0` = slot 10; network thread `0x0047cbd0` ticks every 10 ms). The host sends full 273-byte data packets every ~50 ms, but only ~8 per burst; then it waits for an acknowledgement, and the client acknowledges about **once per second**. So the host can push only about 8 packets (~2 KB) per second, its send queue backs up, and the packets that do go out carry data that is seconds old. (The client sends little: 18–39-byte packets, about once per second.)
+
+Next: find the acknowledgement timing and the window size in the link code (the protocol state is in `NNet::CNetDriver`, vftable `0x00e131e4`, and nameless helpers around `0x0047c000`–`0x00485600`), then test, in robot mode, acknowledging every tick or a bigger window. If the AI step wait drops to ~0.4 s, that is the co-op fix (a `src/mods/` change; at least the receiving PCs need it).
+
+Network detail seen on one PC: the game binds UDP 8889 (`net_lan_match_maker_port`, game discovery and then the game link) and 8888 (`net_game_port`), and broadcasts to 255.255.255.255 and to the subnet of each network adapter. See `tools/robot/README.md` for how two copies share one PC.
+
 ## Desync detection
 
 | What | Where | Notes |
