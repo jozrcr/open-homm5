@@ -43,6 +43,7 @@ bool g_trace_segments = false;
 bool g_trace_mp = false;
 bool g_trace_crc = false;
 bool g_profile_ai = false;
+bool g_trace_paths = false;
 DWORD g_segment_ms = 0;
 DWORD g_mp_segment_ms = 0;  // 0 = leave the game's 200 ms (experiment, robot_trace.cpp)  // 0 = leave the game's 200 ms
 DWORD g_press_enter_ms = 0;  // 0 = never
@@ -376,6 +377,8 @@ BOOL WINAPI RobotPeekMessageA(LPMSG msg, HWND hwnd, UINT min, UINT max, UINT rem
 		InstallMpTrace();
 	if (g_trace_crc)
 		InstallCrcTrace();
+	if (g_trace_paths)
+		InstallPathTrace();
 	if (g_segment_ms)
 		SetSegmentLength(g_segment_ms);
 	if (g_mp_segment_ms)
@@ -708,6 +711,8 @@ bool ReadConfig(const wchar_t *path)
 			g_trace_crc = atol(value) != 0;
 		else if (strcmp(line, "profile_ai") == 0)
 			g_profile_ai = atol(value) != 0;
+		else if (strcmp(line, "trace_paths") == 0)
+			g_trace_paths = atol(value) != 0;
 		else if (strcmp(line, "end_turn_every_seconds") == 0)
 			g_end_turn_ms = static_cast<DWORD>(atol(value)) * 1000;
 		else if (strcmp(line, "press_enter_every_seconds") == 0)
