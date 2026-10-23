@@ -69,12 +69,13 @@ With those left out, every run matched every other run on all 33 searches. A fas
 - **Remembered checks:** four checks of the expansion that read only the tile at `node->position` (go ashore `0x008649f0`, step onto `0x009d1410`, step onto dry land `0x009d1510`, visitable `0x00c072d0`) are answered from memory after their first call in a search. In the giant search, 99% of the calls were answered from memory.
 - **Faster open list:** the two heap functions are replaced by a port of the same algorithm and of `operator<` `0x00c08fd0`, which compares in place instead of copying both nodes first.
 
-Results on save_11, 11 AI steps, compared with the plain game (`20261023-201147` vs `20261023-203120`):
+Results (2026-10-23). AI thinking is the sum of the `think=` times of the AI steps, measured without the path trace (which costs time itself); "identical" is checked with the trace on, by `path_report.py`:
 
 | | game | mod |
 |---|---:|---:|
-| all big searches | 24.5 s | 13.6 s (x1.8) |
-| giant search from (222,112), 3.3 M expansions | 6.9 s | 3.9 s |
-| giant search from (222,119), 5.2 M expansions | 9.9 s | 5.9 s |
-| 9 one-day searches (`0x008724eb`) per step | 1.13 s | 0.54 s |
-| results identical (33 big searches) | | 33 of 33 |
+| save_11 (day 50, huge map): AI thinking in 12 AI steps | 22.4 s | 11.6 s (x1.93) |
+| save_11: longest AI step (one giant search) | 9.4 s | 5.1 s |
+| save_11: 9 one-day searches (`0x008724eb`) per step | 1.11 s | 0.53 s |
+| save_11: big searches with identical results | | 33 of 33 |
+| save_10: path searches in 5 AI turns | 24.1 s | 13.6 s (x1.76) |
+| save_10: big searches with identical results | | 162 of 162 |

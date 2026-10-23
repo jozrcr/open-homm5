@@ -50,15 +50,15 @@ Late in a game, nearly all of the AI's thinking time goes into searching paths f
 
 Because the search takes exactly the same steps, **every path and every AI decision stays the same**; only the time changes. In co-op only the host runs the AI, so the mod only matters on the host's PC, and it cannot cause a desync.
 
-**Checked** with the robot on the owner's day-50 save: all 33 big path searches of 11 AI steps gave exactly the same result with the mod as without it. The comparison is node by node, leaving out only padding and flag bits the game never reads (`tools/robot/path_report.py`).
+**Checked** with the robot on two of the owner's saves: all 195 big path searches (33 on a day-50 save, 162 over 5 AI turns of another) gave exactly the same result with the mod as without it. The comparison is node by node, leaving out only padding and flag bits the game never reads (`tools/robot/path_report.py`).
 
-**Measured** (same save):
+**Measured** (owner's day-50 save, huge map, 12 AI steps):
 
 | | without the mod | with the mod |
 |---|---|---|
-| all path searches of those 11 AI steps | 24.5 s | 13.6 s |
-| the AI hero's longest search | 9.9 s | 5.9 s |
-| the 9 searches for other heroes, per AI step | 1.13 s | 0.54 s |
+| AI thinking | 22.4 s | 11.6 s |
+| the longest AI step | 9.4 s | 5.1 s |
+| a typical AI step (searches for the other heroes) | 1.1 s | 0.53 s |
 
 **Settings:**
 
