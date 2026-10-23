@@ -137,7 +137,8 @@ def prepare(game, args, out, instance="", net_port=None):
         ("trace_mp", int(bool(getattr(args, "trace_mp", False)))),
         ("trace_crc", int(bool(getattr(args, "trace_crc", False)))),
         ("profile_ai", int(bool(getattr(args, "profile_ai", False)))),
-        ("trace_paths", int(bool(getattr(args, "trace_paths", False)))),
+        ("virtual_clock_ms", getattr(args, "virtual_clock", 0) or 0),
+        ("trace_paths", 2 if getattr(args, "trace_paths_all", False) else int(bool(getattr(args, "trace_paths", False)))),
         ("segment_ms", args.segment_ms),
         ("mp_segment_ms", getattr(args, "mp_segment_ms", 0)),
         # screenshots: the DLL saves the game's own frames there as .bmp (src/hook/robot_screen.cpp)
@@ -343,6 +344,11 @@ def main():
                    help="the fast pathfinding mod (src/mods/fast_paths.cpp); compare with --trace-paths runs")
     p.add_argument("--ai-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="extra [ai] setting for the mods, e.g. port_relax=1 (repeatable)")
+    p.add_argument("--virtual-clock", type=int, nargs="?", const=16, default=0, metavar="MS_PER_FRAME",
+                   help="the game sees a clock that advances MS_PER_FRAME (16) per frame, not real time, so runs "
+                        "replay the same however fast the code is (src/hook/robot_clock.cpp)")
+    p.add_argument("--trace-paths-all", action="store_true",
+                   help="like --trace-paths, with a detail line for every search, also the small ones")
     p.add_argument("--trace-paths", action="store_true",
                    help="log the AI's path searches per step ('paths' lines in the log, path_report.py)")
     p.add_argument("--restore-intro", action="store_true", help="put the intro videos back in the test copy and exit")

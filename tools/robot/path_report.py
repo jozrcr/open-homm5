@@ -22,7 +22,8 @@ import pathlib
 import re
 
 DETAIL = re.compile(r"path site=(\w+) pf=\w+ start=([\d,]+) target=(\w+) limit=(-?\d+) nodes=(\d+) tiles=\d+ "
-                    r"same=\d+ us=(\d+) reached=(\d+) result=(\w+)[^\n]*?(?: fields=((?:[0-9a-f]{4} ){16})(?:bits=([0-9a-f]{64}))?)?$", re.M)
+                    r"same=\d+ us=(\d+) reached=(\d+) result=(\w+)[^\n]*?(?: fields=((?:[0-9a-f]{4} ){16})(?:bits=([0-9a-f]{64}))?"
+                    r"(?: list=(\d+)/(\w+) open=(\d+)/(\w+) ends=(\w+))?)?$", re.M)
 STEP = re.compile(r"paths step searches=(\d+) .* ms=([\d.]+)(?: remembered=(\d+)/(\d+))? sites:(.*)")
 THINK = re.compile(r"ai-step .* think=([\d.]+)ms")
 
@@ -86,7 +87,9 @@ def main():
         first = None
         for i in range(n):
             a, b = base[i], searches[i]
-            if key(a) == key(b):
+            # the reached list, the rest of the open list and the end flags, when both runs logged them
+            outputs_same = not (a[10] and b[10]) or a[10:15] == b[10:15]
+            if key(a) == key(b) and outputs_same:
                 same += 1
             elif first is None:
                 first = i

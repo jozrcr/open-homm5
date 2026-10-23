@@ -60,6 +60,8 @@ The robot logs a fingerprint of each big search's result (`result=`, a hash of e
 - **flag bits 10–14** (`0x7c00` of `+4`): never initialized for the start node and copied along. Only the debug dump in the query (`"V=%d,P=%d,B=%d,D=%d,..."`, when the byte at `0x010c5889` is set) prints bits 11–14.
 - **field 7** (`+0x1c`): also never initialized in the start node (the query builds it on the stack and only sets other fields), copied to every node from there. It differed once, in one search on save_10, with the mod (the mod's extra stack frames change what is left on the stack). No read of it was found in the search, expansion, relax or comparison code; to be confirmed when these functions are decompiled.
 
+Not every save is reproducible. On `sauvegarde_14`, two runs of the plain game already differed in the very first search (same start, 14,505 vs 14,737 nodes), and from the third search on the AI searched for different heroes. Something differs before the AI starts thinking (cause unknown; a time-based random seed is a guess). Such saves cannot be used to check a mod; `tools/robot/path_check.py` runs the plain game twice per save and skips them. Reproducible so far: save_1, save_9, save_10, save_11.
+
 With those left out, every run matched every other run on all 33 searches. A faster version is checked the same way: `path_report.py <plain run> <mod run>` (these bytes are left out by default; `--strict` compares everything). It must match the original on every other byte of every reached node, search after search.
 
 ## The fast paths mod

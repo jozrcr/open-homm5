@@ -113,9 +113,14 @@ void *PatchImport(const char *dll, const char *function, void *replacement);
 void StartAiProfiler();
 void OnAiThinking(bool thinking);
 
+// Virtual clock (robot_clock.cpp), when virtual_clock_ms=N: the main thread's
+// clock advances N ms per frame and by the time slept, not with real time.
+void InstallVirtualClock(DWORD frame_ms);
+void VirtualClockFrame();
+
 // Pathfinder trace (robot_paths.cpp), when trace_paths=1: per AI step, the path
 // searches by call site, their time, visited nodes and repeats ("paths step" lines).
-void InstallPathTrace();
+void InstallPathTrace(int level);  // 1 = details of big searches, 2 = of every search
 void PathTraceStep();  // from OnAiStep
 
 // Optional segment trace (robot_trace.cpp), when trace_segments=1.
