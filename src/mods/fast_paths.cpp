@@ -107,6 +107,15 @@ CostArg ToArg(const Cost &c)
 	return {static_cast<DWORD>(c.a), c.pad, static_cast<DWORD>(b), static_cast<DWORD>(b >> 32)};
 }
 
+bool g_port_expand = false;
+
+// The search loop's call of the expansion, when port_expand=1.
+void __fastcall ExpandSiteHook(BYTE *pf, void * /*edx*/, Node *node, int count, const int *dirs, int remaining,
+                               DWORD flag, DWORD *out)
+{
+	fastpaths::Expand(pf, node, count, dirs, remaining, static_cast<char>(flag), out);
+}
+
 // The game's calls of relax, when port_relax=1.
 void __fastcall RelaxHook(BYTE *pf, void * /*edx*/, Node *from, Node *grid, Node *candidate, int step, CostArg cost,
                           const DWORD *extra, DWORD flag)
@@ -505,6 +514,10 @@ void ApplyFastPathsFromSettings()
 	// Ported pathfinder functions (fast_paths_*.cpp), off by default while they
 	// are being checked against the game's. The ported search loop needs the
 	// search hooks (remembered checks on) and the ported open list.
+	if (Setting(path, L"port_expand", 0)) {
+		g_port_expand = hookpatch::RedirectCall(kExpandCall, kExpand, &ExpandSiteHook) != 0;
+		hooklog::Write("fast paths: ported expansion %s", g_port_expand ? "on" : "NOT as expected");
+	}
 	if (Setting(path, L"port_search", 0)) {
 		g_port_search = g_search && Setting(path, L"fast_queue", 1) && QueueMatchesGame();
 		hooklog::Write("fast paths: ported search loop %s", g_port_search ? "on" : "off (needs remembered checks and the open list)");
