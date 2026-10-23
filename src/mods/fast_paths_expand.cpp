@@ -159,7 +159,7 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 		DWORD cost = 0;              // esp+0x14 (also kept in ebx)
 		bool go = false;             // bl at 0x00c08746
 		Node *grid = nullptr;
-		if (tile[2] == 5 || (Byte(pf, 0x76) && !kCheck9d1c40(pf, nullptr, &c))) {
+		if (tile[2] == 5 || (Byte(pf, 0x76) && !Measure(kHelper9d1c40, [&] { return kCheck9d1c40(pf, nullptr, &c); }))) {
 			// 0x00c0828e
 			c.d[1] &= ~0x200u;
 			c.d[3] += 100;
@@ -173,7 +173,7 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 				kind = 1;
 			else if (c.d[1] & 8)
 				kind = 2;
-			cost = static_cast<DWORD>(kTerrainCost(tile, &c, i >= 4 ? 1u : 0u, remaining, pf + 0x20, kind));
+			cost = static_cast<DWORD>(Measure(kHelperTerrain, [&] { return kTerrainCost(tile, &c, i >= 4 ? 1u : 0u, remaining, pf + 0x20, kind); }));
 		}
 
 		// 0x00c082a8: movement left after the step; when it does not reach, only
@@ -226,7 +226,7 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 					}
 				} else {
 					// 0x00c08454
-					if (!kCheck9d1310(pf, nullptr, &c) || Byte(pf, 0x81)) {
+					if (!Measure(kHelper9d1310, [&] { return kCheck9d1310(pf, nullptr, &c); }) || Byte(pf, 0x81)) {
 						if (!cannot_enter)
 							no_dry_step = true;
 						c.d[1] &= ~0x200u;
@@ -248,13 +248,13 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 		}
 
 		// 0x00c084dc: something to visit here
-		if (Visitable(pf, c.d) && !kCheck9d1700(pf, nullptr, &c, node))  // 0x00c084e3, 0x00c084f4
+		if (Visitable(pf, c.d) && !Measure(kHelper9d1700, [&] { return kCheck9d1700(pf, nullptr, &c, node); }))  // 0x00c084e3, 0x00c084f4
 			goto clear_200;
 		if (cannot_enter)
 			goto after_clear;
 		if (stop)
 			goto check_dry;
-		if (kCheck9d19a0(pf, nullptr, &c, 0))  // 0x00c08514
+		if (Measure(kHelper9d19a0, [&] { return kCheck9d19a0(pf, nullptr, &c, 0); }))  // 0x00c08514
 			goto clear_200;
 		goto check_dry;
 
@@ -292,12 +292,12 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 				void *ships = reinterpret_cast<void *>(At(pf, 0xa4));
 				const bool visitable = Visitable(pf, c.d);  // 0x00c085bc
 				if (!visitable && !(node->d[1] & 4) && Byte(pf, 0x55))
-					cannot_enter = reinterpret_cast<ShipsValueFn>(VirtualAt(ships, 3))(ships, nullptr, &c) != 0;
+					cannot_enter = Measure(kHelperShips, [&] { return reinterpret_cast<ShipsValueFn>(VirtualAt(ships, 3))(ships, nullptr, &c); }) != 0;
 				else
 					cannot_enter = false;
-				const bool ship0 = reinterpret_cast<ShipsCheckFn>(VirtualAt(ships, 0))(ships, nullptr, &c) &&
+				const bool ship0 = Measure(kHelperShips, [&] { return reinterpret_cast<ShipsCheckFn>(VirtualAt(ships, 0))(ships, nullptr, &c); }) &&
 				                   !(node->d[1] & 0x1000000);
-				const bool ship2 = reinterpret_cast<ShipsCheckFn>(VirtualAt(ships, 2))(ships, nullptr, &c);
+				const bool ship2 = Measure(kHelperShips, [&] { return reinterpret_cast<ShipsCheckFn>(VirtualAt(ships, 2))(ships, nullptr, &c); });
 				if (!ship2 && !ship0 && !cannot_enter) {
 					c.d[1] &= ~0x200u;
 					stop = true;
@@ -353,8 +353,11 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 				continue;
 			void *pool = reinterpret_cast<void *>(At(pf, 4));
 			if (pool) {
-				void *object = reinterpret_cast<PoolAtFn>(VirtualAt(pool, 0))(pool, nullptr, &c);
-				if (kObjectCheck(object, nullptr) && !(node->d[1] & 0x200))  // 0x004e9280
+				const bool object_ok = Measure(kHelperPool, [&] {
+					void *object = reinterpret_cast<PoolAtFn>(VirtualAt(pool, 0))(pool, nullptr, &c);
+					return kObjectCheck(object, nullptr);  // 0x004e9280
+				});
+				if (object_ok && !(node->d[1] & 0x200))
 					continue;
 			}
 		}

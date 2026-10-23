@@ -217,10 +217,13 @@ AshoreMemory *g_ashore = nullptr;  // the one for the current (world, player)
 DWORD g_ashore_generation = 1;     // all memories older than this are void
 DWORD g_ashore_use = 0;
 bool g_in_ai_step = false;
+bool g_fast_ashore = false;  // [ai] fast_ashore: answer misses from fast_paths_ashore.cpp's tables
 
 void NewAshoreGeneration()
 {
 	++g_ashore_generation;
+	if (g_fast_ashore)
+		fastpaths::FastGoAshoreInvalidate();  // the world may have changed
 }
 
 // The memory for (world, player): found, or the least recently used one reused.
@@ -329,7 +332,8 @@ bool __fastcall GoAshoreHook(void *world, void *player, const DWORD *node, char 
 	++g_check_misses[index];
 	LARGE_INTEGER t0, t1;
 	QueryPerformanceCounter(&t0);
-	const bool value = g_go_ashore(world, player, node, flag);
+	const bool value = g_fast_ashore ? fastpaths::FastGoAshore(world, player, node, flag)
+	                                 : g_go_ashore(world, player, node, flag);
 	QueryPerformanceCounter(&t1);
 	g_ashore_miss_ticks += t1.QuadPart - t0.QuadPart;
 	if (t) {
@@ -603,6 +607,10 @@ void ApplyFastPathsFromSettings()
 			g_go_ashore = reinterpret_cast<GoAshoreFn>(hookpatch::RedirectCall(kGoAshoreCall, kGoAshore, &GoAshoreHook));
 			for (AshoreMemory &m : g_ashore_memories)
 				m.tiles = static_cast<AshoreTile *>(VirtualAlloc(nullptr, kTiles * sizeof(AshoreTile), MEM_COMMIT, PAGE_READWRITE));
+			if (g_go_ashore && Setting(path, L"fast_ashore", 0)) {
+				g_fast_ashore = fastpaths::FastGoAshoreInit();
+				hooklog::Write("fast paths: fast go-ashore check %s", g_fast_ashore ? "on" : "off (no memory)");
+			}
 			g_can_enter = reinterpret_cast<NodeCheckFn>(hookpatch::RedirectCall(kCanEnterCall, kCanEnter, &CanEnterHook));
 			g_can_enter_dry = reinterpret_cast<NodeCheckFn>(hookpatch::RedirectCalls(
 				kCanEnterDryCalls, sizeof(kCanEnterDryCalls) / sizeof(kCanEnterDryCalls[0]), kCanEnterDry,
@@ -668,6 +676,37 @@ void FastPathsCheckStats(char *out, size_t size)
 	for (int i = 2; i < 6 && used + 30 < size; ++i)
 		used += static_cast<size_t>(_snprintf_s(out + used, size - used, _TRUNCATE, " %s_ms=%.0f", names[i],
 		                                        g_miss_ticks[i] * 1e3 / frequency.QuadPart));
+}
+
+namespace fastpaths {
+
+LONGLONG g_helper_ticks[kHelperSlots] = {};
+LONGLONG g_helper_calls[kHelperSlots] = {};
+
+bool Measuring()
+{
+	return g_measure;
+}
+
+void AddHelperTime(int slot, LONGLONG ticks)
+{
+	g_helper_ticks[slot] += ticks;
+	++g_helper_calls[slot];
+}
+
+}  // namespace fastpaths
+
+void FastPathsHelperStats(char *out, size_t size)
+{
+	static const char *const names[] = {"9d19a0", "9d1700", "terrain", "9d1c40", "9d1310", "ships", "pool", "valuation"};
+	LARGE_INTEGER frequency;
+	QueryPerformanceFrequency(&frequency);
+	size_t used = 0;
+	out[0] = 0;
+	for (int i = 0; i < fastpaths::kHelperSlots && used + 40 < size; ++i)
+		used += static_cast<size_t>(_snprintf_s(out + used, size - used, _TRUNCATE, "%s%s=%.0fms/%lld", i ? " " : "",
+		                                        names[i], fastpaths::g_helper_ticks[i] * 1e3 / frequency.QuadPart,
+		                                        fastpaths::g_helper_calls[i]));
 }
 
 void FastPathsMeasure(bool on)

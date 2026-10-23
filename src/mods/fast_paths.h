@@ -18,5 +18,7 @@ void FastPathsOnAiStep(bool thinking);
 void FastPathsCheckStats(char *out, size_t size);
 // Time the remembered checks' misses too (robot path trace only: it costs a little).
 void FastPathsMeasure(bool on);
+// Time spent in game helpers called by the ported functions: "name=ms/calls ...".
+void FastPathsHelperStats(char *out, size_t size);
 
 }  // namespace mods

@@ -138,9 +138,9 @@ void PortedRelax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Co
 		Cost gain = {};  // what the valuation adds (0x00c09f46: zero unless there is a gain)
 		void *valuation = reinterpret_cast<void *>(At(pf, 0x0c));
 		if (valuation) {
-			const int value = Valuation(valuation, &n);
+			const int value = Measure(kHelperValuation, [&] { return Valuation(valuation, &n); });
 			if (value > 0) {
-				if (pf[0x80] == 0 && Valuation(valuation, from) <= 0 && (n.d[1] & 0x800000))
+				if (pf[0x80] == 0 && Measure(kHelperValuation, [&] { return Valuation(valuation, from); }) <= 0 && (n.d[1] & 0x800000))
 					return;
 				gain.a = -1;
 				gain.b = -static_cast<__int64>(value);
