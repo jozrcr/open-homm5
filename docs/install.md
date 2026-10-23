@@ -54,3 +54,5 @@ Delete `dinput8.dll` (and `open-homm5.ini` / `open-homm5.log` if present) from t
 ## Linux (Wine / Proton)
 
 Wine prefers its own `dinput8.dll`. To make it load ours, set a DLL override for `dinput8` to "native, builtin": `WINEDLLOVERRIDES="dinput8=n,b"` in the launch options (Steam: game properties, launch options, `WINEDLLOVERRIDES="dinput8=n,b" %command%`). Not tested yet.
+
+The full walkthrough for a Linux player joining a Windows host (Proton, starting the MMH5.5 exe from Steam, ZeroTier instead of GameRanger) is in [linux.md](linux.md).
