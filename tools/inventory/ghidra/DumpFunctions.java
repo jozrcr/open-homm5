@@ -42,7 +42,14 @@ public class DumpFunctions extends GhidraScript {
 		DecompInterface dec = new DecompInterface();
 		dec.openProgram(currentProgram);
 		for (String a : addrs) {
-			Function f = getFunctionAt(toAddr(Long.parseLong(a, 16)));
+			var entry = toAddr(Long.parseLong(a, 16));
+			Function f = getFunctionAt(entry);
+			if (f == null) {
+				// code only reached through pointers (e.g. message handlers) may not
+				// be a function yet: make one (in memory only, the project is read-only)
+				disassemble(entry);
+				f = createFunction(entry, null);
+			}
 			if (f == null) {
 				println("no function at " + a);
 				continue;

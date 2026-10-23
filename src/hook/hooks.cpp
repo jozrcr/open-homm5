@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include "log.h"
+#include "../mods/net_tuning.h"
 
 namespace hooks {
 
@@ -22,6 +23,7 @@ void InstallAll()
 		return;
 	}
 	InstallAiTrace();
+	mods::ApplyNetTuningFromSettings();
 }
 
 }  // namespace hooks

@@ -2,7 +2,12 @@
 
 A DLL the game loads at start-up. It lets our code run inside the game, so improvements can ship before the decompilation is complete (the "hook track" in CLAUDE.md).
 
-**What it does today:** forwards DirectInput to the real Windows DLL (so the game works normally), and, if the exe is a build we know, logs every step of every AI turn with its timing to `open-homm5.log` next to the exe. Nothing else; it changes no game behaviour.
+**What it does today:** forwards DirectInput to the real Windows DLL (so the game works normally). If the exe is a build we know, it also:
+
+- logs every step of every AI turn with its timing to `open-homm5.log` next to the exe;
+- applies our mods from `src/mods/`. Today that's one: **LAN link tuning** (`net_tuning.cpp`), modern network timings that make co-op AI turns about 4× faster. It's on by default; `open-homm5.ini` next to the exe can turn it off (`[net]`, `tuning=0`). See `src/mods/README.md`.
+
+Robot mode (`robot*.cpp`, used by `tools/robot/`) only turns on when an `open-homm5-robot.ini` file sits next to the exe, i.e. in the test copy during robot runs.
 
 ## How it gets into the game
 
@@ -75,5 +80,6 @@ On **Linux** (Wine/Proton) Wine prefers its own built-in `dinput8.dll`. Tell it 
 | `hooks.cpp/.h` | installs all hooks (honours `open-homm5.nohooks`) |
 | `ai_trace.cpp` | the AI turn trace |
 | `log.cpp/.h` | `open-homm5.log` writer |
+| `robot.cpp/.h`, `robot_endturn.cpp`, `robot_input.cpp` | robot mode for unattended test runs; only active when `open-homm5-robot.ini` is next to the exe (see `tools/robot/README.md`) |
 | `test/proxy_test.cpp` | smoke test |
 | `build.ps1` | build script |

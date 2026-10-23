@@ -12,9 +12,11 @@
 // uses the vftable at 0x00e4c8bc, so replacing slot 0 there routes all calls
 // through us, without patching code.
 #include <windows.h>
+#include <stdio.h>
 
 #include "hooks.h"
 #include "log.h"
+#include "robot.h"
 
 namespace {
 
@@ -82,6 +84,29 @@ int CommandCount(void *commands)
 	}
 }
 
+// The vftable address of each command the AI produced (first 8), e.g.
+// "00e2c1a8,00e2c1a8". tools/robot maps them to class names (analysis/classes.txt).
+void CommandTypes(void *commands, char *out, size_t size)
+{
+	out[0] = 0;
+	if (!commands)
+		return;
+	__try {
+		const DWORD *v = static_cast<const DWORD *>(commands);
+		const DWORD *items = reinterpret_cast<const DWORD *>(v[0]);
+		const int n = static_cast<int>((v[1] - v[0]) / 4);
+		size_t used = 0;
+		for (int i = 0; i < n && i < 8 && used + 10 < size; ++i) {
+			const DWORD object = items[i];
+			const DWORD vtable = object ? *reinterpret_cast<const DWORD *>(object) : 0;
+			used += static_cast<size_t>(_snprintf_s(out + used, size - used, _TRUNCATE, i ? ",%08lx" : "%08lx", vtable));
+		}
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		out[0] = 0;
+	}
+}
+
 void __fastcall TurnDriverHook(void *self, void *edx, void *commands, int flag)
 {
 	const DWORD stage_before = Field(self, kOffStage);
@@ -89,12 +114,20 @@ void __fastcall TurnDriverHook(void *self, void *edx, void *commands, int flag)
 	LARGE_INTEGER t0, t1;
 	QueryPerformanceCounter(&t0);
 	const double gap = last.returned.QuadPart ? Ms(last.returned, t0) : -1.0;
+	robot::OnAiThinking(true);  // for the AI profiler (robot mode only)
 	g_original(self, edx, commands, flag);
+	robot::OnAiThinking(false);
 	QueryPerformanceCounter(&t1);
 	last.returned = t1;
-	hooklog::Write("ai-step ai=%p flag=%d stage %lu->%lu calls=%lu cmds=%d turn_age=%lums think=%.2fms gap=%.1fms",
-	               self, flag & 0xff, stage_before, Field(self, kOffStage), Field(self, kOffCallCount),
-	               CommandCount(commands), GetTickCount() - Field(self, kOffTurnStart), Ms(t0, t1), gap);
+	const DWORD stage_after = Field(self, kOffStage);
+	robot::OnAiStep();
+	if (stage_before == 0 && stage_after != 0)  // stage 0 = InitDay: a new turn began
+		robot::OnAiTurnStart(self);
+	char types[96];
+	CommandTypes(commands, types, sizeof(types));
+	hooklog::Write("ai-step ai=%p flag=%d stage %lu->%lu calls=%lu cmds=%d turn_age=%lums think=%.2fms gap=%.1fms types=%s",
+	               self, flag & 0xff, stage_before, stage_after, Field(self, kOffCallCount),
+	               CommandCount(commands), GetTickCount() - Field(self, kOffTurnStart), Ms(t0, t1), gap, types);
 }
 
 bool PatchPointer(DWORD address, DWORD expected, DWORD replacement)

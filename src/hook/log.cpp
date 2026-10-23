@@ -13,16 +13,25 @@ DWORD g_start = 0;
 
 }  // namespace
 
+void PathNextToExe(const wchar_t *stem, const wchar_t *ext, wchar_t *out, DWORD size)
+{
+	DWORD n = GetModuleFileNameW(nullptr, out, size);
+	while (n > 0 && out[n - 1] != L'\\')
+		--n;
+	wchar_t instance[32] = {};
+	const DWORD len = GetEnvironmentVariableW(L"OPEN_HOMM5_INSTANCE", instance, 32);
+	if (len == 0 || len >= 32)
+		instance[0] = 0;
+	_snwprintf_s(out + n, size - n, _TRUNCATE, L"%s%s%s%s", stem, instance[0] ? L"-" : L"", instance, ext);
+}
+
 void Open(HMODULE)
 {
 	InitializeCriticalSection(&g_lock);
 	g_start = GetTickCount();
 	// The log goes next to the game exe (the current directory may differ).
 	wchar_t path[MAX_PATH];
-	DWORD n = GetModuleFileNameW(nullptr, path, MAX_PATH);
-	while (n > 0 && path[n - 1] != L'\\')
-		--n;
-	lstrcpynW(path + n, L"open-homm5.log", MAX_PATH - n);
+	PathNextToExe(L"open-homm5", L".log", path, MAX_PATH);
 	// shared for reading, so the log can be watched while the game runs
 	g_file = _wfsopen(path, L"a", _SH_DENYWR);
 }

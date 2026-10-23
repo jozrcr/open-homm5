@@ -19,7 +19,9 @@ const DWORD kMmh55PatchSite = 0x0081eeb7;
 
 }  // namespace
 
-GameBuild DetectGameBuild()
+namespace {
+
+GameBuild Detect()
 {
 	HMODULE exe = GetModuleHandleW(nullptr);
 	if (reinterpret_cast<DWORD>(exe) != kImageBase)
@@ -41,6 +43,19 @@ GameBuild DetectGameBuild()
 	if (patch == 0xeb)
 		return GameBuild::Mmh55Utility;
 	return GameBuild::Unknown;
+}
+
+}  // namespace
+
+GameBuild DetectGameBuild()
+{
+	// Detect once and remember: after our hooks are installed the fingerprint
+	// (the AI vftable entry) no longer matches. Only a positive result is cached,
+	// because the Steam-wrapped exe is still encrypted at DLL load time.
+	static GameBuild cached = GameBuild::Unknown;
+	if (cached == GameBuild::Unknown)
+		cached = Detect();
+	return cached;
 }
 
 const char *GameBuildName(GameBuild build)

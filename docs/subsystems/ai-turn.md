@@ -63,6 +63,50 @@ So **the AI's moves travel exactly like a human player's moves.**
 
 So the AI is managed from the **adventure-map screen code**, the same layer that turns a human's clicks into commands. Because the AI's commands are sent to the other players like a human's, it seems likely that **only one PC runs a given AI player and the others just apply its commands**. That would mean vanilla already works roughly like option A. This contradicts the earlier guess that every PC runs the AI; the in-game trace will decide. (Why MMH5.5's 3.1j AI cannot do LAN remains open. Its separate AI process may simply not be wired into the multiplayer code.)
 
+## Measured (2026-10-21, robot, single player)
+
+First real measurements, made by the robot (`tools/robot/run_ai_test.py`) with the hook DLL's AI trace on map A1M4 (2 AI players, hard difficulty, MMH55_Utility_64):
+
+| Setting | AI steps per turn | Commands per turn | Think time per turn | Wait between steps (median) |
+|---|---:|---:|---:|---:|
+| default (`adventure_speed_ai = 2`) | 28–32 | 72–88 | ~110 ms | **401 ms** |
+| `adventure_speed_ai = 1` | 26–28 | 61–69 | ~90 ms | **401 ms** |
+| `adventure_speed_ai = 10` | 25–27 | 65–70 | ~78 ms | **403 ms** |
+| `AI_SEGMENT_DURATION = 10` | 25–26 | 63–65 | ~92 ms | **400 ms** |
+
+- **The AI is not slow at thinking.** A whole AI turn needs about 0.1 s of computation.
+- **It waits about 400 ms after every step**, whatever the animation speed. Over a turn that is ~12 s of waiting for ~0.1 s of work, i.e. **over 99% of the AI turn is waiting**, even in single player.
+- 400 ms is two of the 200 ms segments seen in the transceiver code, so the wait is probably the time for the AI's commands to go through the command queue (one segment to send, one to execute) before the AI is called again. Not confirmed yet.
+
+This shifts H1: the per-step wait exists even without a network; in multiplayer the network and `net_batched_segments` delays come on top of it.
+
+### What sets the 400 ms rhythm (2026-10-21)
+
+Traced with the robot (`--trace-segments`, and the command types each AI step sends):
+
+- **The AI manager calls the AI once per command segment.** `0x006082f0` runs a loop each frame: `while (transceiver->slot6(&segment)) { transceiver->slot4(); …the current AI player's turn driver… ; transceiver->slot1(…) }`. In single player, slot 6 (`0x007c7ea0`) says a segment is due when game time has passed the transceiver's time, and slot 4 (`0x007c7b20`) runs the queued commands and adds **200 ms** to the transceiver's time. The value 200 is an immediate operand at `0x007c7ba9` and `0x007c7ecf`.
+- Game time runs at real time, but advances in steps of ~47 ms (three ticks of the 15.6 ms Windows clock), so a segment cannot be shorter than that.
+- **Each AI step waits two segments** before the AI is called again (its commands run in the next segment; the AI only resumes after the world has changed).
+- **Hero moves**, which are most AI steps (`CSetHeroAITargetCmd` + `CSetWalkPathCmd` + `CStartMoveHeroCmd`), additionally take **~200 ms of game time** to play out, whatever `adventure_speed_ai` is.
+
+Robot experiment `--segment-ms 50` (memory patch of the two immediates, robot mode only), 6 AI turns on A1M4:
+
+| Wait before the AI's next step, by what the step sent | 200 ms segments (game default) | 50 ms segments |
+|---|---:|---:|
+| hero move (27 steps) | 401 ms | 199 ms |
+| buy creatures + threats info (5) | 392 ms | 109 ms |
+| puzzle map + demand/threats info (4) | 399 ms | 89 ms |
+| hero roles / town swaps (5) | ~400 ms | 49–92 ms |
+| **whole run (6 AI turns)** | **49 s** | **34 s** |
+
+The game kept playing normally with 50 ms segments (AI built, recruited, ended turns; no console errors). Not tested yet: battles, multiplayer, long games.
+
+Also tried, **no effect** on the rhythm: `adventure_speed_ai` 1–10, the `AI_SEGMENT_DURATION` variable (default 50; read at start-up by `0x0092b250`), and the `game_speed <n>` console command (handler `0x00401440`, calls method `0x60` of the game timer interface).
+
+Side finding: the robot game was running "inactive" (40 ms sleep per frame) until robot mode held the active flags `0x00f7a207`/`0x00f7a208` at 1. The main loop (`0x00c3b490`) sets them from queued `WM_ACTIVATEAPP` messages (`0x00c3b3c0`), not from the window procedure.
+
+**Next:** (1) find what makes a hero move take ~200 ms of game time; (2) measure the same in a 2-PC LAN game, where each segment also needs every PC's confirmation; (3) design a real mod (`src/mods/`) for shorter segments, which in multiplayer every PC must run identically.
+
 ## Hypothesis H1: why AI turns are slow in co-op
 
 Three facts from the code:
@@ -76,6 +120,34 @@ If, in multiplayer, a command only executes once it has made its way through the
 Making it worse: idle PCs report finished segments only every `net_batched_segments` (default 3) segments, see [multiplayer-sync.md](multiplayer-sync.md). So each AI move may wait several segments, not just one round trip. Setting it to 1 on every PC is a no-code experiment.
 
 **Test:** the hook DLL logs `gap=` for every AI step (time the AI waited since its previous step). In single player the gaps should be close to one frame. If H1 is right, in co-op they will be close to the ping between the PCs, once per command. If H1 holds, the fix would be to let the AI run several moves without waiting (apply its own commands locally right away, and stream them to the other PCs). That's option A in CLAUDE.md, and it only touches the AI manager / transceiver boundary.
+
+## Measured in a LAN game (2026-10-21, robot, 2 copies on one PC)
+
+`tools/robot/run_lan_test.py` plays a LAN game between two copies of the game on one PC: map A1M4 (Trèfle), 2 humans (both played by the robot, which only ends their turns) and 1 computer player. Results:
+
+- **Only the host runs the AI.** While both copies are connected, only the host logs `ai-step` lines; the client logs none. (When the host closes, the client starts running the AI itself.) So the game already computes AI turns on one PC and sends the resulting commands to the others, much like option A in CLAUDE.md.
+- **Each AI step waits 0.9–2.5 s** for its commands (median 1.27 s, hero moves 1.56 s), against 0.4 s in single player. The AI's own thinking is tiny: 0.23 s in total for 57 steps. A 7–13-step AI turn took 15–36 s.
+- **`net_batched_segments = 1` changes nothing** (checked in memory: both copies had 1).
+- The wait comes from the multiplayer pipe (see [multiplayer-sync.md](multiplayer-sync.md), "Measured"): a command sent by the AI joins the host's current segment, which runs only when the other PC has reported a later segment. Those reports arrive seconds late, because the LAN link's send queue is backed up.
+
+So **H1 is right in spirit**: every AI step waits for the network. But even on one PC (no real network delay) the wait is ~1.3 s per step, because of how the game's LAN link sends data. Over the Internet (GameRanger) the ping comes on top.
+
+## Late game: the AI's thinking is mostly pathfinding (2026-10-22)
+
+Measured with the robot on the owner's single-player save `save_11.sav` (MMH5.5 random map "4p-cps-solo", huge, day 50, loaded with `run_ai_test.py --load-save`): in one AI turn of 12 steps the AI **thought for 21 s** (one step alone 9 s) and waited 9 s. Early-game turns think ~0.1 s. So on big, late maps the AI's own computation becomes the main cost, on top of the per-step waiting.
+
+The robot's AI profiler (`--profile-ai`, `src/hook/robot_profile.cpp`; `tools/robot/profile_report.py`) samples the main thread every ~2 ms while the AI thinks. 8,550 samples (17 s) of that turn:
+
+| Function | On the stack | Notes |
+|---|---:|---|
+| `0x00c08be0` | 95% | path query entry; called from 12 places in the AI (`0x0086c010`, `0x0086cd10`, `0x008675f0`, …) |
+| `0x00c08890` | 97% | the search loop |
+| `0x00c095b0`, `0x00c09500` (self 13.5% + 10%) | | **binary heap** push/pop (`(i-1)/2` sift-up) of **64-byte nodes copied by value** (16 dwords per move); comparator `0x00c08fd0` |
+| `0x00c07f80` (self 8%) | 69% | node expansion (2,306 bytes) |
+
+Neighbouring classes: `NWorld::CHeroTraceTile`, `NWorld::CHeroesFilter`, `NWorld::CDangerPool`. So this is the **hero pathfinder** (a Dijkstra/A*-like search over the adventure map), run again and again by the AI. A pathfinder that returns exactly the same paths, faster (nodes by index instead of 64-byte copies, reuse between queries), would be a pure speed-up. In multiplayer only the host runs the AI and its moves carry their paths, so this changes nothing for the other PCs. Candidate for phase 5 (and a good first decompilation target: the functions are small and self-contained).
+
+The rest of the late-game run was blocked by dialogs for the robot's own human player (a battle's retreat box, which needs Flee or Surrender chosen). Benchmarks on such saves need those handled, or the human player switched to AI.
 
 ## Related settings (console variables)
 
@@ -93,7 +165,7 @@ From strings in the exe; most addresses of the backing globals are still unknown
 
 ## Open questions (for phase 1)
 
-1. **Is H1 right?** Compare the hook's `gap=` values in a single-player game and in a 2-PC LAN/GameRanger game.
-2. **Which PC runs the AI in multiplayer?** Run the hook DLL on two PCs in the same game. If only one PC logs `ai-step` lines for a given AI player, only that PC runs it.
+1. ~~Is H1 right?~~ Yes, measured above: ~1.3 s per AI step in a LAN game on one PC, against 0.4 s alone.
+2. ~~Which PC runs the AI in multiplayer?~~ The host (measured above).
 3. When exactly does a sent command execute in multiplayer? Read `CMultiPlayerTransceiver` (`0x007c89f0`–`0x007cc1c0`): when queued commands are released for execution, and what it waits for.
 4. How is a typical turn's time split between thinking (`think=`) and waiting (`gap=`)?

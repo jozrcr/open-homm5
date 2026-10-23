@@ -59,6 +59,72 @@ During an AI turn the human players are idle, so their PCs report only every 3 s
 
 Not related, despite the names: `SegmentLength` / `SkipSegmentsNumber` in the data files belong to projectile animations (`GameMechanics/Shot/...`). The network constants `MaxLatency`, `TimeToAllowDropByLag`, `TimeToStartLagByNoSegmentData` and `AI_SEGMENT_DURATION` exist as field names in the exe but no data file sets them, so they keep built-in defaults (not looked up yet).
 
+## Measured (2026-10-21, robot LAN game, 2 copies on one PC)
+
+With `trace_mp=1` the DLL logs every own step (`mp-step`) and every command sent (`mp-send`) of `CMultiPlayerTransceiver`, and `net_log=1` logs the packets (`src/hook/robot_trace.cpp`, `robot_net.cpp`). Fields used: `+0x28` timer (game time at `+0x14`), `+0x2c` this PC's segment time, `+0x38` segment records (record+8 = segment number), `+0x3c` each player's last reported segment, `+0x54` this PC's player, `0x00f3fa5c` the speed factor set by the pacing.
+
+What happens during an AI turn (host = player 0, client = player 1):
+
+1. **Each PC sees the other one lagging.** The host sees the client 4–9 segments behind; at the same moment the client sees the host stuck 2–13 segments behind (for example the client saw the host at segment 120 for 3 s while the host was at 122–133).
+2. **So both slow down.** The pacing (slot 5) slows a PC that is ahead of the slowest player: speed factor 0.45–0.9 on both, i.e. a 200 ms segment takes 260–470 ms of real time.
+3. **AI commands wait for the slow reports.** A command sent in host segment N runs only when the client's report for a segment after N arrives: 1.8–2.5 s later in the traces.
+
+Why the reports are late: **the LAN link is throughput-starved.** All game traffic between the copies goes over UDP through `NNet::CLinksManager` (send `0x00484d30` = slot 9, receive `0x00484ea0` = slot 10; network thread `0x0047cbd0` ticks every 10 ms). The host sends full 273-byte data packets every ~50 ms, but only ~8 per burst; then it waits for an acknowledgement, and the client acknowledges about **once per second**. So the host can push only about 8 packets (~2 KB) per second, its send queue backs up, and the packets that do go out carry data that is seconds old. (The client sends little: 18–39-byte packets, about once per second.)
+
+### The LAN link (reliable UDP)
+
+Found by tracing which game code calls `sendto` (`robot_net.cpp` logs the stack of the first data packets):
+
+| What | Where | Notes |
+|---|---|---|
+| Network thread | `0x0047cbd0` | `Sleep(10)`, then the driver's tick (slot 25, `0x0047e970`): queued outgoing messages, received packets, then every link's update. |
+| Per-link update | `0x0047e050` | A link sends only when its send timer (link `+0x3e8e4`) has run out, then resets it to **0.05 s** (`0x0047e54d`). It sends if (a) it has data and room in its window, or (b) more than **1.0 s** passed since its last send (`0x008fdf20`, the keepalive). So at most one packet (~256 bytes of data) per 50 ms per link, and **acknowledgements only ride on data or on the 1-second keepalive**. |
+| Reliable channel | channel at link `+0x48`: `+0x38` window (float, min 2), `+0x3c` packets in flight, `+0x40` seconds since last send; update `0x008fe430` | Round-trip estimate with a minimum timeout of 0.1 s; packets older than the timeout count as lost (window −0.5 each, min 2) and are sent again. |
+| Batching of idle reports | `0x00402440` | Reads `net_batched_segments` once (`mov edx, [0x00f27398]` at `0x0040247d`). |
+
+During an AI turn the host has a lot to send (AI commands such as `CSetPlayerAIThreatsInfoCmd` are big): its link runs at the cap, 19 full packets per second (5187 bytes/s), for 5–7 s at a time, and everything else (segment reports, the next AI move) queues behind. The client, idle, acknowledges once per second, so the host's window keeps closing.
+
+### The fix: modern link timings (`src/mods/net_tuning.cpp`)
+
+Robot-mode experiments, then the mod (same robot setup, seconds per AI move):
+
+| Change | per AI move | client behind the host | speed factor |
+|---|---|---|---|
+| none (game) | 2.51 | 4–9 segments | 0.45–0.9 |
+| send interval 10 ms | 2.22 | 5 | 0.79 |
+| keepalive 50 ms | ~1.6 | 4 | 0.79 |
+| keepalive 50 + send interval 10 | 0.90 | 2 | 0.94 |
+| keepalive 50 + send interval 10 + `net_batched_segments` 0 | **0.58** | **1** | **1.00** |
+
+The mod (`src/mods/README.md`) applies the last line by default. The remaining ~0.6 s per AI move is the game's own pacing: each AI step waits for its commands' segment (200 ms) plus one more, as in single player (0.4 s), plus the round trip.
+
+### Segment length in multiplayer (not changed yet)
+
+Shorter segments would cut the remaining wait further (in single player, 50 ms segments took a 6-turn run from 49 s to 34 s, see [ai-turn.md](ai-turn.md)). In multiplayer every PC must use the same length, or the lockstep breaks. The 200 ms appears in `CMultiPlayerTransceiver` as:
+
+| Where | Instruction | Role |
+|---|---|---|
+| `0x007c8b1f` (slot 6, segment due) | `add eax, 200` (immediate at `0x007c8b20`) | time of the next segment |
+| `0x007ca9dc` (slot 4, own step) | `add dword ptr [esi+0x2c], 200` (immediate at `0x007ca9df`) | advance this PC's segment time |
+| `0x007cc0d0` (slot 12) | `add eax, 200` (immediate at `0x007cc0d4`) | next segment time, for other code |
+| `0x007c9456`–`0x007c946d` (checksum handler) | two `lea`s computing `200·check + 30000` | catch-up: a PC whose segment time is 30 s behind the checks jumps forward |
+
+A mod would have to change all four the same way on every PC, and make sure players with different settings cannot join the same game (for example through the version shown in the LAN game list).
+
+There is one more place: **the world time of each segment.** The segment runner (`0x007c98e0`, at `0x007c9a48`–`0x007c9a5c`) computes `base + 200·n + 30000` with the same `lea` chain as the checksum handler and passes it to `0x007cc680`; the transceiver's own clock starts at `base + 30000` (`0x007ca024`). Changing only the three immediates (first try) made the world clock run twice as fast as the segments: other AI steps got faster, but hero moves waited about as long as the time since the turn began (6.5 s, 12 s, 25 s…).
+
+The robot experiment (`--mp-segment-ms 100|50`, `robot_trace.cpp`) now changes the three immediates and both `lea` chains (scale ×8 → ×4 or ×2, displacement 150 → 3,900 or 11,400, so the formula stays `base + N·n + 30000`). Results, with the link tuning mod on, 8 AI turns each:
+
+| Segment | per AI move | hero move | town swap | world checksums |
+|---|---|---|---|---|
+| 200 ms (game) | 0.60 s | 0.61 s | 0.41 s | all equal |
+| 100 ms | 0.49 s | 0.55 s | 0.20 s | 5,179, all equal |
+| 50 ms | 0.44 s | 0.55 s | 0.14 s | 10,251, all equal |
+
+Hero moves (most AI steps) stay at ~0.55 s, so shorter segments buy ~20% more. That floor is not the animation: the setup screen's animation speed at maximum (robot `slider|animationspeed 3`) and `adventure_speed_ai = 10` left hero moves at 0.64 s and 0.57 s. In single player with 50 ms segments a hero move waited only ~0.2 s, so this is still to be found in the multiplayer path. A trace (`--trace-mp`, 50 ms segments) shows ~9 segments (~450 ms of game time) between sending a hero move and the AI's next step, with no other commands in between: the AI waits for its hero to finish walking. Possible later mod: let AI heroes move instantly when no human can see them (a gameplay-level change, so a separate decision). As a mod this needs a guard so that players with different settings cannot play together (a mismatch would break the lockstep), so it stays an experiment for now.
+
+Network detail seen on one PC: the game binds UDP 8889 (`net_lan_match_maker_port`, game discovery and then the game link) and 8888 (`net_game_port`), and broadcasts to 255.255.255.255 and to the subnet of each network adapter. See `tools/robot/README.md` for how two copies share one PC.
+
 ## Desync detection
 
 | What | Where | Notes |
@@ -72,6 +138,12 @@ Not related, despite the names: `SegmentLength` / `SkipSegmentsNumber` in the da
 | Random-number logging | `log_random_calls` (`0x00b26200`), `log_game_calcs` (`0x00c1f6a0`) | Logging each random call on two PCs and comparing the logs is the classic way to find the very first divergence. |
 
 **For phase 1:** turning on `mp_check_crc` + `mp_check_object_crc` (+ `log_random_calls`) in a 2-PC LAN game should show whether and where the game desyncs, using the game's own tools. That costs nothing to try (a console or config change on a test copy of the game).
+
+**Tried with the robot (2026-10-21):**
+
+- With `mp_check_crc` on, **every PC computes a world checksum after every segment** (`0x007c98e0`: world `[transceiver+0x20]` slot 4, the checksum; slot 5 the per-object list) and sends it as a `CCrcTestCmd` (check number at `+0x0c`, checksum at `+0x10`). Without the flag, no checksums are computed or sent. At check 0 each PC also saves the world as `zero_<player>_0.sav` (5 MB) in its profile folder.
+- **`mp_check_object_crc` freezes the game**: with it, the AI made one move and then nothing for minutes (frames kept coming), probably the per-object checksums of the whole world every segment. Don't use it for long games.
+- `mp_check_crc` alone costs nothing visible (AI timings unchanged). The robot logs every checksum on both copies (`trace_crc=1`, `robot_trace.cpp`: the two calls into `0x007c9410` are redirected to a logger) and `tools/robot/lan_report.py` compares them: **all equal = no desync**. First result, with the link tuning mod on: 303 checks, all equal.
 
 ## Network driver: `NNet`
 

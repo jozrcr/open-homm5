@@ -2,6 +2,12 @@
 
 The game has a console variable system (like Quake's cvars). Variables are set with `setvar <name> = <value>` in `.cfg` files (for example `profiles/default_profile/user_a2.cfg` has `setvar ai_time_limit = 180000`) and presumably from the in-game console. Many debug and tuning switches are variables, so they are cheap levers for experiments.
 
+## Full list
+
+[`analysis/console.txt`](../../analysis/console.txt) lists all **79 console commands** (with their handler addresses) and **325 variables** (with the global each one is stored in), extracted from the 406 calls to the two registration functions: `0x00c11350` registers a command (name string + handler passed in `EDX`), `0x00c11400` a variable.
+
+Commands worth knowing: `advmap <map DBID> <human player ids…> <difficulty> <start mode>` (start a map; the robot uses it), `mainmenu`, `exec <cfg file>`, `setvar`, `game_speed <n>`, `pause_game <n>`, `rmg` / `generatemap` (random maps), `test_screen`, `help`, `exit`. There is **no** command to host or join a LAN game.
+
 ## How variables are registered (for finding the global behind a name)
 
 Each variable is registered by a small global-setup function (no callers, in the init region of the exe) with this pattern:
