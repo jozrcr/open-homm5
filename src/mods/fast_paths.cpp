@@ -40,7 +40,9 @@
 //                  convention; called by the search loop's pop at 0x00c0894e.
 //
 // Checked with the robot (tools/robot/path_report.py): the result of every big
-// search, node by node, is the same as the game's own.
+// search, node by node, is the same as the game's own. When it starts, the mod
+// also runs the ported open list against the game's code on random nodes and
+// keeps the game's if anything differs.
 //
 // Settings: open-homm5.ini [ai] fast_paths=1 (default 0 until it is checked on
 // more saves); remember_checks and fast_queue (default 1) turn the parts off.
@@ -48,6 +50,8 @@
 
 #include <windows.h>
 #include <string.h>
+
+#include <initializer_list>
 
 #include "../hook/log.h"
 #include "../hook/patch.h"
@@ -277,6 +281,70 @@ void __fastcall AdjustHeapHook(Node *first, int hole, int bottom, Node val, DWOR
 	PushHeapCore(first, hole, top, val);
 }
 
+// Self-test of the port against the game's own code, before it is used: random
+// nodes (with many equal costs, both signs, the flag bit on and off) through
+// both operator<s, and random heaps through both _Push_heap and _Adjust_heap.
+// Any difference keeps the game's open list.
+typedef bool(__fastcall *LessFn)(const Node &a, const Node &b);
+typedef void(__fastcall *HeapFn)(Node *first, int hole, int other, Node val, DWORD pred);
+
+DWORD g_seed = 12345;
+DWORD Random()
+{
+	g_seed = g_seed * 1103515245u + 12345u;
+	return g_seed >> 8;
+}
+
+void RandomNode(Node &n)
+{
+	for (DWORD &d : n.d)
+		d = Random();
+	static const int small[] = {-2, -1, 0, 0, 1, 2};
+	n.d[1] = (n.d[1] & ~0x00800000u) | ((Random() & 1) << 23);
+	n.d[3] = Random() % 3;
+	for (int i : {8, 10, 11, 12, 14, 15})
+		if (Random() % 4)
+			n.d[i] = static_cast<DWORD>(small[Random() % 6]);
+}
+
+bool QueueMatchesGame()
+{
+	const LessFn game_less = reinterpret_cast<LessFn>(0x00c08fd0);
+	Node a, b;
+	for (int i = 0; i < 20000; ++i) {
+		RandomNode(a);
+		RandomNode(b);
+		if (game_less(a, b) != Less(a, b)) {
+			hooklog::Write("fast paths: open list order differs from the game's (self-test %d)", i);
+			return false;
+		}
+	}
+	const int kSize = 40;
+	Node mine[kSize], game[kSize];
+	for (int round = 0; round < 300; ++round) {
+		const int size = 2 + static_cast<int>(Random() % (kSize - 1));
+		for (int i = 0; i < size; ++i) {
+			RandomNode(mine[i]);
+			game[i] = mine[i];
+		}
+		Node val;
+		RandomNode(val);
+		const int hole = static_cast<int>(Random() % size);
+		if (round & 1) {
+			reinterpret_cast<HeapFn>(kAdjustHeap)(game, hole, size, val, 0);
+			AdjustHeapHook(mine, hole, size, val, 0);
+		} else {
+			reinterpret_cast<HeapFn>(kPushHeap)(game, hole, 0, val, 0);
+			PushHeapHook(mine, hole, 0, val, 0);
+		}
+		if (memcmp(mine, game, size * sizeof(Node)) != 0) {
+			hooklog::Write("fast paths: heap differs from the game's (self-test round %d)", round);
+			return false;
+		}
+	}
+	return true;
+}
+
 bool Setting(const wchar_t *path, const wchar_t *key, int fallback)
 {
 	return GetPrivateProfileIntW(L"ai", key, fallback, path) != 0;
@@ -314,7 +382,9 @@ void ApplyFastPathsFromSettings()
 			               g_can_enter_dry ? "on" : "NOT as expected", g_visitable ? "on" : "NOT as expected");
 		}
 	}
-	if (Setting(path, L"fast_queue", 1)) {
+	if (Setting(path, L"fast_queue", 1) && !QueueMatchesGame()) {
+		hooklog::Write("fast paths: faster open list off (self-test failed)");
+	} else if (Setting(path, L"fast_queue", 1)) {
 		const bool push = hookpatch::RedirectCall(kPushHeapCall, kPushHeap, &PushHeapHook) != 0;
 		const bool adjust = hookpatch::RedirectCall(kAdjustHeapCall, kAdjustHeap, &AdjustHeapHook) != 0;
 		hooklog::Write("fast paths: faster open list: push %s, pop %s", push ? "on" : "NOT as expected",
