@@ -85,6 +85,22 @@ Batch check 2026-10-24 (`path_check.py`, 4 AI turns per save, `--quick-combat --
 | save_9 | 107 / 107 | 7.4 s → 3.6 s |
 | save_1 (early game) | 10 / 10 | 0.5 s → 0.4 s |
 
+### The go-ashore check (2026-10-24)
+
+With the ports on, half of the remaining AI thinking on save_11 was the go-ashore check `0x008649f0` (25 s of 49 s), called ~5 million times in 4 AI turns for boat-layer nodes, half of them first calls for a tile in a search. Each call runs three scans over **every object of the floor** (`0x00cea350` object standing on the tile, `0x00cea010` object with an active cell there, `0x00ceab70` object whose zone of control covers it; ~10 µs per call). Remembering answers across searches did not help (each AI step has one boat-heavy search, and the world changes between steps).
+
+`fast_paths_ashore.cpp` (`[ai] fast_ashore=1`, written by a parallel agent from the disassembly) builds, once per AI step and floor, three tables "which object covers this tile" in one pass over the floor's object list, keeping the game's order rules (first match for two scans, last match for `0x00cea010`), and answers each call with lookups plus the cheap tile tests. Self-check mode (`ashore_check=1`, both answers compared on every call): no difference in ~2.4 million calls. Referee: identical over 4 whole turns on save_11 (301/301) and save_10 (152/152).
+
+AI thinking on save_11, 4 AI turns (85 AI steps), no trace, `--quick-combat --virtual-clock 50`:
+
+| | AI thinking |
+|---|---:|
+| game | 93.3 s |
+| ported search core | 44.0 s |
+| + fast go-ashore check | **22.7 s** (x4.1) |
+
+Next costs (robot timers, `--trace-paths`): the visit check `0x009d1700` (4 million calls, ~1.3 µs each; it asks the AI's evaluator at `pf+0x94` and writes into the candidate node, so it is not a simple remembered answer), then the search machinery itself.
+
 Results (2026-10-23). AI thinking is the sum of the `think=` times of the AI steps, measured without the path trace (which costs time itself); "identical" is checked with the trace on, by `path_report.py`:
 
 | | game | mod |

@@ -39,32 +39,41 @@ batched_segments=0
 
 The DLL's log (`open-homm5.log`) says what it changed, for example `net tuning: links may send every 10 ms (game: 50)`.
 
-## Fast AI pathfinding (`fast_paths.cpp`, in testing, off by default)
+## Fast AI pathfinding (`fast_paths*.cpp`, in testing, off by default)
 
 **What it fixes:** long AI thinking late in a game on big maps (several seconds per AI move).
 
 Late in a game, nearly all of the AI's thinking time goes into searching paths for heroes (see [docs/subsystems/ai-pathfinder.md](../../docs/subsystems/ai-pathfinder.md)). The mod keeps every step of every search and makes the steps cheaper:
 
-- **Remembered checks.** One search can look at the same map tile over a hundred times, and each time it repeats checks that only depend on the tile ("can the hero step there?", "go ashore there?", "is there something to visit?"). The mod remembers their answers until the search ends.
-- **Faster open list.** The list of tiles still to look at is sorted with the same algorithm and the same order as the game's, written out again so that it compares in place instead of copying every tile it looks at.
+- **Remembered checks.** One search can look at the same map tile over a hundred times, and each time it repeats checks that only depend on the tile ("can the hero step there?", "is there something to visit?"). The mod remembers their answers until the search ends.
+- **Faster open list.** The list of tiles still to look at is sorted with the same algorithm and the same order as the game's, written out again so that it compares in place instead of copying every tile it looks at. At start-up the mod tests it against the game's own code and keeps the game's if anything differs.
+- **Ported search core.** The search loop, the node expansion and the "relax a neighbour" step are rewritten from the game's code, step by step, calling the game's own functions in the same order. This makes the whole loop our code, which the next speed-ups build on.
+- **Fast "go ashore?" check.** Half of the remaining time was one check that scans every object of the map floor three times per tile. The mod builds, once per AI step, tables of which object covers which tile (same order rules as the game) and answers from them.
 
-Because the search takes exactly the same steps, **every path and every AI decision stays the same**; only the time changes. In co-op only the host runs the AI, so the mod only matters on the host's PC, and it cannot cause a desync.
+Because every search takes exactly the same steps, **every path stays the same**. In co-op only the host runs the AI, so the mod only matters on the host's PC, and it cannot cause a desync.
 
-**Checked** with the robot on two of the owner's saves: all 195 big path searches (33 on a day-50 save, 162 over 5 AI turns of another) gave exactly the same result with the mod as without it. The comparison is node by node, leaving out only padding and flag bits the game never reads (`tools/robot/path_report.py`).
+One subtlety: the original AI thinks in real-time slices, so how fast it runs can change what it decides, just as the original game decides a bit differently on a faster PC. The robot checks the mod with a virtual clock that removes that effect: then the original and the mod make the same decisions over whole turns.
 
-**Measured** (owner's day-50 save, huge map, 12 AI steps):
+**Checked** with the robot on four of the owner's saves (`tools/robot/path_check.py`, 4 whole AI turns each, virtual clock): every big path search gave exactly the same result as the game's own, node by node (leaving out only padding and flag bits the game never reads), plus the order of reached tiles and what is left of the open list.
 
-| | without the mod | with the mod |
-|---|---|---|
-| AI thinking | 22.4 s | 11.6 s |
-| the longest AI step | 9.4 s | 5.1 s |
-| a typical AI step (searches for the other heroes) | 1.1 s | 0.53 s |
+**Measured** (owner's day-50 save, huge map, 4 AI turns, 85 AI moves):
 
-**Settings:**
+| | AI thinking |
+|---|---:|
+| without the mod | 93.3 s |
+| remembered checks + faster open list + ported search core | 44.0 s |
+| + fast "go ashore?" check | **22.7 s** |
+
+**Settings** (`open-homm5.ini`):
 
 ```ini
 [ai]
 fast_paths=1         ; 0 (default for now) = the game's own pathfinding
-remember_checks=1    ; the parts can be turned off one by one (default 1)
+remember_checks=1    ; the parts, one by one (default 1)
 fast_queue=1
+port_relax=1         ; the ported search core (default 0 while in testing)
+port_search=1
+port_expand=1
+fast_ashore=1        ; the fast "go ashore?" check (default 0 while in testing)
+ashore_check=0       ; 1 = also ask the game every time and log any difference (slow, for testing)
 ```
