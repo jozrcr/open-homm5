@@ -10,6 +10,11 @@ start, node count and result fingerprint (a hash of every node the search
 reached, src/hook/robot_paths.cpp). Two runs of the unchanged game on the same
 save show whether the game is deterministic; a mod that claims "same results"
 (src/mods/fast_paths.cpp) must then match too.
+
+By default the comparison leaves out bytes the game never reads, which differ
+from run to run even without a mod (docs/subsystems/ai-pathfinder.md):
+node fields 7, 9 and 13 (uninitialized start-node bytes and cost padding) and
+flag bits 10-14. --strict compares everything.
 """
 import argparse
 import collections
@@ -38,13 +43,16 @@ def read(run):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("runs", nargs="+")
-    p.add_argument("--ignore-fields", default="",
-                   help="node dwords (0-15) to leave out of the comparison, e.g. 6,7,9,13 for bytes the game "
-                        "never initializes; needs runs that logged fields=")
-    p.add_argument("--ignore-flag-bits", default="",
-                   help="bits (0-31) of the node flags (field 1) to leave out, e.g. 10,11; needs runs that "
-                        "logged bits=; field 1 is then compared bit by bit")
+    p.add_argument("--ignore-fields", default="7,9,13",
+                   help="node dwords (0-15) to leave out of the comparison (default: never read by the game); "
+                        "needs runs that logged fields=")
+    p.add_argument("--ignore-flag-bits", default="10,11,12,13,14",
+                   help="bits (0-31) of the node flags (field 1) to leave out (default: never initialized); "
+                        "needs runs that logged bits=; field 1 is then compared bit by bit")
+    p.add_argument("--strict", action="store_true", help="compare every byte (no fields or bits left out)")
     args = p.parse_args()
+    if args.strict:
+        args.ignore_fields = args.ignore_flag_bits = ""
     ignore = {int(x) for x in args.ignore_fields.split(",") if x}
     ignore_bits = {int(x) for x in args.ignore_flag_bits.split(",") if x}
 

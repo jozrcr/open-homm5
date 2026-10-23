@@ -58,8 +58,9 @@ The robot logs a fingerprint of each big search's result (`result=`, a hash of e
 
 - **fields 9 and 13** (`+0x24`, `+0x34`): the node holds two cost values `{int a; /* 4 bytes padding */ __int64 b;}` at `+0x20` and `+0x30`. The padding is filled from uninitialized locals (`local_4c` in the query and the expansion, `uStack_70` in relax). Every function that compares or adds costs (`0x00c08fd0`, `0x00c070c0`, `0x009d1210`, `0x009d1250`) reads only `a` and `b`.
 - **flag bits 10–14** (`0x7c00` of `+4`): never initialized for the start node and copied along. Only the debug dump in the query (`"V=%d,P=%d,B=%d,D=%d,..."`, when the byte at `0x010c5889` is set) prints bits 11–14.
+- **field 7** (`+0x1c`): also never initialized in the start node (the query builds it on the stack and only sets other fields), copied to every node from there. It differed once, in one search on save_10, with the mod (the mod's extra stack frames change what is left on the stack). No read of it was found in the search, expansion, relax or comparison code; to be confirmed when these functions are decompiled.
 
-With those left out, every run matched every other run on all 33 searches. A faster version is checked the same way: `path_report.py <plain run> <mod run> --ignore-fields 9,13 --ignore-flag-bits 10,11,12,13,14`. It must match the original on every other byte of every reached node, search after search.
+With those left out, every run matched every other run on all 33 searches. A faster version is checked the same way: `path_report.py <plain run> <mod run>` (these bytes are left out by default; `--strict` compares everything). It must match the original on every other byte of every reached node, search after search.
 
 ## The fast paths mod
 

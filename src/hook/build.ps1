@@ -20,7 +20,7 @@ if (-not $vcvars) { throw "no Visual Studio found; set HOOK_VCVARS to vcvarsall.
 
 $sources = "dllmain.cpp", "log.cpp", "game_build.cpp", "hooks.cpp", "ai_trace.cpp", "robot.cpp", "robot_input.cpp", "robot_endturn.cpp", "robot_trace.cpp", "robot_menu.cpp", "robot_screen.cpp", "robot_ui.cpp", "robot_lobby.cpp", "robot_net.cpp", "robot_profile.cpp", "robot_paths.cpp", "patch.cpp", "..\mods\net_tuning.cpp", "..\mods\fast_paths.cpp" | ForEach-Object { "`"$src\$_`"" }
 $flags = "/nologo /O2 /MT /W4 /WX /EHsc /std:c++17 /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN"
-$dll = "cl $flags /LD $($sources -join ' ') /Fo`"$out\\`" /Fe`"$out\dinput8.dll`" /link /DEF:`"$src\dinput8.def`" user32.lib dxguid.lib"
+$dll = "cl $flags /LD $($sources -join ' ') /Fo`"$out\\`" /Fe`"$out\dinput8.dll`" /link /DEF:`"$src\dinput8.def`" /MAP:`"$out\dinput8.map`" user32.lib dxguid.lib"
 $cmd = "call `"$vcvars`" x86 >nul 2>&1 && $dll"
 if ($Test) {
     $cmd += " && cl $flags `"$src\test\proxy_test.cpp`" /Fo`"$out\\`" /Fe`"$out\proxy_test.exe`" dxguid.lib"

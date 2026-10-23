@@ -181,6 +181,32 @@ DWORD ResultHash(const void *self, LONG *reached, DWORD fields[16], DWORD flag_b
 	return h;
 }
 
+// Once per call site: the vtables of the objects the search calls back
+// (this+4 object pool, this+0xc valuation, this+0xa4, this+0x70 world), to
+// find out which classes they are (analysis/classes.txt).
+void LogCallbacks(DWORD call, const void *self)
+{
+	static DWORD logged[kMaxSites];
+	static int count = 0;
+	for (int i = 0; i < count; ++i)
+		if (logged[i] == call)
+			return;
+	if (count < kMaxSites)
+		logged[count++] = call;
+	DWORD vtables[4] = {};
+	const DWORD offsets[4] = {0x04, 0x0c, 0xa4, 0x70};
+	__try {
+		for (int i = 0; i < 4; ++i) {
+			const DWORD object = Field(self, offsets[i]);
+			vtables[i] = object ? *reinterpret_cast<const DWORD *>(object) : 0;
+		}
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+	}
+	hooklog::Write("path site=%08lx callbacks: +04 %08lx, +0c %08lx, +a4 %08lx, +70 %08lx", call, vtables[0], vtables[1],
+	               vtables[2], vtables[3]);
+}
+
 void Record(DWORD call, DWORD key, const void *self, DWORD start, LONGLONG ticks, LONGLONG nodes, LONGLONG tiles,
             LONGLONG same)
 {
@@ -212,6 +238,7 @@ void Record(DWORD call, DWORD key, const void *self, DWORD start, LONGLONG ticks
 		               call, self, start & 0x3ff, (start >> 10) & 0x3ff, (start >> 20) & 0xf, Field(self, kOffTarget),
 		               static_cast<LONG>(Field(self, kOffLimit)), nodes, tiles, same, ticks * 1e6 / g_freq.QuadPart,
 		               reached, result, exhausted ? " exhausted" : "", repeat ? " REPEAT" : "", per_field);
+		LogCallbacks(call, self);
 	}
 }
 

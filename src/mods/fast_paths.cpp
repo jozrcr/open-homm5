@@ -24,7 +24,8 @@
 //      0x00c072d0  "is there something to visit here?", at 0x00c08076,
 //                  0x00c084e3, 0x00c085bc, 0x00c087be. Object pool and tile.
 //    Each one reads only node->position from the node, plus the world and
-//    pathfinder fields that are fixed during a search.
+//    pathfinder fields that are fixed during a search. The answers are kept in
+//    one small record per tile (maps up to 512 x 512, 2 floors).
 //
 // 2. Faster open list (fast_queue=1). The search's open list is a
 //    std::priority_queue of 64-byte nodes, and the compiler library's heap code
@@ -79,22 +80,30 @@ typedef bool(__fastcall *NodeCheckFn)(void *pathfinder, void *edx, const DWORD *
 
 // --- remembered checks --------------------------------------------------------
 
-enum Check : BYTE { kCheckGoAshore = 1, kCheckGoAshoreFlag, kCheckCanEnter, kCheckCanEnterDry, kCheckVisitable };
-
-// Open addressing; an entry belongs to the current search when its generation
-// is g_generation, so a new search needs no clearing.
-struct Entry {
-	DWORD position;  // node[0], all 32 bits
-	DWORD generation;
-	BYTE check;
-	bool value;
+// One bit per check in a tile's record.
+enum Check : WORD {
+	kCheckGoAshore = 1,
+	kCheckGoAshoreFlag = 2,
+	kCheckCanEnter = 4,
+	kCheckCanEnterDry = 8,
+	kCheckVisitable = 16
 };
-const DWORD kSlotBits = 20;
-const DWORD kSlots = 1u << kSlotBits;
-const DWORD kMaxUsed = kSlots / 2;
-Entry *g_table = nullptr;
+
+// Remembered answers, one record per tile (x and y below 512, 2 floors; other
+// positions are not remembered). A record belongs to the current search when
+// its generation is g_generation, so a new search needs no clearing.
+// Neighbouring tiles sit next to each other, which keeps the lookups in the
+// CPU cache.
+struct Tile {
+	DWORD generation;
+	WORD known;  // checks answered in this search
+	WORD value;  // their answers
+};
+const DWORD kTileBits = 9;
+const DWORD kTileFloors = 2;
+const DWORD kTiles = kTileFloors << (2 * kTileBits);
+Tile *g_tiles = nullptr;
 DWORD g_generation = 1;
-DWORD g_used = 0;  // entries of the current search
 const void *g_world = nullptr;
 const void *g_player = nullptr;
 const void *g_pathfinder = nullptr;
@@ -109,7 +118,6 @@ LONGLONG g_misses = 0;
 void NewSearch()
 {
 	++g_generation;
-	g_used = 0;
 }
 
 void __fastcall SearchHook(void *self, void *edx, int limit)
@@ -119,28 +127,41 @@ void __fastcall SearchHook(void *self, void *edx, int limit)
 	NewSearch();
 }
 
-// The entry for (check, position) in this search, or nullptr when the table is
-// full (then the caller just runs the check). *found says whether it holds an
-// answer already.
-Entry *Find(BYTE check, DWORD position, bool *found)
+// The record of the tile at `position` for this search, or nullptr for a
+// position outside the table (then the caller just runs the check).
+Tile *TileAt(DWORD position)
 {
-	if (g_used >= kMaxUsed)
+	const DWORD x = position & 0x3ff, y = (position >> 10) & 0x3ff, floor = position >> 20;
+	if (x >> kTileBits || y >> kTileBits || floor >= kTileFloors)
 		return nullptr;
-	for (DWORD i = ((position ^ check * 0x9e3779b9u) * 2654435761u) >> (32 - kSlotBits);; i = (i + 1) & (kSlots - 1)) {
-		Entry &e = g_table[i];
-		if (e.generation != g_generation) {
-			++g_used;
-			e.position = position;
-			e.generation = g_generation;
-			e.check = check;
-			*found = false;
-			return &e;
-		}
-		if (e.position == position && e.check == check) {
-			*found = true;
-			return &e;
-		}
+	Tile *t = &g_tiles[(floor << (2 * kTileBits)) | (y << kTileBits) | x];
+	if (t->generation != g_generation) {
+		t->generation = g_generation;
+		t->known = 0;
+		t->value = 0;
 	}
+	return t;
+}
+
+// The remembered answer of `check` at `position`, or -1.
+int Recall(Tile *t, WORD check)
+{
+	if (t && (t->known & check)) {
+		++g_hits;
+		return (t->value & check) != 0;
+	}
+	++g_misses;
+	return -1;
+}
+
+bool Store(Tile *t, WORD check, bool value)
+{
+	if (t) {
+		t->known |= check;
+		if (value)
+			t->value |= check;
+	}
+	return value;
 }
 
 bool __fastcall GoAshoreHook(void *world, void *player, const DWORD *node, char flag)
@@ -150,36 +171,25 @@ bool __fastcall GoAshoreHook(void *world, void *player, const DWORD *node, char 
 		g_player = player;
 		NewSearch();
 	}
-	bool found;
-	Entry *e = Find(flag ? kCheckGoAshoreFlag : kCheckGoAshore, node[0], &found);
-	if (e && found) {
-		++g_hits;
-		return e->value;
-	}
-	++g_misses;
-	const bool value = g_go_ashore(world, player, node, flag);
-	if (e)
-		e->value = value;
-	return value;
+	const WORD check = flag ? kCheckGoAshoreFlag : kCheckGoAshore;
+	Tile *t = TileAt(node[0]);
+	const int known = Recall(t, check);
+	if (known >= 0)
+		return known != 0;
+	return Store(t, check, g_go_ashore(world, player, node, flag));
 }
 
-bool Remembered(NodeCheckFn check_fn, BYTE check, void *pathfinder, void *edx, const DWORD *node)
+bool Remembered(NodeCheckFn check_fn, WORD check, void *pathfinder, void *edx, const DWORD *node)
 {
 	if (pathfinder != g_pathfinder) {
 		g_pathfinder = pathfinder;
 		NewSearch();
 	}
-	bool found;
-	Entry *e = Find(check, node[0], &found);
-	if (e && found) {
-		++g_hits;
-		return e->value;
-	}
-	++g_misses;
-	const bool value = check_fn(pathfinder, edx, node);
-	if (e)
-		e->value = value;
-	return value;
+	Tile *t = TileAt(node[0]);
+	const int known = Recall(t, check);
+	if (known >= 0)
+		return known != 0;
+	return Store(t, check, check_fn(pathfinder, edx, node));
 }
 
 bool __fastcall CanEnterHook(void *pathfinder, void *edx, const DWORD *node)
@@ -283,14 +293,14 @@ void ApplyFastPathsFromSettings()
 		return;
 	}
 	if (Setting(path, L"remember_checks", 1)) {
-		g_table = static_cast<Entry *>(VirtualAlloc(nullptr, kSlots * sizeof(Entry), MEM_COMMIT, PAGE_READWRITE));
+		g_tiles = static_cast<Tile *>(VirtualAlloc(nullptr, kTiles * sizeof(Tile), MEM_COMMIT, PAGE_READWRITE));
 		// The search hooks go first: without them the remembered answers could
 		// outlive a search.
-		if (g_table)
+		if (g_tiles)
 			g_search = reinterpret_cast<SearchFn>(hookpatch::RedirectCalls(
 				kSearchCalls, sizeof(kSearchCalls) / sizeof(kSearchCalls[0]), kSearch, &SearchHook));
 		if (!g_search) {
-			hooklog::Write("fast paths: %s: no remembered checks", g_table ? "search calls not as expected" : "no memory");
+			hooklog::Write("fast paths: %s: no remembered checks", g_tiles ? "search calls not as expected" : "no memory");
 		} else {
 			g_go_ashore = reinterpret_cast<GoAshoreFn>(hookpatch::RedirectCall(kGoAshoreCall, kGoAshore, &GoAshoreHook));
 			g_can_enter = reinterpret_cast<NodeCheckFn>(hookpatch::RedirectCall(kCanEnterCall, kCanEnter, &CanEnterHook));
