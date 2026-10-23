@@ -28,7 +28,7 @@ SAVES = pathlib.Path.home() / "Documents" / "My Games" / "Heroes of Might and Ma
 def run(save, fast_paths, args, dll):
     cmd = [sys.executable, str(REPO / "tools" / "robot" / "run_ai_test.py"), "--save-file", str(args.saves / (save + ".sav")),
            "--load-save", save, "--trace-paths", "--fast-paths", fast_paths, "--seconds", str(args.seconds),
-           "--turns", str(args.turns), "--dll", str(dll)]
+           "--turns", str(args.turns), "--dll", str(dll)] + args.robot_arg
     if fast_paths == "on":
         for setting in args.ai_setting:
             cmd += ["--ai-setting", setting]
@@ -52,6 +52,9 @@ def main():
     p.add_argument("--turns", type=int, default=3)
     p.add_argument("--ai-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="extra [ai] setting for the mod run, e.g. port_relax=1")
+    p.add_argument("--robot-arg", action="append", default=[],
+                   help="extra run_ai_test.py argument for every run, e.g. --robot-arg=--quick-combat "
+                        "--robot-arg=--virtual-clock=50 (recommended: runs replay the same and do not stop at battles)")
     args = p.parse_args()
     out = REPO / "build" / "robot" / (datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-check")
     out.mkdir(parents=True)

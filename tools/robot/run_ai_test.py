@@ -104,6 +104,10 @@ def prepare(game, args, out, instance="", net_port=None):
     default = game / "profiles" / "default_profile"
     base = (default / "user_a2.cfg").read_text(encoding="latin-1") if (default / "user_a2.cfg").is_file() else ""
     extra = ROBOT_SETTINGS + "".join("setvar %s\n" % s for s in args.setvar)
+    if getattr(args, "quick_combat", False):
+        # battles resolve by themselves, so the robot's passive human player is
+        # not stuck in the tactics phase when the AI attacks it
+        extra += "setvar adventure_quick_combat = 1\n"
     (profiles / "Robot" / "user_a2.cfg").write_text(base + extra, encoding="latin-1")
     if (default / "input_a2.cfg").is_file():
         shutil.copy2(default / "input_a2.cfg", profiles / "Robot" / "input_a2.cfg")
@@ -250,7 +254,8 @@ def summarize(log_text, exit_code, elapsed):
         "hooked": has("hooked AI turn driver"),
         "ai_turns_started": sum(1 for l in lines if "robot: AI turn" in l and "started" in l),
         "ai_steps": len(steps),
-        "finished_by": "turn limit" if has("AI turns done") else "time limit" if has("time limit of") else "other (crash or closed)",
+        "finished_by": "turn limit" if has("AI turns done") else "time limit" if has("time limit of") else
+                       "stuck (a battle or a box waits for the human)" if has("robot: stuck:") else "other (crash or closed)",
         "per_ai": per_ai,
         "wait_after_step_kind": wait_after_steps(steps),
     }
@@ -344,6 +349,9 @@ def main():
                    help="the fast pathfinding mod (src/mods/fast_paths.cpp); compare with --trace-paths runs")
     p.add_argument("--ai-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="extra [ai] setting for the mods, e.g. port_relax=1 (repeatable)")
+    p.add_argument("--quick-combat", action="store_true",
+                   help="battles resolve by themselves (adventure_quick_combat = 1): the robot's human player "
+                        "is not stuck in the tactics phase or the battle when the AI attacks it")
     p.add_argument("--virtual-clock", type=int, nargs="?", const=16, default=0, metavar="MS_PER_FRAME",
                    help="the game sees a clock that advances MS_PER_FRAME (16) per frame, not real time, so runs "
                         "replay the same however fast the code is (src/hook/robot_clock.cpp)")
