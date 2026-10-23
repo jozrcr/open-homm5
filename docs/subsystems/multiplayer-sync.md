@@ -123,7 +123,25 @@ The robot experiment (`--mp-segment-ms 100|50`, `robot_trace.cpp`) now changes t
 
 Hero moves (most AI steps) stay at ~0.55 s, so shorter segments buy ~20% more. That floor is not the animation: the setup screen's animation speed at maximum (robot `slider|animationspeed 3`) and `adventure_speed_ai = 10` left hero moves at 0.64 s and 0.57 s. In single player with 50 ms segments a hero move waited only ~0.2 s, so this is still to be found in the multiplayer path. A trace (`--trace-mp`, 50 ms segments) shows ~9 segments (~450 ms of game time) between sending a hero move and the AI's next step, with no other commands in between: the AI waits for its hero to finish walking. Possible later mod: let AI heroes move instantly when no human can see them (a gameplay-level change, so a separate decision). As a mod this needs a guard so that players with different settings cannot play together (a mismatch would break the lockstep), so it stays an experiment for now.
 
-Network detail seen on one PC: the game binds UDP 8889 (`net_lan_match_maker_port`, game discovery and then the game link) and 8888 (`net_game_port`), and broadcasts to 255.255.255.255 and to the subnet of each network adapter. See `tools/robot/README.md` for how two copies share one PC.
+Network detail seen on one PC: the game binds UDP 8889 (`net_lan_match_maker_port`, game discovery and then the game link) and 8888 (`net_game_port`). See `tools/robot/README.md` for how two copies share one PC.
+
+### How LAN games are found (robot socket logs, 50 runs)
+
+1. A player on the LAN screen **broadcasts a 5-byte query** (first byte `02`) to `net_lan_match_maker_port`, about once a second.
+2. A PC hosting a game **answers by unicast** to the sender with an 826-byte game description (first byte `03`).
+3. Joining: the joiner sends 9-byte packets (first byte `07`) to **each** of the host's addresses (the host's game description seems to carry its address list), on `net_game_port`, and the host answers from the address that worked.
+
+The query goes to only two addresses: `255.255.255.255` and the **classful** broadcast of one local address. On the owner's PC the game picked the WSL adapter `172.28.192.1/20` and sent to `172.28.255.255` (its class B /16), never to `192.168.1.255` of the real Ethernet card. In 50 runs no other broadcast address appeared.
+
+### Over the internet with ZeroTier (2026-10-23, failed)
+
+Owner on Windows, a friend on Linux (Proton), both approved in one ZeroTier network (`10.21.174.0/24`). Unicast worked: ping between the two PCs took 20 ms. **The game list stayed empty**, for these reasons:
+
+- Windows sends `255.255.255.255` only through the interface with the lowest metric (the Ethernet card, metric 25, against ZeroTier's 35), so the query never enters ZeroTier. Linux does the same with its default-route interface.
+- The classful broadcast doesn't help either: a ZeroTier address `10.21.174.x` gives `10.255.255.255`, which is outside the ZeroTier route `10.21.174.0/24`, so it also leaves through the normal internet connection.
+- Windows marked the ZeroTier network **Public**, and the game's firewall rules allow only Private networks, so the host's answer or a join would be blocked too.
+
+Untested workarounds: on Windows, make the ZeroTier network Private and give it the lowest metric (`Set-NetIPInterface -InterfaceMetric 1`); on Linux, `ip route add 255.255.255.255/32 dev zt…`. The robust fix, planned for the networking phase: a DLL setting that also sends the discovery query by unicast to listed peer addresses (the robot's broadcast relay in `src/hook/robot_net.cpp` already does this for two copies on one PC). GameRanger works because it carries the broadcasts itself.
 
 ## Desync detection
 

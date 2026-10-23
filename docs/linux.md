@@ -2,6 +2,8 @@
 
 A step-by-step guide for a player on Linux who joins a co-op game hosted on Windows. You end up with Heroes V: Tribes of the East + MMH5.5 running under Steam's Proton, our DLL with the faster co-op AI mod, and a ZeroTier network that makes the two PCs look like they are on the same LAN. GameRanger is not needed.
 
+**Known issue (2026-10-23): over ZeroTier the host's game doesn't show up in the LAN list yet.** The first real try connected the two PCs fine, but Windows and Linux send the game's "any games here?" broadcast only through the normal network card, not through ZeroTier. Details and workarounds: [multiplayer-sync.md](subsystems/multiplayer-sync.md#over-the-internet-with-zerotier-2026-10-23-failed). Networking is planned as a later phase; until then, part A of this guide (the game and the mod on Linux) still applies.
+
 **Status:** the mod is tested on Windows (two copies of the game on one PC, no desync in long games). The Linux and ZeroTier parts follow the standard steps but nobody has tried them with this game yet. If something doesn't work, the [troubleshooting](#troubleshooting) table says what to check, and [what to send back](#what-to-send-back) lists what helps us fix it.
 
 **Words used here:** the *host* is the Windows player who creates the game. *You* are the Linux player who joins. Only the host's PC runs the AI, so the faster PC should host.
@@ -153,7 +155,7 @@ All players should keep the mod on (the default). Each PC speeds up only what it
 | You can join but the game says it's out of sync, or players see different things | Both PCs must have the same files: copy the host's folder again. Send both logs. |
 | It worked before, then stopped after a Steam update | Steam replaced some files: copy the host's files again (step 2). |
 
-If the game list stays empty although ZeroTier says `OK` on both PCs, tell us: we can add a DLL setting that sends the game's "here's my game" message straight to the other PC's address, so the list doesn't depend on broadcasts.
+The game list staying empty over ZeroTier is the known issue at the top of this guide. The planned fix is a DLL setting that sends the game's "any games here?" message straight to the other PC's address, so the list no longer depends on broadcasts.
 
 ## What to send back
 
