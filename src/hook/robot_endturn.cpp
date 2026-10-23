@@ -58,6 +58,7 @@ bool CallEndTurn(void *controller)
 void OnAiStep()
 {
 	g_last_ai_step = GetTickCount();
+	PathTraceStep();
 }
 
 void InstallEndTurnHelper()

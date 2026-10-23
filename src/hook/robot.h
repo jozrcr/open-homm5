@@ -113,6 +113,11 @@ void *PatchImport(const char *dll, const char *function, void *replacement);
 void StartAiProfiler();
 void OnAiThinking(bool thinking);
 
+// Pathfinder trace (robot_paths.cpp), when trace_paths=1: per AI step, the path
+// searches by call site, their time, visited nodes and repeats ("paths step" lines).
+void InstallPathTrace();
+void PathTraceStep();  // from OnAiStep
+
 // Optional segment trace (robot_trace.cpp), when trace_segments=1.
 void InstallSegmentTrace();
 // Multiplayer segment trace (robot_trace.cpp), when trace_mp=1.

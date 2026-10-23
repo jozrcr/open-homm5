@@ -85,6 +85,8 @@ def write_mod_settings(game, args, instance):
         value = getattr(args, attr, None)
         if value is not None:
             lines.append("%s=%d" % (key, value))
+    # [ai] = the fast pathfinding mod (src/mods/fast_paths.cpp), off by default
+    lines += ["[ai]", "fast_paths=%d" % (1 if getattr(args, "fast_paths", "off") == "on" else 0)]
     mod_settings_file(game, instance).write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
@@ -133,6 +135,7 @@ def prepare(game, args, out, instance="", net_port=None):
         ("trace_mp", int(bool(getattr(args, "trace_mp", False)))),
         ("trace_crc", int(bool(getattr(args, "trace_crc", False)))),
         ("profile_ai", int(bool(getattr(args, "profile_ai", False)))),
+        ("trace_paths", int(bool(getattr(args, "trace_paths", False)))),
         ("segment_ms", args.segment_ms),
         ("mp_segment_ms", getattr(args, "mp_segment_ms", 0)),
         # screenshots: the DLL saves the game's own frames there as .bmp (src/hook/robot_screen.cpp)
@@ -333,6 +336,10 @@ def main():
                    help="the LAN link tuning mod (src/mods/net_tuning.cpp); only matters in multiplayer")
     p.add_argument("--profile-ai", action="store_true",
                    help="sample where the AI spends its thinking time (ai-profile.txt, profile_report.py)")
+    p.add_argument("--fast-paths", choices=["on", "off"], default="off",
+                   help="the fast pathfinding mod (src/mods/fast_paths.cpp); compare with --trace-paths runs")
+    p.add_argument("--trace-paths", action="store_true",
+                   help="log the AI's path searches per step ('paths' lines in the log, path_report.py)")
     p.add_argument("--restore-intro", action="store_true", help="put the intro videos back in the test copy and exit")
     args = p.parse_args()
     if args.load_save:
