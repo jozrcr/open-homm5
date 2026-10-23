@@ -1,11 +1,11 @@
 {
-  "generated": "2026-10-20T20:25:37Z",
+  "generated": "2026-10-20T20:38:39Z",
   "reference": "H5_Game.exe 3.1 (sha256 94309157dc65498203c1ee0c357a30ae8788184b91d73bcd5eb5c3159aa81375)",
   "totals": {
     "functions": 48609,
     "library": 2049,
     "generated": 16828,
-    "matched": 0,
+    "matched": 13,
     "equivalent": 0
   },
   "subsystems": [
@@ -47,8 +47,15 @@
     {
       "name": "unassigned",
       "functions": 35919,
-      "matched": 0
+      "matched": 13
     }
   ],
-  "units": []
+  "units": [
+    {
+      "name": "GameTimer",
+      "subsystem": "",
+      "functions": 13,
+      "matched": 13
+    }
+  ]
 }

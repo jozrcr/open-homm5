@@ -1,0 +1,15 @@
+# Functions that byte-match the reference exe (tools/verify/verify.py --record).
+# address  unit  mangled name
+00401000  GameTimer  ?GetStepStartPtr@CGameTimer@NGameTimer@@UAEPAIXZ
+00401010  GameTimer  ?GetStepCount@CGameTimer@NGameTimer@@UAEHXZ
+00401020  GameTimer  ?Step@CGameTimer@NGameTimer@@UAE_NXZ
+00401040  GameTimer  ?GetMember40@CGameTimer@NGameTimer@@UAEHXZ
+00401050  GameTimer  ?GetMinValue@CGameTimer@NGameTimer@@UAEHXZ
+00401060  GameTimer  ?GetMaxValue@CGameTimer@NGameTimer@@UAEHXZ
+00401230  GameTimer  ?GetTimePtr@CGameTimer@NGameTimer@@UAEPAIXZ
+00401240  GameTimer  ?GetMember24Ptr@CGameTimer@NGameTimer@@UAEPAIXZ
+00401250  GameTimer  ?GetStepsElapsed@CGameTimer@NGameTimer@@UAEIXZ
+00401260  GameTimer  ?IsStepDue@CGameTimer@NGameTimer@@UAE_NXZ
+00401270  GameTimer  ?GetLastListValue@CGameTimer@NGameTimer@@UAEHXZ
+00401290  GameTimer  ?ListContains@CGameTimer@NGameTimer@@UAE_NH@Z
+00401410  GameTimer  ?Slot21@CGameTimer@NGameTimer@@UAEXHH@Z

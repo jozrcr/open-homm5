@@ -1,0 +1,21 @@
+{
+  "sources": [
+    "GameTimer.cpp"
+  ],
+  "subsystem": "",
+  "functions": {
+    "00401000": "?GetStepStartPtr@CGameTimer@NGameTimer@@UAEPAIXZ",
+    "00401010": "?GetStepCount@CGameTimer@NGameTimer@@UAEHXZ",
+    "00401020": "?Step@CGameTimer@NGameTimer@@UAE_NXZ",
+    "00401040": "?GetMember40@CGameTimer@NGameTimer@@UAEHXZ",
+    "00401050": "?GetMinValue@CGameTimer@NGameTimer@@UAEHXZ",
+    "00401060": "?GetMaxValue@CGameTimer@NGameTimer@@UAEHXZ",
+    "00401230": "?GetTimePtr@CGameTimer@NGameTimer@@UAEPAIXZ",
+    "00401240": "?GetMember24Ptr@CGameTimer@NGameTimer@@UAEPAIXZ",
+    "00401250": "?GetStepsElapsed@CGameTimer@NGameTimer@@UAEIXZ",
+    "00401260": "?IsStepDue@CGameTimer@NGameTimer@@UAE_NXZ",
+    "00401270": "?GetLastListValue@CGameTimer@NGameTimer@@UAEHXZ",
+    "00401290": "?ListContains@CGameTimer@NGameTimer@@UAE_NH@Z",
+    "00401410": "?Slot21@CGameTimer@NGameTimer@@UAEXHH@Z"
+  }
+}
