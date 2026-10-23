@@ -18,7 +18,7 @@ if (-not $vcvars) {
 }
 if (-not $vcvars) { throw "no Visual Studio found; set HOOK_VCVARS to vcvarsall.bat" }
 
-$sources = "dllmain.cpp", "log.cpp", "game_build.cpp", "hooks.cpp", "ai_trace.cpp", "robot.cpp", "robot_input.cpp", "robot_endturn.cpp", "robot_trace.cpp", "robot_menu.cpp", "robot_screen.cpp", "robot_ui.cpp", "robot_lobby.cpp", "robot_net.cpp", "robot_profile.cpp", "robot_paths.cpp", "patch.cpp", "..\mods\net_tuning.cpp", "..\mods\fast_paths.cpp" | ForEach-Object { "`"$src\$_`"" }
+$sources = "dllmain.cpp", "log.cpp", "game_build.cpp", "hooks.cpp", "ai_trace.cpp", "robot.cpp", "robot_input.cpp", "robot_endturn.cpp", "robot_trace.cpp", "robot_menu.cpp", "robot_screen.cpp", "robot_ui.cpp", "robot_lobby.cpp", "robot_net.cpp", "robot_profile.cpp", "robot_paths.cpp", "patch.cpp", "..\mods\net_tuning.cpp", "..\mods\fast_paths.cpp", "..\mods\fast_paths_relax.cpp", "..\mods\fast_paths_search.cpp" | ForEach-Object { "`"$src\$_`"" }
 $flags = "/nologo /O2 /MT /W4 /WX /EHsc /std:c++17 /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN"
 $dll = "cl $flags /LD $($sources -join ' ') /Fo`"$out\\`" /Fe`"$out\dinput8.dll`" /link /DEF:`"$src\dinput8.def`" /MAP:`"$out\dinput8.map`" user32.lib dxguid.lib"
 $cmd = "call `"$vcvars`" x86 >nul 2>&1 && $dll"
@@ -26,7 +26,7 @@ if ($Test) {
     $cmd += " && cl $flags `"$src\test\proxy_test.cpp`" /Fo`"$out\\`" /Fe`"$out\proxy_test.exe`" dxguid.lib"
     # calling-convention test of the AI hook: debug build with runtime stack checks (/RTCs)
     $tflags = "/nologo /Od /RTCs /MTd /W4 /WX /EHsc /std:c++17 /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN /DAI_TRACE_TEST"
-    $cmd += " && cl $tflags `"$src\test\ai_trace_test.cpp`" `"$src\ai_trace.cpp`" `"$src\log.cpp`" `"$src\robot.cpp`" `"$src\robot_input.cpp`" `"$src\robot_endturn.cpp`" `"$src\robot_trace.cpp`" `"$src\robot_menu.cpp`" `"$src\robot_screen.cpp`" `"$src\robot_ui.cpp`" `"$src\robot_lobby.cpp`" `"$src\robot_net.cpp`" `"$src\robot_profile.cpp`" `"$src\robot_paths.cpp`" `"$src\patch.cpp`" `"$src\..\mods\fast_paths.cpp`" `"$src\game_build.cpp`" /Fo`"$out\\`" /Fe`"$out\ai_trace_test.exe`" dxguid.lib user32.lib"
+    $cmd += " && cl $tflags `"$src\test\ai_trace_test.cpp`" `"$src\ai_trace.cpp`" `"$src\log.cpp`" `"$src\robot.cpp`" `"$src\robot_input.cpp`" `"$src\robot_endturn.cpp`" `"$src\robot_trace.cpp`" `"$src\robot_menu.cpp`" `"$src\robot_screen.cpp`" `"$src\robot_ui.cpp`" `"$src\robot_lobby.cpp`" `"$src\robot_net.cpp`" `"$src\robot_profile.cpp`" `"$src\robot_paths.cpp`" `"$src\patch.cpp`" `"$src\..\mods\fast_paths.cpp`" `"$src\..\mods\fast_paths_relax.cpp`" `"$src\..\mods\fast_paths_search.cpp`" `"$src\game_build.cpp`" /Fo`"$out\\`" /Fe`"$out\ai_trace_test.exe`" dxguid.lib user32.lib"
 }
 # vcvarsall prints a harmless vswhere warning on stderr (silenced above);
 # PowerShell 5.1 would turn any native stderr line into an error.

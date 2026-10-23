@@ -56,8 +56,9 @@ def check_game_dir(game):
         sys.exit("%s does not look like a game folder (no bin/)" % game)
 
 
-def install_dll(game):
-    dll = REPO / "build" / "hook" / "dinput8.dll"
+def install_dll(game, dll=None):
+    """Copy the hook DLL (default: the last build) into the test copy's bin folder."""
+    dll = pathlib.Path(dll) if dll else REPO / "build" / "hook" / "dinput8.dll"
     if not dll.is_file():
         sys.exit("build the DLL first: powershell -File src\\hook\\build.ps1")
     shutil.copy2(dll, game / "bin" / "dinput8.dll")
@@ -87,6 +88,7 @@ def write_mod_settings(game, args, instance):
             lines.append("%s=%d" % (key, value))
     # [ai] = the fast pathfinding mod (src/mods/fast_paths.cpp), off by default
     lines += ["[ai]", "fast_paths=%d" % (1 if getattr(args, "fast_paths", "off") == "on" else 0)]
+    lines += getattr(args, "ai_setting", None) or []  # e.g. port_relax=1
     mod_settings_file(game, instance).write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
@@ -336,8 +338,11 @@ def main():
                    help="the LAN link tuning mod (src/mods/net_tuning.cpp); only matters in multiplayer")
     p.add_argument("--profile-ai", action="store_true",
                    help="sample where the AI spends its thinking time (ai-profile.txt, profile_report.py)")
+    p.add_argument("--dll", help="hook DLL to install (default build/hook/dinput8.dll), e.g. a frozen copy for batch runs")
     p.add_argument("--fast-paths", choices=["on", "off"], default="off",
                    help="the fast pathfinding mod (src/mods/fast_paths.cpp); compare with --trace-paths runs")
+    p.add_argument("--ai-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="extra [ai] setting for the mods, e.g. port_relax=1 (repeatable)")
     p.add_argument("--trace-paths", action="store_true",
                    help="log the AI's path searches per step ('paths' lines in the log, path_report.py)")
     p.add_argument("--restore-intro", action="store_true", help="put the intro videos back in the test copy and exit")
@@ -355,7 +360,7 @@ def main():
         return
     out = REPO / "build" / "robot" / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     out.mkdir(parents=True)
-    install_dll(game)
+    install_dll(game, args.dll)
     command = prepare(game, args, out)
 
     # Not "-advmap" on the command line: WinMain runs the console command

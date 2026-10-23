@@ -44,3 +44,6 @@ __pycache__/
 .claude/settings.local.json
 Thumbs.db
 desktop.ini
+
+# --- Claude Code worktrees for parallel agents ---
+.claude/worktrees/

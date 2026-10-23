@@ -55,6 +55,7 @@
 
 #include "../hook/log.h"
 #include "../hook/patch.h"
+#include "fast_paths_internal.h"
 
 namespace mods {
 namespace {
@@ -73,10 +74,45 @@ const DWORD kPushHeap = 0x00c09500;
 const DWORD kPushHeapCall = 0x00c09a2f;
 const DWORD kAdjustHeap = 0x00c095b0;
 const DWORD kAdjustHeapCall = 0x00c0894e;
+const DWORD kRelax = 0x00c09d90;
+const DWORD kRelaxCalls[] = {0x00c080aa, 0x00c086fc, 0x00c0885b,  // in the expansion
+                             0x00c08ce9, 0x00c08dee};             // in the query (start nodes)
 
-struct Node {
-	DWORD d[16];
+using fastpaths::Cost;
+using fastpaths::Node;
+
+// A cost as pushed on the stack for a call (4 dwords; Cost holds an __int64).
+struct CostArg {
+	DWORD a, pad, low, high;
 };
+typedef void(__fastcall *RelaxFn)(BYTE *pf, void *edx, Node *from, Node *grid, Node *candidate, int step, CostArg cost,
+                                  const DWORD *extra, DWORD flag);
+bool g_port_relax = false;
+bool g_port_search = false;
+const DWORD kExpand = 0x00c07f80;
+const DWORD kExpandCall = 0x00c08b2d;  // the search loop's call of the expansion
+
+Cost ToCost(const CostArg &c)
+{
+	Cost r;
+	r.a = static_cast<int>(c.a);
+	r.pad = c.pad;
+	r.b = static_cast<__int64>(c.low | static_cast<unsigned __int64>(c.high) << 32);
+	return r;
+}
+
+CostArg ToArg(const Cost &c)
+{
+	const unsigned __int64 b = static_cast<unsigned __int64>(c.b);
+	return {static_cast<DWORD>(c.a), c.pad, static_cast<DWORD>(b), static_cast<DWORD>(b >> 32)};
+}
+
+// The game's calls of relax, when port_relax=1.
+void __fastcall RelaxHook(BYTE *pf, void * /*edx*/, Node *from, Node *grid, Node *candidate, int step, CostArg cost,
+                          const DWORD *extra, DWORD flag)
+{
+	fastpaths::PortedRelax(pf, from, grid, candidate, step, ToCost(cost), extra, flag);
+}
 
 typedef void(__fastcall *SearchFn)(void *self, void *edx, int limit);
 typedef bool(__fastcall *GoAshoreFn)(void *world, void *player, const DWORD *node, char flag);
@@ -90,7 +126,8 @@ enum Check : WORD {
 	kCheckGoAshoreFlag = 2,
 	kCheckCanEnter = 4,
 	kCheckCanEnterDry = 8,
-	kCheckVisitable = 16
+	kCheckVisitable = 16,
+	kCheckStandsHere = 32  // the object pool's "something stands here" (search loop)
 };
 
 // Remembered answers, one record per tile (x and y below 512, 2 floors; other
@@ -102,6 +139,7 @@ struct Tile {
 	DWORD generation;
 	WORD known;  // checks answered in this search
 	WORD value;  // their answers
+	DWORD stands_here;  // what the object pool wrote when something stands here
 };
 const DWORD kTileBits = 9;
 const DWORD kTileFloors = 2;
@@ -127,7 +165,10 @@ void NewSearch()
 void __fastcall SearchHook(void *self, void *edx, int limit)
 {
 	NewSearch();
-	g_search(self, edx, limit);
+	if (g_port_search)
+		fastpaths::PortedSearch(static_cast<BYTE *>(self), limit);
+	else
+		g_search(self, edx, limit);
 	NewSearch();
 }
 
@@ -352,6 +393,77 @@ bool Setting(const wchar_t *path, const wchar_t *key, int fallback)
 
 }  // namespace
 
+namespace fastpaths {
+
+bool GoAshore(void *world, void *player, const DWORD *node, char flag)
+{
+	return g_go_ashore ? GoAshoreHook(world, player, node, flag)
+	                   : reinterpret_cast<GoAshoreFn>(kGoAshore)(world, player, node, flag);
+}
+
+bool CanEnter(BYTE *pf, const DWORD *node)
+{
+	return g_can_enter ? CanEnterHook(pf, nullptr, node) : reinterpret_cast<NodeCheckFn>(kCanEnter)(pf, nullptr, node);
+}
+
+bool CanEnterDry(BYTE *pf, const DWORD *node)
+{
+	return g_can_enter_dry ? CanEnterDryHook(pf, nullptr, node)
+	                       : reinterpret_cast<NodeCheckFn>(kCanEnterDry)(pf, nullptr, node);
+}
+
+// The object pool's slot 1 (0x0045d600 for NWorld::CMobileObjectsPool): true
+// when something stands at node->position, and then *out = its value.
+bool StandsHere(void *pool, DWORD *out, const Node *node)
+{
+	typedef bool(__fastcall * StandsHereFn)(void *pool, void *edx, DWORD *out, const Node *node);
+	const StandsHereFn game = (*reinterpret_cast<StandsHereFn *const *>(pool))[1];
+	Tile *t = g_tiles ? TileAt(node->d[0]) : nullptr;
+	const int known = t ? Recall(t, kCheckStandsHere) : -1;
+	if (known > 0)
+		*out = t->stands_here;
+	if (known >= 0)
+		return known != 0;
+	DWORD value = *out;
+	const bool found = game(pool, nullptr, &value, node);
+	if (found) {
+		*out = value;
+		if (t)
+			t->stands_here = value;
+	}
+	return Store(t, kCheckStandsHere, found);
+}
+
+void AdjustHeap(Node *first, int hole, int bottom, const Node &val)
+{
+	AdjustHeapHook(first, hole, bottom, val, 0);
+}
+
+// Whatever the search loop's expansion call goes to now: the game's function,
+// the port, or a robot trace stacked on top.
+void RunExpand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, char flag, DWORD *out)
+{
+	typedef void(__fastcall * ExpandFn)(BYTE * pf, void *edx, Node *node, int count, const int *dirs, int remaining,
+	                                    DWORD flag, DWORD *out);
+	const DWORD target = kExpandCall + 5 + *reinterpret_cast<const LONG *>(kExpandCall + 1);
+	reinterpret_cast<ExpandFn>(target)(pf, nullptr, node, count, dirs, remaining, static_cast<BYTE>(flag), out);
+}
+
+bool Visitable(BYTE *pf, const DWORD *node)
+{
+	return g_visitable ? VisitableHook(pf, nullptr, node) : reinterpret_cast<NodeCheckFn>(kVisitable)(pf, nullptr, node);
+}
+
+void Relax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Cost cost, const DWORD *extra, DWORD flag)
+{
+	if (g_port_relax)
+		PortedRelax(pf, from, grid, candidate, step, cost, extra, flag);
+	else
+		reinterpret_cast<RelaxFn>(kRelax)(pf, nullptr, from, grid, candidate, step, ToArg(cost), extra, flag);
+}
+
+}  // namespace fastpaths
+
 void ApplyFastPathsFromSettings()
 {
 	wchar_t path[MAX_PATH];
@@ -389,6 +501,18 @@ void ApplyFastPathsFromSettings()
 		const bool adjust = hookpatch::RedirectCall(kAdjustHeapCall, kAdjustHeap, &AdjustHeapHook) != 0;
 		hooklog::Write("fast paths: faster open list: push %s, pop %s", push ? "on" : "NOT as expected",
 		               adjust ? "on" : "NOT as expected");
+	}
+	// Ported pathfinder functions (fast_paths_*.cpp), off by default while they
+	// are being checked against the game's. The ported search loop needs the
+	// search hooks (remembered checks on) and the ported open list.
+	if (Setting(path, L"port_search", 0)) {
+		g_port_search = g_search && Setting(path, L"fast_queue", 1) && QueueMatchesGame();
+		hooklog::Write("fast paths: ported search loop %s", g_port_search ? "on" : "off (needs remembered checks and the open list)");
+	}
+	if (Setting(path, L"port_relax", 0)) {
+		g_port_relax = hookpatch::RedirectCalls(kRelaxCalls, sizeof(kRelaxCalls) / sizeof(kRelaxCalls[0]), kRelax,
+		                                        &RelaxHook) != 0;
+		hooklog::Write("fast paths: ported relax %s", g_port_relax ? "on" : "NOT as expected");
 	}
 }
 
