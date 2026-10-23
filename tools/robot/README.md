@@ -25,6 +25,23 @@ Results go to `build/robot/<date-time>-lan/host/` and `.../client/`. The host cr
 
 Both copies run the LAN link tuning mod (`src/mods/README.md`) unless `--net-tuning off`; the runner writes its settings to `bin/open-homm5-<host|client>.ini` and removes them afterwards.
 
+## Checking the AI and its speed-ups (saves, battles, virtual clock)
+
+```
+python tools\robot\run_ai_test.py --save-file <save> --load-save save_11 --quick-combat --virtual-clock 50 --turns 4 --trace-paths
+python tools\robot\path_check.py save_11 save_10 --turns 4 --ai-setting port_search=1 --robot-arg=--quick-combat --robot-arg=--virtual-clock=50
+python tools\robot\path_report.py build\robot\<plain run> build\robot\<mod run>
+```
+
+- `--load-save` / `--save-file`: start from one of the owner's saves (copied into the robot's own profile).
+- **Battles:** when the AI attacks the robot's (passive) human player, the robot starts the battle (`input_start_combat`), turns on auto-combat (`input_Combat_AutoCombat`) and answers the retreat box (flee). With `--quick-combat` (`adventure_quick_combat = 1`) battles resolve at once. A run that still cannot go on closes the game and reports `stuck` instead of idling until its time limit.
+- `--virtual-clock [ms]`: the game's main thread sees a clock that advances by a fixed step per frame (and by the time slept), not with real time. The AI's decisions depend on how fast it runs (`docs/subsystems/ai-pathfinder.md`); with this clock a save replays the same however fast the code is, so a plain run and a mod run can be compared over whole turns. 50 ms per frame also makes animations and hero walks pass faster.
+- `--trace-paths` / `--trace-paths-all`: fingerprints of the AI's path searches (big ones / all), compared by `path_report.py`; `path_check.py` does plain, plain again (reproducible?) and mod for several saves.
+- `--fast-paths on`, `--ai-setting key=value`: the pathfinding mod and its parts (`src/mods/README.md`).
+- `--profile-ai`: where the AI's thinking time goes (`profile_report.py`; samples in our DLL can be mapped with `build/hook/dinput8.map`).
+
+Some saves do not replay the same even with the virtual clock (sauvegarde_14): `path_check.py` reports and skips them.
+
 ## Robot script
 
 Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--host-step` / `--client-step`), `"<seconds>|<kind>|<text>"`, seconds counted from the first main-loop call:

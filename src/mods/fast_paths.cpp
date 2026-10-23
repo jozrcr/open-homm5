@@ -49,6 +49,8 @@
 #include "fast_paths.h"
 
 #include <windows.h>
+#include <intrin.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <initializer_list>
@@ -165,14 +167,73 @@ NodeCheckFn g_can_enter_dry = nullptr;
 NodeCheckFn g_visitable = nullptr;
 LONGLONG g_hits = 0;
 LONGLONG g_misses = 0;
+LONGLONG g_check_hits[8] = {};    // per check (bit number), for the robot's logs
+LONGLONG g_check_misses[8] = {};
+LONGLONG g_ashore_miss_ticks = 0;  // time in the game's go-ashore check (misses), for the robot's logs
 
 void NewSearch()
 {
 	++g_generation;
 }
 
+// The go-ashore answers live longer: for a whole AI thinking step (one call of
+// the AI's turn driver), across all of its searches. The check looks at the
+// map's objects (0x00ceab70 walks every object of the floor for one whose zone
+// of control covers the tile), the AI player and the tile; none of these
+// change while the AI thinks, because its moves are only queued as commands
+// and run after the call. Outside AI thinking they last one search, like the
+// other checks. The AI alternates searches for different players' heroes, so
+// there is one memory per (world, player), for the 4 most recent pairs.
+struct AshoreTile {
+	DWORD generation;
+	BYTE known;  // bit 0: flag 0 answered, bit 1: flag 1 answered
+	BYTE value;
+};
+struct AshoreMemory {
+	const void *world;
+	const void *player;
+	DWORD last_used;
+	AshoreTile *tiles;
+};
+const int kAshoreMemories = 4;
+AshoreMemory g_ashore_memories[kAshoreMemories];
+AshoreMemory *g_ashore = nullptr;  // the one for the current (world, player)
+DWORD g_ashore_generation = 1;     // all memories older than this are void
+DWORD g_ashore_use = 0;
+bool g_in_ai_step = false;
+
+void NewAshoreGeneration()
+{
+	++g_ashore_generation;
+}
+
+// The memory for (world, player): found, or the least recently used one reused.
+AshoreMemory *AshoreMemoryFor(const void *world, const void *player)
+{
+	AshoreMemory *pick = &g_ashore_memories[0];
+	for (AshoreMemory &m : g_ashore_memories) {
+		if (m.world == world && m.player == player && m.tiles) {
+			pick = &m;
+			break;
+		}
+		if (m.last_used < pick->last_used)
+			pick = &m;
+	}
+	if (pick->world != world || pick->player != player) {
+		pick->world = world;
+		pick->player = player;
+		if (pick->tiles)
+			for (DWORD i = 0; i < kTiles; ++i)  // forget the other pair's answers
+				pick->tiles[i].generation = 0;
+	}
+	pick->last_used = ++g_ashore_use;
+	return pick;
+}
+
 void __fastcall SearchHook(void *self, void *edx, int limit)
 {
+	if (!g_in_ai_step)
+		NewAshoreGeneration();
 	NewSearch();
 	if (g_port_search)
 		fastpaths::PortedSearch(static_cast<BYTE *>(self), limit);
@@ -200,11 +261,15 @@ Tile *TileAt(DWORD position)
 // The remembered answer of `check` at `position`, or -1.
 int Recall(Tile *t, WORD check)
 {
+	unsigned long bit = 0;
+	_BitScanForward(&bit, check);
 	if (t && (t->known & check)) {
 		++g_hits;
+		++g_check_hits[bit & 7];
 		return (t->value & check) != 0;
 	}
 	++g_misses;
+	++g_check_misses[bit & 7];
 	return -1;
 }
 
@@ -220,17 +285,43 @@ bool Store(Tile *t, WORD check, bool value)
 
 bool __fastcall GoAshoreHook(void *world, void *player, const DWORD *node, char flag)
 {
-	if (world != g_world || player != g_player) {
+	if (world != g_world || player != g_player || !g_ashore) {
 		g_world = world;
 		g_player = player;
-		NewSearch();
+		g_ashore = AshoreMemoryFor(world, player);
 	}
 	const WORD check = flag ? kCheckGoAshoreFlag : kCheckGoAshore;
-	Tile *t = TileAt(node[0]);
-	const int known = Recall(t, check);
-	if (known >= 0)
-		return known != 0;
-	return Store(t, check, g_go_ashore(world, player, node, flag));
+	const DWORD position = node[0];
+	const DWORD x = position & 0x3ff, y = (position >> 10) & 0x3ff, floor = position >> 20;
+	AshoreTile *t = nullptr;
+	if (g_ashore->tiles && !(x >> kTileBits) && !(y >> kTileBits) && floor < kTileFloors) {
+		t = &g_ashore->tiles[(floor << (2 * kTileBits)) | (y << kTileBits) | x];
+		if (t->generation != g_ashore_generation) {
+			t->generation = g_ashore_generation;
+			t->known = t->value = 0;
+		}
+	}
+	const BYTE bit = flag ? 2 : 1;
+	unsigned long index = 0;
+	_BitScanForward(&index, check);
+	if (t && (t->known & bit)) {
+		++g_hits;
+		++g_check_hits[index];
+		return (t->value & bit) != 0;
+	}
+	++g_misses;
+	++g_check_misses[index];
+	LARGE_INTEGER t0, t1;
+	QueryPerformanceCounter(&t0);
+	const bool value = g_go_ashore(world, player, node, flag);
+	QueryPerformanceCounter(&t1);
+	g_ashore_miss_ticks += t1.QuadPart - t0.QuadPart;
+	if (t) {
+		t->known |= bit;
+		if (value)
+			t->value |= bit;
+	}
+	return value;
 }
 
 bool Remembered(NodeCheckFn check_fn, WORD check, void *pathfinder, void *edx, const DWORD *node)
@@ -492,6 +583,8 @@ void ApplyFastPathsFromSettings()
 			hooklog::Write("fast paths: %s: no remembered checks", g_tiles ? "search calls not as expected" : "no memory");
 		} else {
 			g_go_ashore = reinterpret_cast<GoAshoreFn>(hookpatch::RedirectCall(kGoAshoreCall, kGoAshore, &GoAshoreHook));
+			for (AshoreMemory &m : g_ashore_memories)
+				m.tiles = static_cast<AshoreTile *>(VirtualAlloc(nullptr, kTiles * sizeof(AshoreTile), MEM_COMMIT, PAGE_READWRITE));
 			g_can_enter = reinterpret_cast<NodeCheckFn>(hookpatch::RedirectCall(kCanEnterCall, kCanEnter, &CanEnterHook));
 			g_can_enter_dry = reinterpret_cast<NodeCheckFn>(hookpatch::RedirectCalls(
 				kCanEnterDryCalls, sizeof(kCanEnterDryCalls) / sizeof(kCanEnterDryCalls[0]), kCanEnterDry,
@@ -533,6 +626,26 @@ void FastPathsStats(LONGLONG *hits, LONGLONG *misses)
 {
 	*hits = g_hits;
 	*misses = g_misses;
+}
+
+void FastPathsOnAiStep(bool thinking)
+{
+	g_in_ai_step = thinking;
+	NewAshoreGeneration();
+}
+
+void FastPathsCheckStats(char *out, size_t size)
+{
+	static const char *const names[] = {"ashore", "ashore1", "enter", "dry", "visit", "stands"};
+	size_t used = 0;
+	out[0] = 0;
+	for (int i = 0; i < 6 && used + 40 < size; ++i)
+		used += static_cast<size_t>(_snprintf_s(out + used, size - used, _TRUNCATE, "%s%s=%lld/%lld", i ? " " : "",
+		                                        names[i], g_check_misses[i], g_check_hits[i] + g_check_misses[i]));
+	LARGE_INTEGER frequency;
+	QueryPerformanceFrequency(&frequency);
+	if (used + 40 < size)
+		_snprintf_s(out + used, size - used, _TRUNCATE, " ashore_ms=%.0f", g_ashore_miss_ticks * 1e3 / frequency.QuadPart);
 }
 
 }  // namespace mods

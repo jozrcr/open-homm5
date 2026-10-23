@@ -383,10 +383,12 @@ void PathTraceStep()
 	}
 	LONGLONG hits = 0, misses = 0;
 	mods::FastPathsStats(&hits, &misses);
+	char checks[200];
+	mods::FastPathsCheckStats(checks, sizeof(checks));
 	hooklog::Write("paths step searches=%ld repeats=%ld exhausted=%ld nodes=%lld tiles=%lld same=%lld ms=%.1f "
-	               "remembered=%lld/%lld sites:%s",
+	               "remembered=%lld/%lld sites:%s | misses %s",
 	               count, repeats, exhausted, nodes, tiles, same, ticks * 1e3 / g_freq.QuadPart, hits, hits + misses,
-	               sites);
+	               sites, checks);
 	g_site_count = 0;
 	memset(g_sites, 0, sizeof(g_sites));
 	memset(g_keys, 0, sizeof(g_keys));

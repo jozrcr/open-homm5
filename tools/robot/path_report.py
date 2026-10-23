@@ -35,7 +35,7 @@ def read(run):
     think = sum(float(m.group(1)) for m in THINK.finditer(text))
     sites = collections.Counter()
     for _n, _ms, _h, _t, detail in steps:
-        for part in detail.split():
+        for part in detail.split(" | ")[0].split():  # " | misses ..." follows in newer logs
             site, rest = part.split(":", 1)
             sites[site] += float(rest.split("/")[2].rstrip("ms"))
     return searches, steps, think, sites

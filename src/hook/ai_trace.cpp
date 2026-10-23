@@ -17,6 +17,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "robot.h"
+#include "../mods/fast_paths.h"
 
 namespace {
 
@@ -115,7 +116,9 @@ void __fastcall TurnDriverHook(void *self, void *edx, void *commands, int flag)
 	QueryPerformanceCounter(&t0);
 	const double gap = last.returned.QuadPart ? Ms(last.returned, t0) : -1.0;
 	robot::OnAiThinking(true);  // for the AI profiler (robot mode only)
+	mods::FastPathsOnAiStep(true);
 	g_original(self, edx, commands, flag);
+	mods::FastPathsOnAiStep(false);
 	robot::OnAiThinking(false);
 	QueryPerformanceCounter(&t1);
 	last.returned = t1;

@@ -13,6 +13,18 @@ Answer: (owner fills in)
 
 ---
 
+## Q3: May the AI pathfinding speed-up be on by default? (2026-10-24, status: open)
+
+Context: the `fast_paths` mod (and its ported search core) makes the AI's path searches about 2x faster and gives exactly the same result for every search (checked on several of your saves, node by node). But we found that the original AI's decisions depend on how fast it runs: it thinks in real-time slices (`aai_step_limit`, `ai_time_limit`) and some of its code reads the clock. So when it thinks faster, it can sometimes take a different (not worse) branch, exactly as the original game does on a faster PC. With the robot's virtual clock, where thinking takes no game time, the original and the mod make the same decisions over whole turns.
+
+Your rule was: changes to AI decisions are settings, original by default. This one does not change any search, only how fast the game's own code runs, like a faster CPU would.
+
+Options:
+1. **(Recommended)** On by default once it has been checked on more saves: it is the same code, faster; `fast_paths=0` stays available.
+2. Off by default, like the decision-changing settings.
+
+Answer:
+
 ## Q2: How should CI get the 2003 compiler? (2026-10-20, status: open, not urgent)
 
 Context: CLAUDE.md wants CI to re-verify every matched function on each push, which needs `cl.exe` 13.10.3077. Microsoft's license does not let us commit the compiler to a public repo.

@@ -76,6 +76,15 @@ With those left out, every run matched every other run on all 33 searches. A fas
 - **Faster open list:** the two heap functions are replaced by a port of the same algorithm and of `operator<` `0x00c08fd0`, which compares in place instead of copying both nodes first.
 - **Ported search core** (each with its own switch, off by default while being checked): `port_relax` (`fast_paths_relax.cpp`, `0x00c09d90`), `port_search` (`fast_paths_search.cpp`, the loop `0x00c08890`, with the object pool's per-pop "something stands here" answer remembered per tile), `port_expand` (`fast_paths_expand.cpp`, `0x00c07f80`, written by a parallel agent from the disassembly). They follow the game's code step by step, calling the same game functions in the same order; they are the base for further speed-ups now that the whole loop is our code. Checked: each alone matched save_11 (33/33) and save_10 (162/162); all three together matched save_11 (33/33) and, with the virtual clock, save_10 over 5 whole turns (1,481/1,481 searches of every size).
 
+Batch check 2026-10-24 (`path_check.py`, 4 AI turns per save, `--quick-combat --virtual-clock 50`, all three ports on; each save first reproduced by a second plain run):
+
+| Save | Big searches identical | AI thinking (with trace), plain → ports |
+|---|---|---|
+| save_11 (day 50, huge map, 82 AI steps) | 301 / 301 | 96.3 s → 47.5 s |
+| save_10 | 152 / 152 | 18.3 s → 9.7 s |
+| save_9 | 107 / 107 | 7.4 s → 3.6 s |
+| save_1 (early game) | 10 / 10 | 0.5 s → 0.4 s |
+
 Results (2026-10-23). AI thinking is the sum of the `think=` times of the AI steps, measured without the path trace (which costs time itself); "identical" is checked with the trace on, by `path_report.py`:
 
 | | game | mod |
