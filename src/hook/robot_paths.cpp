@@ -343,6 +343,7 @@ void InstallPathTrace(int level)
 		return;
 	g_installed = true;
 	QueryPerformanceFrequency(&g_freq);
+	mods::FastPathsMeasure(true);
 	g_tile_search = static_cast<WORD *>(VirtualAlloc(nullptr, kTiles * sizeof(WORD), MEM_COMMIT, PAGE_READWRITE));
 	g_tile_hash = static_cast<DWORD *>(VirtualAlloc(nullptr, kTiles * sizeof(DWORD), MEM_COMMIT, PAGE_READWRITE));
 	if (!g_tile_search || !g_tile_hash)

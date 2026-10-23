@@ -170,6 +170,22 @@ LONGLONG g_misses = 0;
 LONGLONG g_check_hits[8] = {};    // per check (bit number), for the robot's logs
 LONGLONG g_check_misses[8] = {};
 LONGLONG g_ashore_miss_ticks = 0;  // time in the game's go-ashore check (misses), for the robot's logs
+LONGLONG g_miss_ticks[8] = {};      // the same per check, when g_measure (robot path trace) is on
+bool g_measure = false;
+
+// Runs a game check and, when measuring, adds its time to the check's misses.
+template <class Fn>
+bool Timed(int bit, Fn fn)
+{
+	if (!g_measure)
+		return fn();
+	LARGE_INTEGER t0, t1;
+	QueryPerformanceCounter(&t0);
+	const bool value = fn();
+	QueryPerformanceCounter(&t1);
+	g_miss_ticks[bit & 7] += t1.QuadPart - t0.QuadPart;
+	return value;
+}
 
 void NewSearch()
 {
@@ -334,7 +350,9 @@ bool Remembered(NodeCheckFn check_fn, WORD check, void *pathfinder, void *edx, c
 	const int known = Recall(t, check);
 	if (known >= 0)
 		return known != 0;
-	return Store(t, check, check_fn(pathfinder, edx, node));
+	unsigned long bit = 0;
+	_BitScanForward(&bit, check);
+	return Store(t, check, Timed(static_cast<int>(bit), [&] { return check_fn(pathfinder, edx, node); }));
 }
 
 bool __fastcall CanEnterHook(void *pathfinder, void *edx, const DWORD *node)
@@ -525,7 +543,7 @@ bool StandsHere(void *pool, DWORD *out, const Node *node)
 	if (known >= 0)
 		return known != 0;
 	DWORD value = *out;
-	const bool found = game(pool, nullptr, &value, node);
+	const bool found = Timed(5, [&] { return game(pool, nullptr, &value, node); });
 	if (found) {
 		*out = value;
 		if (t)
@@ -645,7 +663,16 @@ void FastPathsCheckStats(char *out, size_t size)
 	LARGE_INTEGER frequency;
 	QueryPerformanceFrequency(&frequency);
 	if (used + 40 < size)
-		_snprintf_s(out + used, size - used, _TRUNCATE, " ashore_ms=%.0f", g_ashore_miss_ticks * 1e3 / frequency.QuadPart);
+		used += static_cast<size_t>(_snprintf_s(out + used, size - used, _TRUNCATE, " ashore_ms=%.0f",
+		                                        g_ashore_miss_ticks * 1e3 / frequency.QuadPart));
+	for (int i = 2; i < 6 && used + 30 < size; ++i)
+		used += static_cast<size_t>(_snprintf_s(out + used, size - used, _TRUNCATE, " %s_ms=%.0f", names[i],
+		                                        g_miss_ticks[i] * 1e3 / frequency.QuadPart));
+}
+
+void FastPathsMeasure(bool on)
+{
+	g_measure = on;
 }
 
 }  // namespace mods

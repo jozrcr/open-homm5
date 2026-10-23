@@ -16,5 +16,7 @@ void FastPathsOnAiStep(bool thinking);
 
 // Per remembered check: "name=misses/calls ...".
 void FastPathsCheckStats(char *out, size_t size);
+// Time the remembered checks' misses too (robot path trace only: it costs a little).
+void FastPathsMeasure(bool on);
 
 }  // namespace mods
