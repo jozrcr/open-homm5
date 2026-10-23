@@ -1,35 +1,55 @@
 // Mod: faster AI pathfinding, with exactly the same results.
 //
 // Late in a game on a big map the AI thinks for seconds per move, nearly all of
-// it in its hero pathfinder (docs/subsystems/ai-pathfinder.md). One search can
-// expand the same tile over a hundred times, because the cost of a tile keeps
-// improving (gains along the way make it more than a shortest-path search), and
-// each time the expansion repeats checks that depend only on the tile, not on
-// the path that led there. This mod remembers the answer of such checks until
-// the search ends. The search itself does exactly the same steps, so every path
-// and every AI decision stays the same; it is only faster. In co-op only the
-// host runs the AI, so the other PCs are not affected either way.
+// it in its hero pathfinder (docs/subsystems/ai-pathfinder.md). The mod speeds
+// up two parts of it without changing a single step of the search, so every
+// path and every AI decision stays the same; it is only faster. In co-op only
+// the host runs the AI, so the other PCs are not affected either way.
 //
-// Checks remembered (per search; a new search starts at every call of the
-// search loop 0x00c08890, from 0x00c08e13, 0x00ce4c26, 0x00cea542, 0x00cebb82):
-//   0x008649f0  "can the hero go ashore here?", called by the node expansion
-//               0x00c07f80 at 0x00c08000 for nodes on the boat layer.
-//               __fastcall(world, ecx/edx = this+0x70 / this+0x38 of the
-//               pathfinder, const Node *node, bool flag), ret 8. It looks at the
-//               tile at node->position (its terrain and the objects on it) and
-//               the flag; the two pointers are fixed during a search.
+// 1. Remembered checks (remember_checks=1). One search can expand the same tile
+//    over a hundred times, because the cost of a tile keeps improving (gains
+//    along the way make it more than a shortest-path search), and each time the
+//    expansion 0x00c07f80 repeats checks that depend only on the tile. Their
+//    answers are remembered until the search ends. A new search starts at every
+//    call of the search loop 0x00c08890 (from 0x00c08e13, 0x00ce4c26,
+//    0x00cea542, 0x00cebb82). The checks, all called from the expansion:
+//      0x008649f0  "can the hero go ashore here?" (nodes on the boat layer), at
+//                  0x00c08000. __fastcall(world = pathfinder+0x70, player =
+//                  pathfinder+0x38, const Node *node, bool flag), ret 8.
+//      0x009d1410  "can the hero step onto this tile?", at 0x00c082da;
+//                  __thiscall(pathfinder, const Node *node), ret 4. Terrain, the
+//                  tile's object, and what the object pool (pathfinder+4) holds
+//                  at node->position.
+//      0x009d1510  the same and "not water", at 0x00c0830a and 0x00c08349.
+//      0x00c072d0  "is there something to visit here?", at 0x00c08076,
+//                  0x00c084e3, 0x00c085bc, 0x00c087be. Object pool and tile.
+//    Each one reads only node->position from the node, plus the world and
+//    pathfinder fields that are fixed during a search.
 //
-// Settings: open-homm5.ini [ai] fast_paths=1 (default 0 until it is checked
-// against the original on more saves).
+// 2. Faster open list (fast_queue=1). The search's open list is a
+//    std::priority_queue of 64-byte nodes, and the compiler library's heap code
+//    copies every node it compares or moves (16 dwords, "rep movsd"). This mod
+//    puts in the same two heap functions, written out again: the very same
+//    algorithm (VC++ 2003 Dinkumware _Push_heap / _Adjust_heap) and the very
+//    same order (operator< 0x00c08fd0, ported below), so the nodes come out in
+//    exactly the same order; it only compares in place and copies faster.
+//      0x00c09500  _Push_heap(first, hole, top, Node val, pred), __fastcall,
+//                  ret 0x48; called by the queue's push 0x00c099d0 at 0x00c09a2f.
+//      0x00c095b0  _Adjust_heap(first, hole, bottom, Node val, pred), same
+//                  convention; called by the search loop's pop at 0x00c0894e.
+//
+// Checked with the robot (tools/robot/path_report.py): the result of every big
+// search, node by node, is the same as the game's own.
+//
+// Settings: open-homm5.ini [ai] fast_paths=1 (default 0 until it is checked on
+// more saves); remember_checks and fast_queue (default 1) turn the parts off.
 #include "fast_paths.h"
 
 #include <windows.h>
-#include <intrin.h>
+#include <string.h>
 
 #include "../hook/log.h"
 #include "../hook/patch.h"
-
-#pragma intrinsic(_ReturnAddress)
 
 namespace mods {
 namespace {
@@ -38,19 +58,38 @@ const DWORD kSearch = 0x00c08890;
 const DWORD kSearchCalls[] = {0x00c08e13, 0x00ce4c26, 0x00cea542, 0x00cebb82};
 const DWORD kGoAshore = 0x008649f0;
 const DWORD kGoAshoreCall = 0x00c08000;
+const DWORD kCanEnter = 0x009d1410;
+const DWORD kCanEnterCall = 0x00c082da;
+const DWORD kCanEnterDry = 0x009d1510;
+const DWORD kCanEnterDryCalls[] = {0x00c0830a, 0x00c08349};
+const DWORD kVisitable = 0x00c072d0;
+const DWORD kVisitableCalls[] = {0x00c08076, 0x00c084e3, 0x00c085bc, 0x00c087be};
+const DWORD kPushHeap = 0x00c09500;
+const DWORD kPushHeapCall = 0x00c09a2f;
+const DWORD kAdjustHeap = 0x00c095b0;
+const DWORD kAdjustHeapCall = 0x00c0894e;
+
+struct Node {
+	DWORD d[16];
+};
 
 typedef void(__fastcall *SearchFn)(void *self, void *edx, int limit);
 typedef bool(__fastcall *GoAshoreFn)(void *world, void *player, const DWORD *node, char flag);
+typedef bool(__fastcall *NodeCheckFn)(void *pathfinder, void *edx, const DWORD *node);
 
-// Remembered answers: open addressing, an entry belongs to the current search
-// when its generation is g_generation (so a new search needs no clearing).
+// --- remembered checks --------------------------------------------------------
+
+enum Check : BYTE { kCheckGoAshore = 1, kCheckGoAshoreFlag, kCheckCanEnter, kCheckCanEnterDry, kCheckVisitable };
+
+// Open addressing; an entry belongs to the current search when its generation
+// is g_generation, so a new search needs no clearing.
 struct Entry {
 	DWORD position;  // node[0], all 32 bits
 	DWORD generation;
-	bool flag;
+	BYTE check;
 	bool value;
 };
-const DWORD kSlotBits = 19;
+const DWORD kSlotBits = 20;
 const DWORD kSlots = 1u << kSlotBits;
 const DWORD kMaxUsed = kSlots / 2;
 Entry *g_table = nullptr;
@@ -58,7 +97,12 @@ DWORD g_generation = 1;
 DWORD g_used = 0;  // entries of the current search
 const void *g_world = nullptr;
 const void *g_player = nullptr;
+const void *g_pathfinder = nullptr;
+SearchFn g_search = nullptr;
 GoAshoreFn g_go_ashore = nullptr;
+NodeCheckFn g_can_enter = nullptr;
+NodeCheckFn g_can_enter_dry = nullptr;
+NodeCheckFn g_visitable = nullptr;
 LONGLONG g_hits = 0;
 LONGLONG g_misses = 0;
 
@@ -70,11 +114,33 @@ void NewSearch()
 
 void __fastcall SearchHook(void *self, void *edx, int limit)
 {
-	const DWORD site = reinterpret_cast<DWORD>(_ReturnAddress()) - 5;
-	const SearchFn next = reinterpret_cast<SearchFn>(hookpatch::PreviousTarget(site, &SearchHook));
 	NewSearch();
-	next(self, edx, limit);
+	g_search(self, edx, limit);
 	NewSearch();
+}
+
+// The entry for (check, position) in this search, or nullptr when the table is
+// full (then the caller just runs the check). *found says whether it holds an
+// answer already.
+Entry *Find(BYTE check, DWORD position, bool *found)
+{
+	if (g_used >= kMaxUsed)
+		return nullptr;
+	for (DWORD i = ((position ^ check * 0x9e3779b9u) * 2654435761u) >> (32 - kSlotBits);; i = (i + 1) & (kSlots - 1)) {
+		Entry &e = g_table[i];
+		if (e.generation != g_generation) {
+			++g_used;
+			e.position = position;
+			e.generation = g_generation;
+			e.check = check;
+			*found = false;
+			return &e;
+		}
+		if (e.position == position && e.check == check) {
+			*found = true;
+			return &e;
+		}
+	}
 }
 
 bool __fastcall GoAshoreHook(void *world, void *player, const DWORD *node, char flag)
@@ -84,29 +150,126 @@ bool __fastcall GoAshoreHook(void *world, void *player, const DWORD *node, char 
 		g_player = player;
 		NewSearch();
 	}
-	if (g_used >= kMaxUsed) {
-		++g_misses;
-		return g_go_ashore(world, player, node, flag);
+	bool found;
+	Entry *e = Find(flag ? kCheckGoAshoreFlag : kCheckGoAshore, node[0], &found);
+	if (e && found) {
+		++g_hits;
+		return e->value;
 	}
-	const DWORD position = node[0];
-	const bool f = flag != 0;
-	for (DWORD i = ((position ^ (f ? 0x9e3779b9u : 0)) * 2654435761u) >> (32 - kSlotBits);; i = (i + 1) & (kSlots - 1)) {
-		Entry &e = g_table[i];
-		if (e.generation != g_generation) {
-			++g_misses;
-			++g_used;
-			const bool value = g_go_ashore(world, player, node, flag);
-			e.position = position;
-			e.generation = g_generation;
-			e.flag = f;
-			e.value = value;
-			return value;
-		}
-		if (e.position == position && e.flag == f) {
-			++g_hits;
-			return e.value;
-		}
+	++g_misses;
+	const bool value = g_go_ashore(world, player, node, flag);
+	if (e)
+		e->value = value;
+	return value;
+}
+
+bool Remembered(NodeCheckFn check_fn, BYTE check, void *pathfinder, void *edx, const DWORD *node)
+{
+	if (pathfinder != g_pathfinder) {
+		g_pathfinder = pathfinder;
+		NewSearch();
 	}
+	bool found;
+	Entry *e = Find(check, node[0], &found);
+	if (e && found) {
+		++g_hits;
+		return e->value;
+	}
+	++g_misses;
+	const bool value = check_fn(pathfinder, edx, node);
+	if (e)
+		e->value = value;
+	return value;
+}
+
+bool __fastcall CanEnterHook(void *pathfinder, void *edx, const DWORD *node)
+{
+	return Remembered(g_can_enter, kCheckCanEnter, pathfinder, edx, node);
+}
+
+bool __fastcall CanEnterDryHook(void *pathfinder, void *edx, const DWORD *node)
+{
+	return Remembered(g_can_enter_dry, kCheckCanEnterDry, pathfinder, edx, node);
+}
+
+bool __fastcall VisitableHook(void *pathfinder, void *edx, const DWORD *node)
+{
+	return Remembered(g_visitable, kCheckVisitable, pathfinder, edx, node);
+}
+
+// --- faster open list ---------------------------------------------------------
+
+// The open list's order, ported from 0x00c08fd0 (__fastcall(const Node &a,
+// const Node &b): "a < b", so the heap's top is the greatest). Bit 23 of a's
+// flags decides for both nodes whether the second cost pair counts.
+int Primary(const DWORD *n, bool flag)
+{
+	int p = static_cast<int>(n[8]);
+	if (flag) {
+		const int q = static_cast<int>(n[12]);
+		const int low = p < q ? p : q;
+		if (low < 0)
+			p = low;
+		else if (p <= q)
+			p = q;
+	}
+	return p;
+}
+
+__int64 Value(const DWORD *n, bool flag)
+{
+	unsigned __int64 v = n[10] | static_cast<unsigned __int64>(n[11]) << 32;
+	if (flag)
+		v += n[14] | static_cast<unsigned __int64>(n[15]) << 32;
+	return static_cast<__int64>(v);
+}
+
+bool Less(const Node &a, const Node &b)
+{
+	const bool flag = (a.d[1] >> 23) & 1;
+	const int pa = Primary(a.d, flag), pb = Primary(b.d, flag);
+	if (pa != pb)
+		return pa < pb;
+	const __int64 va = Value(a.d, flag), vb = Value(b.d, flag);
+	if (va != vb)
+		return va < vb;
+	return b.d[3] < a.d[3];
+}
+
+void PushHeapCore(Node *first, int hole, int top, const Node &val)
+{
+	for (int idx = (hole - 1) / 2; top < hole && Less(first[idx], val); idx = (hole - 1) / 2) {
+		first[hole] = first[idx];
+		hole = idx;
+	}
+	first[hole] = val;
+}
+
+void __fastcall PushHeapHook(Node *first, int hole, int top, Node val, DWORD /*pred*/)
+{
+	PushHeapCore(first, hole, top, val);
+}
+
+void __fastcall AdjustHeapHook(Node *first, int hole, int bottom, Node val, DWORD /*pred*/)
+{
+	const int top = hole;
+	int idx = 2 * hole + 2;
+	for (; idx < bottom; idx = 2 * idx + 2) {
+		if (Less(first[idx], first[idx - 1]))
+			--idx;
+		first[hole] = first[idx];
+		hole = idx;
+	}
+	if (idx == bottom) {
+		first[hole] = first[bottom - 1];
+		hole = bottom - 1;
+	}
+	PushHeapCore(first, hole, top, val);
+}
+
+bool Setting(const wchar_t *path, const wchar_t *key, int fallback)
+{
+	return GetPrivateProfileIntW(L"ai", key, fallback, path) != 0;
 }
 
 }  // namespace
@@ -115,26 +278,38 @@ void ApplyFastPathsFromSettings()
 {
 	wchar_t path[MAX_PATH];
 	hooklog::PathNextToExe(L"open-homm5", L".ini", path, MAX_PATH);
-	if (!GetPrivateProfileIntW(L"ai", L"fast_paths", 0, path)) {
+	if (!Setting(path, L"fast_paths", 0)) {
 		hooklog::Write("fast paths: off");
 		return;
 	}
-	g_table = static_cast<Entry *>(VirtualAlloc(nullptr, kSlots * sizeof(Entry), MEM_COMMIT, PAGE_READWRITE));
-	if (!g_table) {
-		hooklog::Write("fast paths: out of memory, off");
-		return;
+	if (Setting(path, L"remember_checks", 1)) {
+		g_table = static_cast<Entry *>(VirtualAlloc(nullptr, kSlots * sizeof(Entry), MEM_COMMIT, PAGE_READWRITE));
+		// The search hooks go first: without them the remembered answers could
+		// outlive a search.
+		if (g_table)
+			g_search = reinterpret_cast<SearchFn>(hookpatch::RedirectCalls(
+				kSearchCalls, sizeof(kSearchCalls) / sizeof(kSearchCalls[0]), kSearch, &SearchHook));
+		if (!g_search) {
+			hooklog::Write("fast paths: %s: no remembered checks", g_table ? "search calls not as expected" : "no memory");
+		} else {
+			g_go_ashore = reinterpret_cast<GoAshoreFn>(hookpatch::RedirectCall(kGoAshoreCall, kGoAshore, &GoAshoreHook));
+			g_can_enter = reinterpret_cast<NodeCheckFn>(hookpatch::RedirectCall(kCanEnterCall, kCanEnter, &CanEnterHook));
+			g_can_enter_dry = reinterpret_cast<NodeCheckFn>(hookpatch::RedirectCalls(
+				kCanEnterDryCalls, sizeof(kCanEnterDryCalls) / sizeof(kCanEnterDryCalls[0]), kCanEnterDry,
+				&CanEnterDryHook));
+			g_visitable = reinterpret_cast<NodeCheckFn>(hookpatch::RedirectCalls(
+				kVisitableCalls, sizeof(kVisitableCalls) / sizeof(kVisitableCalls[0]), kVisitable, &VisitableHook));
+			hooklog::Write("fast paths: remembered checks: go ashore %s, step onto %s, step onto dry %s, visitable %s",
+			               g_go_ashore ? "on" : "NOT as expected", g_can_enter ? "on" : "NOT as expected",
+			               g_can_enter_dry ? "on" : "NOT as expected", g_visitable ? "on" : "NOT as expected");
+		}
 	}
-	// The search hooks go first: without them the remembered answers could
-	// outlive a search.
-	int searches = 0;
-	for (DWORD site : kSearchCalls)
-		searches += hookpatch::RedirectCall(site, kSearch, &SearchHook) != 0;
-	if (searches != sizeof(kSearchCalls) / sizeof(kSearchCalls[0])) {
-		hooklog::Write("fast paths: only %d of 4 search calls are as expected: off", searches);
-		return;
+	if (Setting(path, L"fast_queue", 1)) {
+		const bool push = hookpatch::RedirectCall(kPushHeapCall, kPushHeap, &PushHeapHook) != 0;
+		const bool adjust = hookpatch::RedirectCall(kAdjustHeapCall, kAdjustHeap, &AdjustHeapHook) != 0;
+		hooklog::Write("fast paths: faster open list: push %s, pop %s", push ? "on" : "NOT as expected",
+		               adjust ? "on" : "NOT as expected");
 	}
-	g_go_ashore = reinterpret_cast<GoAshoreFn>(hookpatch::RedirectCall(kGoAshoreCall, kGoAshore, &GoAshoreHook));
-	hooklog::Write("fast paths: on (go-ashore check %s)", g_go_ashore ? "remembered per search" : "NOT as expected");
 }
 
 void FastPathsStats(LONGLONG *hits, LONGLONG *misses)

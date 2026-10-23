@@ -69,6 +69,9 @@ DWORD g_keys[kKeySlots];
 int g_key_count = 0;
 
 LONGLONG g_nodes = 0;  // expand calls so far
+// what the patched calls went to before (the game's function, or a mod's hook)
+QueryFn g_query_next = nullptr;
+SearchFn g_search_next = nullptr;
 ExpandFn g_expand_next = nullptr;
 // per tile (2 floors, 2 layers, 1024 x 1024): the search that last expanded it and
 // a hash of the node it expanded, to count tiles and repeat expansions of
@@ -224,7 +227,7 @@ void __fastcall QueryHook(void *self, void *edx, const DWORD *start, const BYTE 
 	++g_search_id;
 	LARGE_INTEGER t0, t1;
 	QueryPerformanceCounter(&t0);
-	reinterpret_cast<QueryFn>(hookpatch::PreviousTarget(call, &QueryHook))(self, edx, start, settings);
+	g_query_next(self, edx, start, settings);
 	QueryPerformanceCounter(&t1);
 	Record(call, key, self, start_pos, t1.QuadPart - t0.QuadPart, g_nodes - nodes0, g_tiles - tiles0, g_same - same0);
 }
@@ -240,7 +243,7 @@ void __fastcall SearchHook(void *self, void *edx, int limit)
 	++g_search_id;
 	LARGE_INTEGER t0, t1;
 	QueryPerformanceCounter(&t0);
-	reinterpret_cast<SearchFn>(hookpatch::PreviousTarget(call, &SearchHook))(self, edx, limit);
+	g_search_next(self, edx, limit);
 	QueryPerformanceCounter(&t1);
 	Record(call, key, self, Field(self, 0x8c), t1.QuadPart - t0.QuadPart, g_nodes - nodes0, g_tiles - tiles0,
 	       g_same - same0);
@@ -278,14 +281,15 @@ void InstallPathTrace()
 	g_tile_hash = static_cast<DWORD *>(VirtualAlloc(nullptr, kTiles * sizeof(DWORD), MEM_COMMIT, PAGE_READWRITE));
 	if (!g_tile_search || !g_tile_hash)
 		g_tile_search = nullptr;
-	int ok = 0, total = 0;
-	for (DWORD call : kQueryCalls)
-		ok += hookpatch::RedirectCall(call, kQuery, &QueryHook) != 0, ++total;
-	for (DWORD call : kSearchCalls)
-		ok += hookpatch::RedirectCall(call, kSearch, &SearchHook) != 0, ++total;
+	// The trace is installed after the mods, so its hooks are the outer ones and
+	// their return addresses are the game's call sites.
+	g_query_next = reinterpret_cast<QueryFn>(
+		hookpatch::RedirectCalls(kQueryCalls, sizeof(kQueryCalls) / sizeof(kQueryCalls[0]), kQuery, &QueryHook));
+	g_search_next = reinterpret_cast<SearchFn>(
+		hookpatch::RedirectCalls(kSearchCalls, sizeof(kSearchCalls) / sizeof(kSearchCalls[0]), kSearch, &SearchHook));
 	g_expand_next = reinterpret_cast<ExpandFn>(hookpatch::RedirectCall(kExpandCall, kExpand, &ExpandHook));
-	ok += g_expand_next != nullptr, ++total;
-	hooklog::Write("robot: path trace: %d of %d call sites patched", ok, total);
+	hooklog::Write("robot: path trace: query calls %s, search calls %s, expand call %s", g_query_next ? "patched" : "NOT as expected",
+	               g_search_next ? "patched" : "NOT as expected", g_expand_next ? "patched" : "NOT as expected");
 }
 
 void PathTraceStep()

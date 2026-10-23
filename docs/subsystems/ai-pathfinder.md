@@ -54,9 +54,26 @@ The final result depends on the exact order of operations, so a faster version t
 
 The robot logs a fingerprint of each big search's result (`result=`, a hash of every node reached, both layers), and one per node field and per flag bit (`fields=`, `bits=`). `tools/robot/path_report.py` compares runs search by search.
 
-**Determinism (2026-10-23):** two runs of the unchanged game on save_11 ran the same 33 big searches in the same order, with the same node counts and the same number of tiles reached. Their results differed only in two node fields:
+**Determinism (2026-10-23):** runs of the unchanged game on save_11 ran the same 33 big searches in the same order, with the same node counts and the same number of tiles reached. Their results differed only in bytes the game never reads:
 
-- **field 13** (`+0x34`): part of a cost value that the relax function `0x00c09d90` copies from an uninitialized local when the valuation callback returns no gain (`uStack_70`). Stack garbage, never read in a way that changes the search (the work done is identical).
-- **field 1** (flags): some bits; which ones is being checked with `bits=`.
+- **fields 9 and 13** (`+0x24`, `+0x34`): the node holds two cost values `{int a; /* 4 bytes padding */ __int64 b;}` at `+0x20` and `+0x30`. The padding is filled from uninitialized locals (`local_4c` in the query and the expansion, `uStack_70` in relax). Every function that compares or adds costs (`0x00c08fd0`, `0x00c070c0`, `0x009d1210`, `0x009d1250`) reads only `a` and `b`.
+- **flag bits 10–14** (`0x7c00` of `+4`): never initialized for the start node and copied along. Only the debug dump in the query (`"V=%d,P=%d,B=%d,D=%d,..."`, when the byte at `0x010c5889` is set) prints bits 11–14.
 
-With fields 1 and 13 left out, all 33 searches were identical. So a faster version is checked with `path_report.py --ignore-fields 13` (plus the garbage flag bits once known): it must match the original on every other byte of every reached node.
+With those left out, every run matched every other run on all 33 searches. A faster version is checked the same way: `path_report.py <plain run> <mod run> --ignore-fields 9,13 --ignore-flag-bits 10,11,12,13,14`. It must match the original on every other byte of every reached node, search after search.
+
+## The fast paths mod
+
+`src/mods/fast_paths.cpp` (`[ai] fast_paths=1`, off by default while it is being checked) keeps every step of the search and makes the steps cheaper:
+
+- **Remembered checks:** four checks of the expansion that read only the tile at `node->position` (go ashore `0x008649f0`, step onto `0x009d1410`, step onto dry land `0x009d1510`, visitable `0x00c072d0`) are answered from memory after their first call in a search. In the giant search, 99% of the calls were answered from memory.
+- **Faster open list:** the two heap functions are replaced by a port of the same algorithm and of `operator<` `0x00c08fd0`, which compares in place instead of copying both nodes first.
+
+Results on save_11, 11 AI steps, compared with the plain game (`20261023-201147` vs `20261023-203120`):
+
+| | game | mod |
+|---|---:|---:|
+| all big searches | 24.5 s | 13.6 s (x1.8) |
+| giant search from (222,112), 3.3 M expansions | 6.9 s | 3.9 s |
+| giant search from (222,119), 5.2 M expansions | 9.9 s | 5.9 s |
+| 9 one-day searches (`0x008724eb`) per step | 1.13 s | 0.54 s |
+| results identical (33 big searches) | | 33 of 33 |

@@ -38,3 +38,33 @@ batched_segments=0
 ```
 
 The DLL's log (`open-homm5.log`) says what it changed, for example `net tuning: links may send every 10 ms (game: 50)`.
+
+## Fast AI pathfinding (`fast_paths.cpp`, in testing, off by default)
+
+**What it fixes:** long AI thinking late in a game on big maps (several seconds per AI move).
+
+Late in a game, nearly all of the AI's thinking time goes into searching paths for heroes (see [docs/subsystems/ai-pathfinder.md](../../docs/subsystems/ai-pathfinder.md)). The mod keeps every step of every search and makes the steps cheaper:
+
+- **Remembered checks.** One search can look at the same map tile over a hundred times, and each time it repeats checks that only depend on the tile ("can the hero step there?", "go ashore there?", "is there something to visit?"). The mod remembers their answers until the search ends.
+- **Faster open list.** The list of tiles still to look at is sorted with the same algorithm and the same order as the game's, written out again so that it compares in place instead of copying every tile it looks at.
+
+Because the search takes exactly the same steps, **every path and every AI decision stays the same**; only the time changes. In co-op only the host runs the AI, so the mod only matters on the host's PC, and it cannot cause a desync.
+
+**Checked** with the robot on the owner's day-50 save: all 33 big path searches of 11 AI steps gave exactly the same result with the mod as without it. The comparison is node by node, leaving out only padding and flag bits the game never reads (`tools/robot/path_report.py`).
+
+**Measured** (same save):
+
+| | without the mod | with the mod |
+|---|---|---|
+| all path searches of those 11 AI steps | 24.5 s | 13.6 s |
+| the AI hero's longest search | 9.9 s | 5.9 s |
+| the 9 searches for other heroes, per AI step | 1.13 s | 0.54 s |
+
+**Settings:**
+
+```ini
+[ai]
+fast_paths=1         ; 0 (default for now) = the game's own pathfinding
+remember_checks=1    ; the parts can be turned off one by one (default 1)
+fast_queue=1
+```

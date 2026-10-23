@@ -6,8 +6,7 @@ namespace {
 struct Record {
 	DWORD site;
 	DWORD original;
-	const void *replacement;
-	DWORD previous;
+	DWORD replacement;
 };
 const int kMaxRecords = 128;
 Record g_records[kMaxRecords];
@@ -24,36 +23,34 @@ DWORD CallTarget(DWORD site)
 bool HookedOver(DWORD site, DWORD original, DWORD target)
 {
 	for (int i = 0; i < g_count; ++i)
-		if (g_records[i].site == site && g_records[i].original == original &&
-		    reinterpret_cast<DWORD>(g_records[i].replacement) == target)
+		if (g_records[i].site == site && g_records[i].original == original && g_records[i].replacement == target)
 			return true;
 	return false;
 }
 
 }  // namespace
 
-DWORD RedirectCall(DWORD site, DWORD original, const void *replacement)
+DWORD RedirectCalls(const DWORD *sites, int count, DWORD original, const void *replacement)
 {
-	const DWORD previous = CallTarget(site);
-	if (!previous || (previous != original && !HookedOver(site, original, previous)) || g_count >= kMaxRecords)
+	if (count <= 0 || g_count + count > kMaxRecords)
 		return 0;
-	BYTE *p = reinterpret_cast<BYTE *>(site);
-	DWORD old;
-	if (!VirtualProtect(p + 1, 4, PAGE_EXECUTE_READWRITE, &old))
-		return 0;
-	*reinterpret_cast<LONG *>(p + 1) = static_cast<LONG>(reinterpret_cast<DWORD>(replacement) - (site + 5));
-	VirtualProtect(p + 1, 4, old, &old);
-	FlushInstructionCache(GetCurrentProcess(), p, 5);
-	g_records[g_count++] = {site, original, replacement, previous};
+	const DWORD previous = CallTarget(sites[0]);
+	for (int i = 0; i < count; ++i) {
+		const DWORD target = CallTarget(sites[i]);
+		if (!target || target != previous || (target != original && !HookedOver(sites[i], original, target)))
+			return 0;
+	}
+	for (int i = 0; i < count; ++i) {
+		BYTE *p = reinterpret_cast<BYTE *>(sites[i]);
+		DWORD old;
+		if (!VirtualProtect(p + 1, 4, PAGE_EXECUTE_READWRITE, &old))
+			continue;  // that site keeps calling `previous` directly, which is fine
+		*reinterpret_cast<LONG *>(p + 1) = static_cast<LONG>(reinterpret_cast<DWORD>(replacement) - (sites[i] + 5));
+		VirtualProtect(p + 1, 4, old, &old);
+		FlushInstructionCache(GetCurrentProcess(), p, 5);
+		g_records[g_count++] = {sites[i], original, reinterpret_cast<DWORD>(replacement)};
+	}
 	return previous;
-}
-
-DWORD PreviousTarget(DWORD site, const void *replacement)
-{
-	for (int i = g_count - 1; i >= 0; --i)
-		if (g_records[i].site == site && g_records[i].replacement == replacement)
-			return g_records[i].previous;
-	return 0;
 }
 
 }  // namespace hookpatch
