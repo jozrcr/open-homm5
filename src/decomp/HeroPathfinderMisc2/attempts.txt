@@ -1,0 +1,4 @@
+# Functions of HeroPathfinderMisc2 (0x00c0abc0..0x00c0af20, compiled without /Ow) that are not in unit.json.
+# The draft is in drafts.cpp. Format: address  name  reason / what was tried
+
+00c0af20  CGrid::SwapItems   Same checks, same calls, same order. Register allocation differs: the original keeps the rows pointer in ebx, a local copy of this is spilled to [esp+4] right at the start, and r1/c1/n sit in esi/edi/ebp; ours keeps this in a register and reloads the rows pointer after each call (frame 0x24 against the original's 0x28, 275 bytes against 282). Tried: local rows pointer (spilled instead), direct m_begin, nested ifs, early returns, do/break, const IsUsed/ColCount, throw() on the callees with /GX, with and without /Ow.
