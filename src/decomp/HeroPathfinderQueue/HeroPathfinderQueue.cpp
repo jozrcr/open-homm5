@@ -416,7 +416,6 @@ struct ObjBase {
 	char pad[7];
 	unsigned char flags;
 
-	bool Flag80() const { return (flags & 0x80) != 0; }
 };
 
 struct Obj : virtual ObjBase {
@@ -727,7 +726,16 @@ Node *HeroPathfinder::NodeAt1(const unsigned *pos)
 	return &grids1.start[(p >> 20) & 0xf].rows[(p >> 10) & 0x3ff][p & 0x3ff];
 }
 
+// Flag bit 0x80 of the object's virtual base (a helper taking the base pointer keeps the
+// conversion from Obj* in the compiled code, as in the original).
+static bool FlagSet(ObjBase *b)
+{
+	return (b->flags & 0x80) != 0;
+}
+
 // FUNCTION: 0x00c09690
+// Can a search step at pos be answered by the pool: asks the pool's probe; with `flag` set,
+// also accepts a usable object standing there for which the owner agrees.
 bool HeroPathfinder::Probe(unsigned *out, const unsigned *pos, bool flag)
 {
 	Pool *pl = pool;
@@ -737,14 +745,11 @@ bool HeroPathfinder::Probe(unsigned *out, const unsigned *pos, bool flag)
 		return true;
 	if (flag) {
 		Obj *o = pool->Find(pos);
-		if (o && !o->Flag80()) {
+		if (o && !FlagSet(o)) {
 			Owner *ow = owner;
-			if (ow) {
-				Player *player = ow->GetPlayer(d38);
-				if (CheckObjectForPlayer(ow, o, player) >= 0) {
-					*out = *pos;
-					return true;
-				}
+			if (ow && CheckObjectForPlayer(ow, o, ow->GetPlayer(d38)) >= 0) {
+				*out = *pos;
+				return true;
 			}
 		}
 	}
