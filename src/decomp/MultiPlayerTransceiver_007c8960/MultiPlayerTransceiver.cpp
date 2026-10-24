@@ -22,7 +22,7 @@ extern bool g_asyncSave;    // 0x00f3fa60
 // The game timer object at transceiver+0x28: only the time at +0x14 is read here.
 struct STimer {
 	char pad[0x14];
-	unsigned time;  // 0x14
+	int time;  // 0x14
 };
 
 // The game's vector: {start, finish, end_of_storage}.
@@ -165,7 +165,7 @@ public:
 	unsigned m_active;   // 0x58
 	char pad5c[0xd4 - 0x5c];
 	unsigned m_dMask;    // 0xd4
-	unsigned m_baseTime; // 0xd8
+	int m_baseTime;      // 0xd8
 };
 
 // FUNCTION: 0x007c8a10
@@ -280,10 +280,9 @@ void CMultiPlayerTransceiver::DropPlayer(int index)
 void CMultiPlayerTransceiver::Slot05(float dt, int arg)
 {
 	int me = m_me;
-	int mine = (me < 0) ? m_reported.start[0] : m_reported.start[me];
-	if (mine < 0)
+	int slowest = (me >= 0) ? m_reported.start[me] : m_reported.start[0];
+	if (slowest < 0)
 		return;
-	int slowest = mine;
 	for (int i = 0; i < m_reported.size(); i++) {
 		int v = m_reported.start[i];
 		if (v >= 0 && v < slowest)
@@ -291,7 +290,7 @@ void CMultiPlayerTransceiver::Slot05(float dt, int arg)
 	}
 	float speed;
 	if (me < 0) {
-		int behind = (m_timer->time - (slowest + 150) * 200 - m_baseTime) / 200;
+		int behind = (m_timer->time - (slowest * 200 + 30000) - m_baseTime) / 200;
 		speed = FMax(1.0f - behind * 0.05f, 0.0f);
 	} else {
 		int ahead = m_reported.start[me] - slowest;
@@ -301,7 +300,8 @@ void CMultiPlayerTransceiver::Slot05(float dt, int arg)
 			if (ahead >= 0)
 				n = ahead;
 		} else {
-			n = 20;
+			ahead = 20;
+			n = ahead;
 		}
 		speed = FMin(FMax(1.0f - n * 0.05f, 0.0f), 1.0f);
 	}
@@ -317,7 +317,7 @@ int CMultiPlayerTransceiver::Slot13()
 	for (int i = 0; i < m_players.size(); i++) {
 		if (i != m_me) {
 			float f = (float)result;
-			result = (int)((f <= m_net->Ping(m_players.start[i].id)) ? m_net->Ping(m_players.start[i].id) : f);
+			result = (int)((f > m_net->Ping(m_players.start[i].id)) ? f : m_net->Ping(m_players.start[i].id));
 		}
 	}
 	return result;
