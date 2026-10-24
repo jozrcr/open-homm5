@@ -117,6 +117,49 @@ struct SOpenList : SPtrVec {
 	void Reserve(int count);
 };
 
+template <class T>
+struct SVec {
+	T *first;
+	T *last;
+	T *end;
+};
+
+// One floor of the pathfinder's grids (16 bytes): rows[y][x] is a tile's node or mark.
+struct SNode;
+struct SNodeFloor {
+	SNode *data;
+	SNode **rows;
+	unsigned int w;
+	unsigned int h;
+};
+struct SMarkFloor {
+	unsigned char *data;
+	unsigned char **rows;
+	unsigned int w;
+	unsigned int h;
+};
+
+// The flags of a node. Only the grouping that the code shows is known.
+struct SNodeFlags {
+	unsigned int low : 15;
+	unsigned int counter : 8;  // bits 15..22, used on the boat layer
+	unsigned int high : 9;
+};
+
+// A search node (64 bytes).
+struct SNode {
+	SPos pos;               // 0x00
+	SNodeFlags flags;       // 0x04
+	unsigned int moved;     // 0x08 movement spent
+	int tie;                // 0x0c tie-breaker
+	unsigned int left;      // 0x10
+	SPos prev;              // 0x14
+	unsigned int m18;
+	unsigned int m1c;
+	SCost cost1;            // 0x20
+	SCost cost2;            // 0x30
+};
+
 struct SMapInfo {
 	char m_pad[0x1c];
 	SPos m_size;
@@ -136,6 +179,11 @@ public:
 	void SetRefC(CRefObjA *p);
 	void SetWeakA4(CRefObjA *p);
 	void SetWeak94(CRefObjA *p);
+	bool InBounds(const SPos *p);                 // 0x0086e1b0
+	unsigned int MovesAt(const SPos *p);          // 0x00c071b0
+	unsigned int MovesAtChecked(const SPos *p);   // 0x00c07230
+	unsigned int BoatCounterAt(const SPos *p);    // 0x00c07260
+	bool NodeCheck(SNode *n);                     // 0x00c091d0
 
 	SMapInfo *m_map;       // 0x00
 	CRefPtr m_04;
@@ -151,10 +199,10 @@ public:
 	CRefObjA *m_94;
 	SPtrVec m_98;
 	CRefObjA *m_a4;
-	SPtrVec m_a8;
-	SPtrVec m_b4;
-	SPtrVec m_c0;
-	SPtrVec m_cc;
+	SVec<SNodeFloor> m_a8;
+	SVec<SNodeFloor> m_b4;
+	SVec<SMarkFloor> m_c0;
+	SVec<SMarkFloor> m_cc;
 	unsigned char m_d8;
 	bool m_d9;
 	char m_da[2];
@@ -389,4 +437,32 @@ CHeroPathfinder::CHeroPathfinder() : m_map(0), m_settings(0, 0)
 	m_d9 = false;
 	m_dc = 0;
 	m_d8 = 0xff;
+}
+
+// FUNCTION: 0x00c071b0
+unsigned int CHeroPathfinder::MovesAt(const SPos *p)
+{
+	SNode *n = &m_a8.first[p->f].rows[p->y][p->x];
+	if (m_c0.first[n->pos.f].rows[n->pos.y][n->pos.x] == m_d8)
+		return n->moved;
+	return 0xfffffe;
+}
+
+// FUNCTION: 0x00c07230
+unsigned int CHeroPathfinder::MovesAtChecked(const SPos *p)
+{
+	if (!InBounds(p))
+		return 0xfffffe;
+	return MovesAt(p);
+}
+
+// FUNCTION: 0x00c07260
+unsigned int CHeroPathfinder::BoatCounterAt(const SPos *p)
+{
+	if (InBounds(p)) {
+		SNode *n = &m_b4.first[p->f].rows[p->y][p->x];
+		if (n && NodeCheck(n))
+			return n->flags.counter;
+	}
+	return 0;
 }
