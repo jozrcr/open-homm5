@@ -629,10 +629,11 @@ bool Visitable(BYTE *pf, const DWORD *node)
 	return g_visitable ? VisitableHook(pf, nullptr, node) : reinterpret_cast<NodeCheckFn>(kVisitable)(pf, nullptr, node);
 }
 
-void Relax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Cost cost, const DWORD *extra, DWORD flag)
+void Relax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Cost cost, const DWORD *extra, DWORD flag,
+           Tile *memo)
 {
 	if (g_port_relax)
-		PortedRelax(pf, from, grid, candidate, step, cost, extra, flag);
+		PortedRelax(pf, from, grid, candidate, step, cost, extra, flag, memo);
 	else
 		reinterpret_cast<RelaxFn>(kRelax)(pf, nullptr, from, grid, candidate, step, ToArg(cost), extra, flag);
 }

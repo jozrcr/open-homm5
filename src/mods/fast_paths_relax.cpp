@@ -94,12 +94,12 @@ int Valuation(void *object, const Node *node)
 // The valuation of a node's tile. For NWorld::CDangerPool, slot 0 (0x00c27500)
 // reads only node->position (a bounds check, then a value from its grid,
 // which does not change during a search), so the answer is remembered per
-// tile; other valuation objects are always asked.
-int TileValuation(void *object, const Node *node)
+// tile (t: the tile's record, or nullptr); other valuation objects are always
+// asked.
+int TileValuation(void *object, const Node *node, Tile *t)
 {
 	if (*static_cast<const DWORD *>(object) != kDangerPoolVftable)
 		return Valuation(object, node);
-	Tile *t = TileFor(node->d[0]);
 	if (t && (t->known & kCheckDanger))
 		return t->danger;
 	const int value = Valuation(object, node);
@@ -110,17 +110,34 @@ int TileValuation(void *object, const Node *node)
 	return value;
 }
 
+// The candidate's valuation, as the game asks it: of its copy with the new
+// flags and previous position (for CDangerPool only the position counts).
+int CandidateValuation(void *object, const Node *candidate, DWORD flags, DWORD prev, Tile *memo)
+{
+	if (*static_cast<const DWORD *>(object) == kDangerPoolVftable)
+		return TileValuation(object, candidate, memo ? memo : TileFor(candidate->d[0]));
+	Node n = *candidate;
+	n.d[1] = flags;
+	n.d[5] = prev;
+	return Valuation(object, &n);
+}
+
 }  // namespace
 
-void PortedRelax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Cost cost, const DWORD *extra, DWORD flag)
+// The game's function works on a copy n of the candidate; the port keeps the
+// fields it changes (flags, previous position) apart and makes the copy only
+// when the candidate wins, which most do not.
+void PortedRelax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Cost cost, const DWORD *extra, DWORD flag,
+                 Tile *memo)
 {
-	if (!InGrid(pf, candidate->d[0]))  // 0x00c09da2
+	const DWORD position = candidate->d[0];
+	if (!InGrid(pf, position))  // 0x00c09da2
 		return;
-	Node n = *candidate;
 	const DWORD tie = candidate->d[3] + step;
-	n.d[5] = from->d[0];  // previous position
+	DWORD prev = from->d[0];  // n's previous position
 	const int spent = static_cast<int>(from->d[2]) + step;
-	DWORD flags = n.d[1];
+	DWORD flags = candidate->d[1];  // n's flags
+	Cost gain = {};                 // land: what the valuation adds (0x00c09f46: zero unless there is a gain)
 
 	if (flags & 0x40) {
 		// Boat layer (0x00c09df1). Coming from land starts the counter in
@@ -130,16 +147,14 @@ void PortedRelax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Co
 			if ((flags & 0x7f8000) >= 0x50000)
 				return;
 			flags ^= ((flags & 0xffff8000) + 0x8000 ^ flags) & 0x7f8000;
-			n.d[1] = flags;
 		}
-		BYTE *mark = Mark(pf, 0xcc, n.d[0]);
+		BYTE *mark = Mark(pf, 0xcc, position);
 		const bool reached = *mark == pf[0xd8];
 		if (reached && (grid->d[1] & 0x7f8000) < (flags & 0x7f8000))
 			return;
 		if (from_boat)
-			n.d[5] = from->d[5];
-		const DWORD prev = n.d[5];
-		const int x = static_cast<int>(n.d[0] & 0x3ff), y = static_cast<int>((n.d[0] >> 10) & 0x3ff);
+			prev = from->d[5];
+		const int x = static_cast<int>(position & 0x3ff), y = static_cast<int>((position >> 10) & 0x3ff);
 		const int dx = x - static_cast<int>(prev & 0x3ff), dy = y - static_cast<int>((prev >> 10) & 0x3ff);
 		const int distance = dy * dy + dx * dx;  // from the tile before the last
 		if (distance > 0x40)
@@ -155,24 +170,24 @@ void PortedRelax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Co
 	} else {
 		// Land layer (0x00c09f39).
 		flags = (flags & ~0x800000u) | (spent > static_cast<int>(At(pf, 0x50)) ? 0x800000u : 0);
-		n.d[1] = flags;
-		Cost gain = {};  // what the valuation adds (0x00c09f46: zero unless there is a gain)
 		void *valuation = reinterpret_cast<void *>(At(pf, 0x0c));
 		if (valuation) {
-			const int value = Measure(kHelperValuation, [&] { return TileValuation(valuation, &n); });
+			const int value = Measure(kHelperValuation, [&] { return CandidateValuation(valuation, candidate, flags, prev, memo); });
 			if (value > 0) {
-				if (pf[0x80] == 0 && Measure(kHelperValuation, [&] { return TileValuation(valuation, from); }) <= 0 && (n.d[1] & 0x800000))
+				if (pf[0x80] == 0 &&
+				    Measure(kHelperValuation, [&] { return TileValuation(valuation, from, TileFor(from->d[0])); }) <= 0 &&
+				    (flags & 0x800000))
 					return;
 				gain.a = -1;
 				gain.b = -static_cast<__int64>(value);
 			}
-			if ((n.d[1] & 0x800000) && !(from->d[1] & 0x800000))
+			if ((flags & 0x800000) && !(from->d[1] & 0x800000))
 				Combine(cost, CostAt(*from, 12));  // 0x00c09fee: changes the cost written below
 		}
 		Cost total = cost;
 		Combine(total, gain);
 		bool better = false;
-		BYTE *mark = Mark(pf, 0xc0, n.d[0]);
+		BYTE *mark = Mark(pf, 0xc0, position);
 		const bool reached = *mark == pf[0xd8];
 		if (reached) {
 			Cost old = CostAt(*grid, 8);
@@ -189,22 +204,25 @@ void PortedRelax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Co
 			pf[0x91] = 1;  // the search hit its limit
 			return;
 		}
-		PutCost(n, 12, gain);  // gain.pad stays 0; the game leaves an uninitialized local there, never read
 		if (!reached) {
 			*mark = pf[0xd8];
 			void *reached_list = reinterpret_cast<void *>(At(pf, 0xdc));
-			if ((n.d[1] & 0x200) && reached_list) {
+			if ((flags & 0x200) && reached_list) {
 				Node *const grid_pointer = grid;
 				reinterpret_cast<PushPointerFn>(kPushPointer)(reached_list, nullptr, &grid_pointer);
 			}
 		}
 	}
 	// 0x00c0a176: the new node.
+	Node n = *candidate;
+	n.d[1] = (flags & ~1u) | (flag & 1);
+	n.d[5] = prev;
+	if (!(flags & 0x40))
+		PutCost(n, 12, gain);  // gain.pad stays 0; the game leaves an uninitialized local there, never read
 	PutCost(n, 8, cost);
 	n.d[3] = tie;
 	n.d[6] = *extra;
 	n.d[2] = static_cast<DWORD>(spent);
-	n.d[1] = (n.d[1] & ~1u) | (flag & 1);
 	*grid = n;
 	if (!PushToActiveSearch(pf, n))  // the ported search keeps its own copy of the list
 		reinterpret_cast<QueuePushFn>(kQueuePush)(pf + 0x10, nullptr, &n);

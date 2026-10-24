@@ -15,7 +15,7 @@ Answer: (owner fills in)
 
 ## Q3: May the AI pathfinding speed-up be on by default? (2026-10-24, status: open)
 
-Context: the `fast_paths` mod (and its ported search core) makes the AI's path searches about 2x faster and gives exactly the same result for every search (checked on several of your saves, node by node). But we found that the original AI's decisions depend on how fast it runs: it thinks in real-time slices (`aai_step_limit`, `ai_time_limit`) and some of its code reads the clock. So when it thinks faster, it can sometimes take a different (not worse) branch, exactly as the original game does on a faster PC. With the robot's virtual clock, where thinking takes no game time, the original and the mod make the same decisions over whole turns.
+Context: the `fast_paths` mod (and its ported search core) makes the AI's late-game thinking about 5 to 6 times faster (save_11: 93 s of AI thinking over 4 AI turns down to about 16 s) and gives exactly the same result for every search (checked on four of your saves, node by node, over 4 whole AI turns each). But we found that the original AI's decisions depend on how fast it runs: it thinks in real-time slices (`aai_step_limit`, `ai_time_limit`) and some of its code reads the clock. So when it thinks faster, it can sometimes take a different (not worse) branch, exactly as the original game does on a faster PC. With the robot's virtual clock, where thinking takes no game time, the original and the mod make the same decisions over whole turns.
 
 Your rule was: changes to AI decisions are settings, original by default. This one does not change any search, only how fast the game's own code runs, like a faster CPU would.
 

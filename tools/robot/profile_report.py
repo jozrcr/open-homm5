@@ -14,7 +14,7 @@ an AI turn-driver call runs, so N samples are roughly N x 2 ms of thinking.
 Samples in our own hook DLL (the mods) are named from its linker map,
 build/hook/dinput8.map, using the load address the profiler writes on its
 first line ("# dll <address>"; --dll-base for older profiles). The map must
-belong to the DLL that ran.
+belong to the DLL that ran (--map for a copy kept with an older DLL).
 """
 import argparse
 import bisect
@@ -53,9 +53,8 @@ def function_of(address, starts, sizes):
     return None
 
 
-def load_dll_map():
+def load_dll_map(path):
     syms = []
-    path = REPO / "build" / "hook" / "dinput8.map"
     if path.exists():
         for line in open(path, encoding="latin-1"):
             m = re.match(r"\s*0001:[0-9a-f]{8}\s+(\S+)\s+([0-9a-f]{8})", line)
@@ -78,10 +77,12 @@ def main():
     p.add_argument("samples")
     p.add_argument("--top", type=int, default=25)
     p.add_argument("--dll-base", help="load address of our DLL (hex), for profiles without a '# dll' line")
+    p.add_argument("--map", type=pathlib.Path, default=REPO / "build" / "hook" / "dinput8.map",
+                   help="linker map of the DLL that ran (default: the one last built)")
     args = p.parse_args()
     starts, sizes, classes = load_functions()
     dll_base = int(args.dll_base, 16) if args.dll_base else None
-    dll_starts, dll_names = load_dll_map()
+    dll_starts, dll_names = load_dll_map(args.map)
     self_count, incl_count, dll_count = collections.Counter(), collections.Counter(), collections.Counter()
     total = 0
     for line in open(args.samples, encoding="ascii", errors="replace"):

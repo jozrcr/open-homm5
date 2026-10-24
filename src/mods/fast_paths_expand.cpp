@@ -14,10 +14,14 @@
 // below name the game's addresses so each part can be checked against it.
 //   - Every call into the game with possible side effects or unknown internals
 //     happens in the same order with the same arguments (0x009d1c40,
-//     0x00ca9a70, 0x009d1310, 0x009d1700, 0x009d19a0, 0x004e9280, and the
-//     virtual calls on the object pool at pf+4 and the ships pool at pf+0xa4).
+//     0x009d1310, 0x009d1700, 0x009d19a0, 0x004e9280, and the virtual calls on
+//     the object pool at pf+4 and the ships pool at pf+0xa4).
 //   - The four remembered checks go through fastpaths::GoAshore, CanEnter,
 //     CanEnterDry and Visitable; relax goes through fastpaths::Relax.
+//   - The step cost 0x00ca9a70 changes nothing and depends only on the tile and
+//     the search's settings: asked once per tile and search (StepCost). The
+//     world tile's two kinds are remembered per tile too (Kinds), which saves
+//     reading the big world map for every neighbour.
 //   - Four tiny game functions that only compute an address are written out
 //     instead of called (they read nothing but the position and fixed tables):
 //     0x00423bd0 (two positions differ), 0x0059e980 and 0x00c09220 (the node of
@@ -27,6 +31,7 @@
 //     passed instead.
 #include "fast_paths_internal.h"
 
+#include <limits.h>
 #include <string.h>
 
 namespace mods {
@@ -98,12 +103,91 @@ Cost CostAt(const Node &n, int index)  // the cost at d[index..index+3], all 16 
 
 const Cost kNoCost = {0, 0, 0};
 
+// The world tile's kinds at +8 and +0x10, remembered per tile (memo from
+// TileFor, may be nullptr). Sets `tile` when the world tile had to be read.
+void Kinds(BYTE *pf, Tile *memo, DWORD position, const DWORD *&tile, DWORD &kind8, DWORD &kind10)
+{
+	if (memo && (memo->known & kCheckWorld)) {
+		kind8 = memo->kind8;
+		kind10 = memo->kind10;
+		return;
+	}
+	tile = WorldTile(pf, position);
+	kind8 = tile[2];
+	kind10 = tile[4];
+	if (memo && kind8 < 256 && kind10 < 256) {
+		memo->kind8 = static_cast<BYTE>(kind8);
+		memo->kind10 = static_cast<BYTE>(kind10);
+		memo->known |= kCheckWorld;
+	}
+}
+
+int GameStepCost(const DWORD *tile, Node *c, bool diagonal, int remaining, BYTE *pf, int kind)
+{
+	return Measure(kHelperTerrain, [&] { return kTerrainCost(tile, c, diagonal ? 1u : 0u, remaining, pf + 0x20, kind); });
+}
+
+// 0x00ca9a70's choice for a diagonal step: the diagonal cost `full`, except
+// when the movement left is at least `straight` but below `full`.
+int Pick(int straight, int full, bool diagonal, int remaining)
+{
+	if (!diagonal)
+		return straight;
+	return (remaining < straight || remaining >= full) ? full : straight;
+}
+
+// Kinds 1 and 2 do not look at the tile: their costs, per search.
+DWORD g_kind_generation[3] = {};
+int g_kind_straight[3] = {};
+int g_kind_full[3] = {};
+
+// The step cost 0x00ca9a70 __fastcall(world tile, (unused), diagonal,
+// remaining, settings = pf+0x20, kind), ret 0x10. It changes nothing and
+// reads only its arguments, the settings and (kind 0) the tile's first two
+// dwords. For kinds 0 to 2 it computes a cost `straight` (kind 0: from the
+// tile and settings; kinds 1, 2: 100), then for a diagonal step `full` =
+// straight x sqrt(2) rounded down, and returns Pick(straight, full). Both are
+// asked from the game itself once per tile and search (remaining 0 and
+// INT_MAX); kind 3 (another function) always goes to the game.
+int StepCost(BYTE *pf, Tile *memo, DWORD position, const DWORD *&tile, Node *c, bool diagonal, int remaining, int kind)
+{
+	if (memo && kind == 0) {
+		if (!(memo->known & kCheckStepCost)) {
+			if (!tile)
+				tile = WorldTile(pf, position);
+			const int straight = GameStepCost(tile, c, false, 0, pf, 0);
+			const int full = GameStepCost(tile, c, true, INT_MAX, pf, 0);
+			if (straight < 0 || straight > 0xffff || full < 0 || full > 0xffff)
+				return GameStepCost(tile, c, diagonal, remaining, pf, kind);
+			memo->cost = static_cast<WORD>(straight);
+			memo->diagonal = static_cast<WORD>(full);
+			memo->known |= kCheckStepCost;
+		}
+		return Pick(memo->cost, memo->diagonal, diagonal, remaining);
+	}
+	if (memo && (kind == 1 || kind == 2)) {
+		if (g_kind_generation[kind] != g_generation) {
+			if (!tile)
+				tile = WorldTile(pf, position);
+			g_kind_straight[kind] = GameStepCost(tile, c, false, 0, pf, kind);
+			g_kind_full[kind] = GameStepCost(tile, c, true, INT_MAX, pf, kind);
+			g_kind_generation[kind] = g_generation;
+		}
+		return Pick(g_kind_straight[kind], g_kind_full[kind], diagonal, remaining);
+	}
+	if (!tile)
+		tile = WorldTile(pf, position);
+	return GameStepCost(tile, c, diagonal, remaining, pf, kind);
+}
+
 }  // namespace
 
 void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, char flag, DWORD *out)
 {
 	NotePathfinder(pf);
-	const DWORD *from_tile = WorldTile(pf, node->d[0]);  // esp+0x24
+	const DWORD *from_tile = nullptr;  // esp+0x24, the node's world tile, read when not remembered
+	DWORD from_kind8 = 0, from_kind10 = 0;
+	Kinds(pf, TileFor(node->d[0]), node->d[0], from_tile, from_kind8, from_kind10);
 	DWORD no_extra = 0;                                   // esp+0x20, the "extra" some relax calls get
 	Node c;                                               // esp+0x40, the candidate
 	const DWORD flags = node->d[1];
@@ -119,8 +203,9 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 		c.d[1] = (c.d[1] & ~0x40u) | 0x4000200;
 		Node *from = GridNode(pf, 0xa8, node->d[5]);  // 0x0059e980(pf, &node->d[5])
 		Node *grid = GridNode(pf, 0xa8, c.d[0]);
-		const DWORD visitable = Remembered(TileFor(c.d[0]), kCheckVisitable, pf, c.d);  // 0x00c08076
-		Relax(pf, from, grid, &c, 0, CostAt(*from, 8), &no_extra, visitable);  // 0x00c080aa
+		Tile *memo = TileFor(c.d[0]);
+		const DWORD visitable = Remembered(memo, kCheckVisitable, pf, c.d);  // 0x00c08076
+		Relax(pf, from, grid, &c, 0, CostAt(*from, 8), &no_extra, visitable, memo);  // 0x00c080aa
 	}
 
 	for (int i = 0; i < count; ++i) {
@@ -151,8 +236,10 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 			continue;
 
 		// 0x00c081db
-		const DWORD *tile = WorldTile(pf, c.d[0]);  // esp+0x18
-		Tile *memo = TileFor(c.d[0]);                // remembered answers for this tile
+		Tile *memo = TileFor(c.d[0]);  // remembered answers for this tile
+		const DWORD *tile = nullptr;   // esp+0x18, the world tile, read when not remembered
+		DWORD kind8 = 0, kind10 = 0;   // its kinds at +8 and +0x10
+		Kinds(pf, memo, c.d[0], tile, kind8, kind10);
 		c.d[1] |= 0x200;
 		bool stop = false;           // esp+0x10: no ordinary move to this tile
 		bool cannot_enter = false;   // esp+0x11 (reused for the ships pool's answer below)
@@ -161,7 +248,7 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 		DWORD cost = 0;              // esp+0x14 (also kept in ebx)
 		bool go = false;             // bl at 0x00c08746
 		Node *grid = nullptr;
-		if (tile[2] == 5 || (Byte(pf, 0x76) && !Measure(kHelper9d1c40, [&] { return kCheck9d1c40(pf, nullptr, &c); }))) {
+		if (kind8 == 5 || (Byte(pf, 0x76) && !Measure(kHelper9d1c40, [&] { return kCheck9d1c40(pf, nullptr, &c); }))) {
 			// 0x00c0828e
 			c.d[1] &= ~0x200u;
 			c.d[3] += 100;
@@ -175,7 +262,7 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 				kind = 1;
 			else if (c.d[1] & 8)
 				kind = 2;
-			cost = static_cast<DWORD>(Measure(kHelperTerrain, [&] { return kTerrainCost(tile, &c, i >= 4 ? 1u : 0u, remaining, pf + 0x20, kind); }));
+			cost = static_cast<DWORD>(StepCost(pf, memo, c.d[0], tile, &c, i >= 4, remaining, kind));
 		}
 
 		// 0x00c082a8: movement left after the step; when it does not reach, only
@@ -198,7 +285,7 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 			// 0x00c082f7
 			if ((Byte(pf, 0x76) || Byte(pf, 0x77)) && !Remembered(memo, kCheckCanEnterDry, pf, c.d))  // 0x00c0830a
 				c.d[1] &= ~0x200u;
-			if ((c.d[1] & 8) && tile[2] == 2)  // 0x0041fec0(*pf, &c) is the same tile
+			if ((c.d[1] & 8) && kind8 == 2)  // 0x0041fec0(*pf, &c) is the same tile
 				c.d[1] &= ~0x200u;
 			if (Remembered(memo, kCheckCanEnterDry, pf, c.d)) {  // 0x00c08349
 				if (Byte(pf, 0x76))
@@ -210,17 +297,17 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 
 		// 0x00c0836f: water, boats and coasts
 		if (At(pf, 0x44) != 3) {
-			if (tile[2] == 2) {
+			if (kind8 == 2) {
 				if (Byte(pf, 0x82)) {
 					// 0x00c08391: stepping from land into water
-					if (from_tile[2] != 2) {
+					if (from_kind8 != 2) {
 						c.d[2] += c.d[4];
 						c.d[4] = At(pf, 0x4c);
 						c.d[1] = (c.d[1] & ~0x18u) | 2;
 					}
 				} else if (node->d[1] & 2) {
 					// 0x00c083c8: a diagonal step on water needs water on both sides
-					if (from_tile[2] == 2 && dx != 0 && dy != 0) {
+					if (from_kind8 == 2 && dx != 0 && dy != 0) {
 						const DWORD side_x = pos ^ (((pos + static_cast<DWORD>(dx)) ^ pos) & 0x3ff);
 						const DWORD side_y = pos ^ ((((static_cast<DWORD>(dy) << 10) + pos) ^ pos) & 0xffc00);
 						if (WorldTile(pf, side_x)[2] != 2 || WorldTile(pf, side_y)[2] != 2)  // 2 x 0x0041fec0
@@ -234,9 +321,9 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 						c.d[1] &= ~0x200u;
 					}
 				}
-			} else if ((node->d[1] & 2) || (Byte(pf, 0x82) && from_tile[2] == 2)) {
+			} else if ((node->d[1] & 2) || (Byte(pf, 0x82) && from_kind8 == 2)) {
 				// 0x00c08498: leaving the water
-				if (tile[2] != 1) {
+				if (kind8 != 1) {
 					c.d[1] &= ~0x200u;
 					stop = true;
 				} else if ((c.d[1] & 0x200) && Byte(pf, 0x66)) {
@@ -345,16 +432,16 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 			// 0x00c087f6
 			if (!kCheck9d1c40(pf, nullptr, &c))
 				continue;
-			const DWORD keep = ((c.d[1] & 0x200) && tile[4] != 2) ? 0x200u : 0u;
+			const DWORD keep = ((c.d[1] & 0x200) && kind10 != 2) ? 0x200u : 0u;
 			c.d[1] = (c.d[1] & ~0x200u) | keep;
-			Relax(pf, node, grid, &c, static_cast<int>(cost), kNoCost, &no_extra, 0);  // 0x00c0885b
+			Relax(pf, node, grid, &c, static_cast<int>(cost), kNoCost, &no_extra, 0, memo);  // 0x00c0885b
 			continue;
 		}
-		go = can_enter && !stop && (tile[4] != 3 || (node->d[1] & 0x200));
+		go = can_enter && !stop && (kind10 != 3 || (node->d[1] & 0x200));
 		if (Byte(pf, 0x76)) {
 			if (!go)
 				continue;
-			if (tile[4] == 2 && !(node->d[1] & 0x200))
+			if (kind10 == 2 && !(node->d[1] & 0x200))
 				continue;
 			void *pool = reinterpret_cast<void *>(At(pf, 4));
 			if (pool) {
@@ -370,7 +457,7 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 			continue;
 		{
 			const DWORD visitable = Remembered(memo, kCheckVisitable, pf, c.d);  // 0x00c087be
-			Relax(pf, node, grid, &c, static_cast<int>(cost), CostAt(c, 8), &c.d[6], visitable);  // 0x00c0885b
+			Relax(pf, node, grid, &c, static_cast<int>(cost), CostAt(c, 8), &c.d[6], visitable, memo);  // 0x00c0885b
 		}
 	}
 }

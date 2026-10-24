@@ -42,7 +42,9 @@ enum Check : WORD {
 	kCheckVisitable = 16,     // 0x00c072d0
 	kCheckStandsHere = 32,    // the object pool's slot 1 (search loop)
 	kCheckLiveObject = 64,    // the object pool's slot 2 finds a live object (0x009d19a0's first test)
-	kCheckDanger = 128        // the danger map's value (NWorld::CDangerPool slot 0, 0x00c27500), in Tile::danger
+	kCheckDanger = 128,       // the danger map's value (NWorld::CDangerPool slot 0, 0x00c27500), in Tile::danger
+	kCheckWorld = 256,        // the world tile's kinds, in Tile::kind8 and Tile::kind10
+	kCheckStepCost = 512      // the step cost on land (0x00ca9a70, kind 0), in Tile::cost and Tile::diagonal
 };
 
 // Remembered answers, one record per tile (x and y below 512, 2 floors; other
@@ -56,6 +58,11 @@ struct Tile {
 	WORD value;         // their answers
 	DWORD stands_here;  // what the object pool wrote when something stands here
 	int danger;         // the danger map's value at this tile
+	WORD cost;          // step cost onto this tile, straight
+	WORD diagonal;      // and diagonal, when the movement left allows it (see StepCost)
+	BYTE kind8;         // the world tile's kind at +8 (2 = water, 5 = blocked)
+	BYTE kind10;        // and its other kind at +0x10
+	WORD unused;
 };
 const DWORD kTileBits = 9;
 const DWORD kTileFloors = 2;
@@ -108,9 +115,13 @@ bool CanEnterDry(BYTE *pf, const DWORD *node);                           // 0x00
 bool Visitable(BYTE *pf, const DWORD *node);                             // 0x00c072d0
 
 // Relax a neighbour (0x00c09d90): the game's function, or the port when it is on.
-void Relax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Cost cost, const DWORD *extra, DWORD flag);
+// memo: the candidate tile's record (TileFor(candidate->d[0])) when the caller
+// has it, else nullptr.
+void Relax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Cost cost, const DWORD *extra, DWORD flag,
+           Tile *memo = nullptr);
 // The port itself (fast_paths_relax.cpp).
-void PortedRelax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Cost cost, const DWORD *extra, DWORD flag);
+void PortedRelax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Cost cost, const DWORD *extra, DWORD flag,
+                 Tile *memo = nullptr);
 
 // The open list's _Adjust_heap (the port in fast_paths.cpp, same order as the game's).
 void AdjustHeap(Node *first, int hole, int bottom, const Node &val);

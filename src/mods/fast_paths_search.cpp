@@ -9,15 +9,20 @@
 // calls the same game functions in the same order.
 //
 // The open list is the game's std::priority_queue (vector of 64-byte nodes at
-// pf+0x10..0x18). During the loop the port keeps it as a heap of indices into
-// a pool of node copies, each with its sort key computed once: the very same
-// heap algorithm and comparisons (VC++ 2003 _Push_heap / _Adjust_heap with
-// operator< 0x00c08fd0, see fast_paths.cpp), but moving 4-byte indices instead
-// of 64-byte nodes. When the loop ends, the game's vector gets the remaining
+// pf+0x10..0x18). During the loop the port keeps it as a heap of small entries
+// (a node's sort key, computed once, and where the node's copy is): the very
+// same heap algorithm and comparisons (VC++ 2003 _Push_heap / _Adjust_heap
+// with operator< 0x00c08fd0, see fast_paths.cpp), but moving 32-byte entries
+// instead of 64-byte nodes. When the loop ends, the game's vector gets the remaining
 // nodes back in the same array order, so a later call that continues the
 // search finds the list exactly as the game would have left it.
 #include "fast_paths_internal.h"
 
+#include <malloc.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <new>
 #include <vector>
 
 namespace mods {
@@ -53,40 +58,54 @@ int TerrainType(BYTE *pf, DWORD position)
 	return *reinterpret_cast<const int *>(tile + 8);
 }
 
-// The open list during one ported search (see the top of this file).
+// The open list during one ported search (see the top of this file): a heap
+// of 32-byte entries, each holding what the search loop reads of a node (its
+// sort key, position and two flags), with the full node copies apart in a
+// pool, needed only to give the list back to the game. The entries start 32
+// bytes into a 64-byte aligned block, so that the two children of an entry
+// (2k+1 and 2k+2) share a cache line; slot_[i] is entry i's place in the pool.
 class IndexHeap {
 public:
+	~IndexHeap()
+	{
+		_aligned_free(raw_);
+		free(slot_);
+	}
+
 	void Import(const Node *first, const Node *last)
 	{
 		nodes_.clear();
-		keys_.clear();
 		free_.clear();
-		heap_.clear();
+		size_ = 0;
 		for (const Node *n = first; n < last; ++n)
-			heap_.push_back(Store(*n));  // a valid heap array stays one, index for index
+			Append(n);  // a valid heap array stays one, entry for entry
 	}
 
-	int Size() const { return static_cast<int>(heap_.size()); }
-	const Node &Top() const { return nodes_[heap_[0]]; }
+	int Size() const { return size_; }
+	// The top node's position (x, y, floor) and flags & 0x240.
+	DWORD TopPosition() const { return heap_[0].where & 0xffffff; }
+	DWORD TopFlags() const { return Flags(heap_[0].where); }
 
 	void Push(const Node &n)
 	{
-		const int i = Store(n);
-		heap_.push_back(i);
-		PushHeap(Size() - 1, 0, i);
+		Append(&n);
+		const Entry e = heap_[size_ - 1];
+		PushHeap(size_ - 1, 0, e, slot_[size_ - 1]);
 	}
 
-	// std::pop_heap + pop_back: the top's copy, removed from the list.
-	Node Pop()
+	// std::pop_heap + pop_back; the top's flags & 0x240 and position.
+	void Pop(DWORD *position, DWORD *flags)
 	{
-		const int top = heap_[0];
-		const int size = Size();
-		const int moved = heap_[size - 1];
-		heap_[size - 1] = top;
-		AdjustHeap(0, size - 1, moved);
-		heap_.pop_back();
-		free_.push_back(top);
-		return nodes_[top];
+		*position = TopPosition();
+		*flags = TopFlags();
+		const int top_slot = slot_[0];
+		const Entry moved = heap_[size_ - 1];
+		const int moved_slot = slot_[size_ - 1];
+		heap_[size_ - 1] = heap_[0];
+		slot_[size_ - 1] = top_slot;
+		AdjustHeap(0, size_ - 1, moved, moved_slot);
+		--size_;
+		free_.push_back(top_slot);
 	}
 
 	// Back into the game's vector, same array order: clear it, then push every
@@ -96,68 +115,89 @@ public:
 	{
 		typedef void(__fastcall * QueuePushFn)(void *queue, void *edx, const Node *node);
 		At(pf, 0x14) = At(pf, 0x10);
-		for (int i : heap_)
-			reinterpret_cast<QueuePushFn>(0x00c099d0)(pf + 0x10, nullptr, &nodes_[i]);
+		for (int i = 0; i < size_; ++i)
+			reinterpret_cast<QueuePushFn>(0x00c099d0)(pf + 0x10, nullptr, &nodes_[slot_[i]]);
 	}
 
 private:
-	// operator< 0x00c08fd0, with both readings of the cost pairs computed once:
-	// a's flag bit 23 decides which one counts for both nodes.
-	struct Key {
+	// What operator< 0x00c08fd0 reads, with both readings of the cost pairs
+	// computed once (the first node's flag bit 23 decides which one counts for
+	// both nodes), and what the search loop reads.
+	struct Entry {
 		int primary[2];
 		__int64 value[2];
 		DWORD tie;
-		DWORD flag;
+		DWORD where;  // bits 0-23: position; 24: flag 0x40, 25: flag 0x200; 31: flag 0x800000
 	};
+	static_assert(sizeof(Entry) == 32, "two entries per cache line");
 
-	int Store(const Node &n)
+	static DWORD Flags(DWORD where) { return (where >> 18 & 0x40) | (where >> 16 & 0x200); }
+
+	void Append(const Node *n)
 	{
-		Key k;
-		const int p = static_cast<int>(n.d[8]), q = static_cast<int>(n.d[12]);
+		if (size_ == capacity_) {
+			const int capacity = capacity_ ? capacity_ * 2 : 4096;
+			Entry *raw = static_cast<Entry *>(_aligned_malloc((capacity + 1) * sizeof(Entry), 64));
+			int *slot = static_cast<int *>(realloc(slot_, capacity * sizeof(int)));
+			if (!raw || !slot) {
+				_aligned_free(raw);
+				if (slot)
+					slot_ = slot;
+				throw std::bad_alloc();
+			}
+			if (size_)
+				memcpy(raw + 1, heap_, size_ * sizeof(Entry));
+			_aligned_free(raw_);
+			raw_ = raw;
+			heap_ = raw + 1;
+			slot_ = slot;
+			capacity_ = capacity;
+		}
+		Entry &e = heap_[size_];
+		const int p = static_cast<int>(n->d[8]), q = static_cast<int>(n->d[12]);
 		const int low = p < q ? p : q;
-		k.primary[0] = p;
-		k.primary[1] = low < 0 ? low : (p <= q ? q : p);
-		const unsigned __int64 v0 = n.d[10] | static_cast<unsigned __int64>(n.d[11]) << 32;
-		const unsigned __int64 v1 = n.d[14] | static_cast<unsigned __int64>(n.d[15]) << 32;
-		k.value[0] = static_cast<__int64>(v0);
-		k.value[1] = static_cast<__int64>(v0 + v1);
-		k.tie = n.d[3];
-		k.flag = (n.d[1] >> 23) & 1;
+		e.primary[0] = p;
+		e.primary[1] = low < 0 ? low : (p <= q ? q : p);
+		const unsigned __int64 v0 = n->d[10] | static_cast<unsigned __int64>(n->d[11]) << 32;
+		const unsigned __int64 v1 = n->d[14] | static_cast<unsigned __int64>(n->d[15]) << 32;
+		e.value[0] = static_cast<__int64>(v0);
+		e.value[1] = static_cast<__int64>(v0 + v1);
+		e.tie = n->d[3];
+		e.where = (n->d[0] & 0xffffff) | (n->d[1] & 0x40) << 18 | (n->d[1] & 0x200) << 16 | (n->d[1] & 0x800000) << 8;
 		int i;
 		if (!free_.empty()) {
 			i = free_.back();
 			free_.pop_back();
-			nodes_[i] = n;
-			keys_[i] = k;
+			nodes_[i] = *n;
 		} else {
 			i = static_cast<int>(nodes_.size());
-			nodes_.push_back(n);
-			keys_.push_back(k);
+			nodes_.push_back(*n);
 		}
-		return i;
+		slot_[size_++] = i;
 	}
 
-	bool Less(int a, int b) const
+	static bool Less(const Entry &a, const Entry &b)
 	{
-		const Key &ka = keys_[a], &kb = keys_[b];
-		const DWORD f = ka.flag;
-		if (ka.primary[f] != kb.primary[f])
-			return ka.primary[f] < kb.primary[f];
-		if (ka.value[f] != kb.value[f])
-			return ka.value[f] < kb.value[f];
-		return kb.tie < ka.tie;
+		const DWORD f = a.where >> 31;
+		if (a.primary[f] != b.primary[f])
+			return a.primary[f] < b.primary[f];
+		if (a.value[f] != b.value[f])
+			return a.value[f] < b.value[f];
+		return b.tie < a.tie;
 	}
 
-	void PushHeap(int hole, int top, int val)
+	void PushHeap(int hole, int top, const Entry &val, int val_slot)
 	{
 		for (int idx = (hole - 1) / 2; top < hole && Less(heap_[idx], val); idx = (hole - 1) / 2) {
 			heap_[hole] = heap_[idx];
+			slot_[hole] = slot_[idx];
 			hole = idx;
 		}
 		heap_[hole] = val;
+		slot_[hole] = val_slot;
 	}
 
-	void AdjustHeap(int hole, int bottom, int val)
+	void AdjustHeap(int hole, int bottom, const Entry &val, int val_slot)
 	{
 		const int top = hole;
 		int idx = 2 * hole + 2;
@@ -165,19 +205,24 @@ private:
 			if (Less(heap_[idx], heap_[idx - 1]))
 				--idx;
 			heap_[hole] = heap_[idx];
+			slot_[hole] = slot_[idx];
 			hole = idx;
 		}
 		if (idx == bottom) {
 			heap_[hole] = heap_[bottom - 1];
+			slot_[hole] = slot_[bottom - 1];
 			hole = bottom - 1;
 		}
-		PushHeap(hole, top, val);
+		PushHeap(hole, top, val, val_slot);
 	}
 
 	std::vector<Node> nodes_;
-	std::vector<Key> keys_;
 	std::vector<int> free_;
-	std::vector<int> heap_;
+	Entry *raw_ = nullptr;   // the aligned block
+	Entry *heap_ = nullptr;  // raw_ + 1
+	int *slot_ = nullptr;
+	int size_ = 0;
+	int capacity_ = 0;
 };
 
 // Searches can nest (a callback of one search may start another one): one
@@ -215,20 +260,35 @@ void PortedSearch(BYTE *pf, int limit)
 	}
 	while (heap ? heap->Size() > 0 : last - first > 0) {
 		// pop (0x00c088f0): the top goes to the end, the last node is sifted down
-		Node top;
+		DWORD top_position, top_flags;  // all the loop reads of the popped node
 		if (heap) {
-			top = heap->Pop();
+			heap->Pop(&top_position, &top_flags);
 		} else {
-			top = *first;
+			top_position = first->d[0];
+			top_flags = first->d[1];
 			Node moved = last[-1];
 			last[-1] = *first;
 			AdjustHeap(first, 0, static_cast<int>(last - first) - 1, moved);
 			--last;
 		}
-		Node n = *GridNode(pf, (top.d[1] & 0x40) ? 0xb4 : 0xa8, top.d[0]);
+		Node n = *GridNode(pf, (top_flags & 0x40) ? 0xb4 : 0xa8, top_position);
 		// the next node is the same tile: it will be handled then (0x00c089d2)
-		const Node *next = heap ? (heap->Size() > 0 ? &heap->Top() : nullptr) : (last - first > 0 ? first : nullptr);
-		if (next && SameTile(next->d[0], n.d[0]) && ((next->d[1] ^ n.d[1]) & 0x240) == 0)
+		bool more;
+		DWORD next_position = 0, next_flags = 0;
+		if (heap) {
+			more = heap->Size() > 0;
+			if (more) {
+				next_position = heap->TopPosition();
+				next_flags = heap->TopFlags();
+			}
+		} else {
+			more = last - first > 0;
+			if (more) {
+				next_position = first->d[0];
+				next_flags = first->d[1];
+			}
+		}
+		if (more && SameTile(next_position, n.d[0]) && ((next_flags ^ n.d[1]) & 0x240) == 0)
 			continue;
 		char found = 0;
 		if (!(n.d[1] & 0x40)) {

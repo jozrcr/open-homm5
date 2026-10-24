@@ -45,9 +45,9 @@ The DLL's log (`open-homm5.log`) says what it changed, for example `net tuning: 
 
 Late in a game, nearly all of the AI's thinking time goes into searching paths for heroes (see [docs/subsystems/ai-pathfinder.md](../../docs/subsystems/ai-pathfinder.md)). The mod keeps every step of every search and makes the steps cheaper:
 
-- **Remembered checks.** One search can look at the same map tile over a hundred times, and each time it repeats checks that only depend on the tile ("can the hero step there?", "is there something to visit?"). The mod remembers their answers until the search ends.
+- **Remembered checks.** One search can look at the same map tile over a hundred times, and each time it repeats checks that only depend on the tile ("can the hero step there?", "is there something to visit?", "what does a step onto it cost?"). The mod remembers their answers until the search ends, asking the game's own functions the first time.
 - **Faster open list.** The list of tiles still to look at is sorted with the same algorithm and the same order as the game's, written out again so that it compares in place instead of copying every tile it looks at. At start-up the mod tests it against the game's own code and keeps the game's if anything differs.
-- **Ported search core.** The search loop, the node expansion and the "relax a neighbour" step are rewritten from the game's code, step by step, calling the game's own functions in the same order. This makes the whole loop our code, which the next speed-ups build on.
+- **Ported search core.** The search loop, the node expansion and the "relax a neighbour" step are rewritten from the game's code, step by step, calling the game's own functions in the same order. Inside it, the list of tiles still to look at is kept in a compact form (same order as the game's) and given back to the game when the search stops.
 - **Fast "go ashore?" check.** Half of the remaining time was one check that scans every object of the map floor three times per tile. The mod builds, once per AI step, tables of which object covers which tile (same order rules as the game) and answers from them.
 
 Because every search takes exactly the same steps, **every path stays the same**. In co-op only the host runs the AI, so the mod only matters on the host's PC, and it cannot cause a desync.
@@ -62,7 +62,8 @@ One subtlety: the original AI thinks in real-time slices, so how fast it runs ca
 |---|---:|
 | without the mod | 93.3 s |
 | remembered checks + faster open list + ported search core | 44.0 s |
-| + fast "go ashore?" check | **22.7 s** |
+| + fast "go ashore?" check | 22.7 s |
+| + cheaper steps (per-tile records, compact open list, fewer copies) | **16.7 s** (x5.6) |
 
 **Settings** (`open-homm5.ini`):
 

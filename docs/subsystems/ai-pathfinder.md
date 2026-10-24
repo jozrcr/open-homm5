@@ -101,6 +101,32 @@ AI thinking on save_11, 4 AI turns (85 AI steps), no trace, `--quick-combat --vi
 
 Next costs (robot timers, `--trace-paths`): the visit check `0x009d1700` (4 million calls, ~1.3 µs each; it asks the AI's evaluator at `pf+0x94` and writes into the candidate node, so it is not a simple remembered answer), then the search machinery itself.
 
+### Cheaper steps (2026-10-24)
+
+After the go-ashore check, most of the time was our own ported code, mostly waiting for memory: the game's grids are big (64 bytes per tile and layer for the nodes, 36 bytes per tile for the world map), and each expansion touches 8 neighbours in 3 rows. The exact speed-ups since then:
+
+- **Per-tile records inline.** The remembered answers sit in one record per tile (`Tile`, 24 bytes, a direct array, no hashing), looked up once per neighbour and passed on to relax. A neighbour without a live object skips `0x009d19a0` (which then only returns false).
+- **The world tile's kinds and the step cost are remembered per tile and search.** The step cost `0x00ca9a70` changes nothing and reads only the tile's first two dwords, the search's settings (`pf+0x20`) and its arguments. For kinds 0–2 it computes a straight cost, then for a diagonal step the straight cost × √2 rounded down, and returns that unless the movement left is between the two. So two calls to the game's own function per tile (movement left 0 and `INT_MAX`) give every later answer exactly, with no float code of ours. Kinds 1 and 2 do not depend on the tile (100 and 141); kind 3 is another function and always goes to the game.
+- **The open list inside the ported search** is a heap of 32-byte entries: the node's sort key (both readings of `operator<` `0x00c08fd0`, computed once), its position and the two flag bits the loop reads. The full node copies wait in a pool, only needed to give the list back to the game when the search stops (pushed in array order with the game's own push, so the game's vector ends up identical). Same Dinkumware algorithm and comparisons, so the same pop order, ties included. Pushes from the game's own relax (`0x00c0a1e7`, reached through `0x009d22f0` → `0x009d1ce0` / `0x009d2070` for extra neighbours such as teleports) are redirected into the active list; a first version missed them and the referee caught it from the first search.
+- **Relax copies only on success.** The game's relax works on a 64-byte copy of the candidate; the port keeps the two fields it changes apart and copies only when the candidate wins, which most do not.
+
+**Not worth it: skipping repeated expansions.** The trace's `same=` counts expansions of a node identical to the last one expanded at the same tile and layer: 3.5% on save_11 (1.0 of 29.2 million). Skipping them could be made exact (the relax order is monotone), except where a neighbour was refused at the search's limit, which a later repeat can still accept. Too little to gain for the risk.
+
+**Where the time goes now** (save_11, trace): the three giant searches of `0x0086c27c` (the AI's own hero, limit 32,000; 3.3, 5.2 and 1.4 million expansions) are over half of the remaining search time, then `0x00cebb22`. They are slow because of the label-correcting search itself (each tile is improved ~145 times), which an exact version must keep.
+
+AI thinking on save_11, 4 AI turns (85 AI steps), no trace, `--quick-combat --virtual-clock 50`, every stage checked identical (the full four-save batch, 4 AI turns each: save_11 301/301, save_10 152/152, save_9 107/107, save_1 10/10 big searches):
+
+| | AI thinking |
+|---|---:|
+| game | 93.3 s |
+| ported search core | 44.0 s |
+| + fast go-ashore check | 22.7 s |
+| + inline per-tile records, live-object skip | 18.0 s |
+| + open list inside the search (index heap) | 17.4 s |
+| + step cost and world kinds per tile, compact heap entries, relax copies only on success | **16.6–16.7 s** (x5.6) |
+
+The last two changes (heap entries holding the position, relax copying only on success) gave no measurable gain on their own (runs vary by ±0.2 s). **Tried, slower:** software prefetch of the 8 neighbours' grid nodes, marks and records at the start of an expansion, and of the heap's next level (17.1–17.4 s): the data is mostly in the CPU caches already, and what is left is the search's own work. So this exact approach is close to its floor; the next big gains need either a different search order (a setting, see the owner's "option 2") or less waiting between AI moves (the 400 ms per step, [ai-turn.md](ai-turn.md#what-sets-the-400-ms-rhythm-2026-10-21)).
+
 Results (2026-10-23). AI thinking is the sum of the `think=` times of the AI steps, measured without the path trace (which costs time itself); "identical" is checked with the trace on, by `path_report.py`:
 
 | | game | mod |
