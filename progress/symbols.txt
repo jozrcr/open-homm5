@@ -10,13 +10,16 @@
 00b1c6e0  ?Insert@SIntVec@@QAEXPAHPBHHH@Z   # vector<int>::insert(pos, &val, 1, 1)
 00c0a220  ?Add@SBonus@@QAEAAU1@PBU1@@Z   # SBonus::Add (HeroPathfinderMisc, called by CBonusList::Add)
 00c0a2f0  ?BonusLevel@@YIHHH@Z   # (kind, n) -> level (HeroPathfinderMisc, called by CBonusList::Add and Recalc)
-00433d20  ?ColCount@CGrid@@QAEHH@Z   # CGrid::ColCount(row): number of cells in a row, 0 when out of range
+00433d20  ?ColCount@CGrid@@QBEHH@Z   # CGrid::ColCount(row) const: number of cells in a row, 0 when out of range
 00c0b780  ?At@SRow@@QAEPAVCBonusList@@H@Z   # SRow::At(col): the cell's CBonusList, or a static empty one
 00c0b700  ?IsUsed@SRow@@QAE_NH@Z   # SRow::IsUsed(col): the cell's "used" byte
 00c0bcc0  ?Set@SRow@@QAEXHPBVCBonusList@@@Z   # SRow::Set(col, item): assigns the cell's CBonusList
 00434350  ??0CBonusList@@QAE@ABV0@@Z   # CBonusList copy constructor
 006404d0  ?Equals@CBonusList@@QAE_NPBV1@@Z   # CBonusList::Equals(other)
 00d11a46  _atexit   # CRT atexit
+010c58d8  ?s_empty@?M@??GetItem@CGrid@@QAEPAVCBonusList@@HH@Z@4V3@A   # static empty CBonusList inside CGrid::GetItem (0x24 bytes)
+010c58fc  ?$S1@?M@??GetItem@CGrid@@QAEPAVCBonusList@@HH@Z@4IA   # its init guard flags (bit 0)
+00e04530  _$E2   # atexit destructor stub of that static (HeroPathfinderMisc.cpp, if (begin) free(begin))
 00ada320  ?Func_00ada320@@YIPAUSRefObj@@H@Z   # fastcall(handle) -> refcounted object
 008c6150  ?Func_008c6150@@YIXPAUSRefObj@@@Z   # fastcall(obj): destroys a refcounted object whose count reached 0
 00ae3e90  ?Get@SHolder@@QAEPADXZ   # smart pointer: returns the object it points to
