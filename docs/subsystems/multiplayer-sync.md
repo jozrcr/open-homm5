@@ -176,7 +176,13 @@ Owner on Windows, a friend on Linux (Proton), both approved in one ZeroTier netw
 - The classful broadcast doesn't help either: a ZeroTier address `10.21.174.x` gives `10.255.255.255`, which is outside the ZeroTier route `10.21.174.0/24`, so it also leaves through the normal internet connection.
 - Windows marked the ZeroTier network **Public**, and the game's firewall rules allow only Private networks, so the host's answer or a join would be blocked too.
 
-Untested workarounds: on Windows, make the ZeroTier network Private and give it the lowest metric (`Set-NetIPInterface -InterfaceMetric 1`); on Linux, `ip route add 255.255.255.255/32 dev zt…`. The robust fix, planned for the networking phase: a DLL setting that also sends the discovery query by unicast to listed peer addresses (the robot's broadcast relay in `src/hook/robot_net.cpp` already does this for two copies on one PC). GameRanger works because it carries the broadcasts itself.
+Untested workarounds: on Windows, make the ZeroTier network Private and give it the lowest metric (`Set-NetIPInterface -InterfaceMetric 1`); on Linux, `ip route add 255.255.255.255/32 dev zt…`. GameRanger works because it carries the broadcasts itself.
+
+**The fix (2026-10-24, `src/mods/lan_discovery.cpp`, on by default):**
+- Each query also goes to the broadcast address of **every adapter** that is up. On the owner's PC that is `192.168.1.255` (Ethernet), `10.21.174.255` (ZeroTier One), and two Hyper-V/WSL adapters.
+- It also goes to any `[net] lan_peers` addresses, for VPNs that carry no broadcasts.
+- The robot's LAN games also show that the join handshake (packets `07`) already goes to **every** address of the other PC, its ZeroTier address included. So once the game shows up in the list, joining should work.
+- Still to be tried by two real players. The Windows host's ZeroTier network must still be Private for the firewall.
 
 ## Desync detection
 

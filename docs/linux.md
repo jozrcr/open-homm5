@@ -2,7 +2,10 @@
 
 A step-by-step guide for a player on Linux who joins a co-op game hosted on Windows. You end up with Heroes V: Tribes of the East + MMH5.5 running under Steam's Proton, our DLL with the faster co-op AI mod, and a ZeroTier network that makes the two PCs look like they are on the same LAN. GameRanger is not needed.
 
-**Known issue (2026-10-23): over ZeroTier the host's game doesn't show up in the LAN list yet.** The first real try connected the two PCs fine, but Windows and Linux send the game's "any games here?" broadcast only through the normal network card, not through ZeroTier. Details and workarounds: [multiplayer-sync.md](subsystems/multiplayer-sync.md#over-the-internet-with-zerotier-2026-10-23-failed). Networking is planned as a later phase; until then, part A of this guide (the game and the mod on Linux) still applies.
+**Fixed in the DLL (2026-10-24), not yet tried by two real players:**
+- The first try (23 Oct) connected the two PCs, but the host's game never showed up in the LAN list. Windows and Linux sent the game's "any games here?" message only out of the normal network card, not into ZeroTier ([details](subsystems/multiplayer-sync.md#over-the-internet-with-zerotier-2026-10-23-failed)).
+- Our DLL now also sends that message into every network, ZeroTier included (`src/mods/lan_discovery.cpp`).
+- **Both players need the new DLL**, and the Windows host's ZeroTier network must be **Private** (step 3 of the host's part).
 
 **Status:** the mod is tested on Windows (two copies of the game on one PC, no desync in long games). The Linux and ZeroTier parts follow the standard steps but nobody has tried them with this game yet. If something doesn't work, the [troubleshooting](#troubleshooting) table says what to check, and [what to send back](#what-to-send-back) lists what helps us fix it.
 
@@ -155,7 +158,16 @@ All players should keep the mod on (the default). Each PC speeds up only what it
 | You can join but the game says it's out of sync, or players see different things | Both PCs must have the same files: copy the host's folder again. Send both logs. |
 | It worked before, then stopped after a Steam update | Steam replaced some files: copy the host's files again (step 2). |
 
-The game list staying empty over ZeroTier is the known issue at the top of this guide. The planned fix is a DLL setting that sends the game's "any games here?" message straight to the other PC's address, so the list no longer depends on broadcasts.
+If the list stays empty with the new DLL on both PCs:
+- Look in your `open-homm5.log` for the line `lan: game queries also go to ...`. It must list the ZeroTier network (`... (zt...)`).
+- If it does and the list is still empty, add the host's ZeroTier address to `open-homm5.ini`. The DLL then also asks the host directly:
+
+```ini
+[net]
+lan_peers=10.21.174.28
+```
+
+- Then send both logs (see below). The lines `lan: game found at ...` and `lan: join request to ...` show how far it got.
 
 ## What to send back
 
