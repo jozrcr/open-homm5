@@ -17,6 +17,7 @@
 // frames to functions that use placement new on classes with constructors.
 
 #include <new>
+#include <string.h>
 
 // --- the node ---------------------------------------------------------------
 
@@ -34,6 +35,11 @@ struct Node {
 	union {
 		unsigned pos;  // 0x00
 		unsigned char posb[4];
+		struct {
+			unsigned px : 10;
+			unsigned py : 10;
+			unsigned pfloor : 4;
+		};
 	};
 	union {
 		unsigned flags;  // 0x04: bit 6 layer, bit 9, bits 15-22 counter, bit 23 "over the limit"
@@ -362,6 +368,43 @@ void NodeVec::reserve(int n)
 		finish = tmp + old_size;
 		start = tmp;
 		end_of_storage = tmp + n;
+	}
+}
+
+// --- filling the node grids with their positions --------------------------------
+
+// The object at *this holds the map's extent at +0x1c: width in bits 0-9, height in
+// bits 10-19, number of floors in bits 20-23.
+struct MapInfo {
+	char pad[0x1c];
+	unsigned extent;
+};
+
+struct MapRef {
+	MapInfo *map;
+
+	void InitNodes(vec<Array2D<Node> > *grids);
+};
+
+// FUNCTION: 0x00c09260
+// Give every node of every floor its own position (everything else zero).
+void MapRef::InitNodes(vec<Array2D<Node> > *grids)
+{
+	Node tmp;
+	memset(&tmp, 0, sizeof(tmp));
+	unsigned extent = map->extent;
+	int h = (extent >> 10) & 0x3ff;
+	int w = extent & 0x3ff;
+	int floors = (extent >> 20) & 0xf;
+	for (int f = 0; f < floors; f++) {
+		tmp.pfloor = f;
+		for (int y = 0; y < h; y++) {
+			tmp.py = y;
+			for (int x = 0; x < w; x++) {
+				tmp.px = x;
+				grids->start[tmp.pfloor].rows[tmp.py][tmp.px] = tmp;
+			}
+		}
 	}
 }
 
