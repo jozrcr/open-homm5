@@ -8,3 +8,6 @@
 progress/symbols.txt merge=union
 progress/attempts.txt merge=union
 progress/held.txt merge=union
+
+# Game-format templates: UTF-8 with BOM and CRLF, kept byte for byte.
+*.xdb -text
