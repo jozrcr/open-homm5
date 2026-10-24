@@ -13,7 +13,21 @@ Answer: (owner fills in)
 
 ---
 
-## Q5: Faster co-op AI moves behind a "same settings" guard: defaults, and go ahead? (2026-10-24, status: open)
+## Q6: Easy install and easy joining: order, GitHub builds, firewall (2026-10-24, status: open)
+
+Context: the plan is in [plans/install-and-join.md](plans/install-and-join.md):
+- a zip with one install script for Windows and one for Linux;
+- LAN games over ZeroTier through our DLL (the "who is hosting?" broadcast also goes to every network adapter);
+- later, built-in online play.
+
+Options:
+1. Order: LAN over VPNs first, then the package (done by a parallel agent), then co-op timing step 1. **Recommended.**
+2. GitHub builds the package for each version tag, and you publish each release. **Recommended: yes.**
+3. Firewall: the install script only explains how to make the ZeroTier network Private (recommended), or it offers to add a firewall rule (needs admin; Windows asks you).
+
+Answer:
+
+## Q5: Faster co-op AI moves behind a "same settings" guard: defaults, and go ahead? (2026-10-24, status: answered)
 
 Context: the plan is in [plans/coop-timing-guard.md](plans/coop-timing-guard.md). Our DLLs check at the start of each game that every player has them with the same settings. Only then do they all switch to shorter segments and, optionally, AI hero walks that finish at once. Expected: AI moves in co-op 2–3 times faster.
 
@@ -22,7 +36,12 @@ Options:
 2. Instant AI walks: off by default, since AI heroes then jump instead of walking. If possible, should it apply only to AI heroes no human can see? **Recommended: yes to both.**
 3. Go ahead with step 1 of the plan (research and a message-order test)? **Recommended: yes.**
 
-Answer:
+Answer (2026-10-24):
+1. Shorter segments: yes, on by default.
+2. Instant AI walks: **on** by default, but an AI hero that a human player can see walks normally.
+3. Go ahead.
+
+The owner also asked for an easy install and much easier multiplayer joining: see [plans/install-and-join.md](plans/install-and-join.md).
 
 ## Q4: "Option 2" (faster AI paths that may differ): go on with the re-expansion cap? (2026-10-24, status: open)
 

@@ -1,6 +1,6 @@
 # Plan: faster co-op AI moves with a "same settings" guard
 
-Status: proposal for the owner (2026-10-24). Nothing here is built yet.
+Status: approved by the owner on 2026-10-24 (Q5): shorter segments on by default; instant AI walks on by default, except for AI heroes a human can see. Step 1 in progress.
 
 ## In short
 
@@ -14,7 +14,7 @@ Status: proposal for the owner (2026-10-24). Nothing here is built yet.
 | | Today | With it | Notes |
 |---|---:|---:|---|
 | **Shorter segments** (200 → 100 ms) | 0.60 s per AI move | 0.49 s | Measured on 22 Oct, no desync. Human orders also get through a bit faster. No visible change. |
-| **AI hero walks finish at once**, as in single player | ~0.75 s per AI hero move | ~0.42 s (~0.25 s with 100 ms segments) | Estimate; to be measured (step 1). **Visible change:** an AI hero a human can see would jump instead of walking. |
+| **AI hero walks finish at once**, as in single player | ~0.75 s per AI hero move | ~0.42 s (~0.25 s with 100 ms segments) | Estimate; to be measured (step 1). Only for AI heroes **no human player can see**: a visible AI hero walks as usual (owner's choice). Visibility comes from the shared game world, so every PC decides the same. |
 
 Why AI moves wait at all (details in [multiplayer-sync.md](../subsystems/multiplayer-sync.md#what-an-ai-hero-move-waits-for-in-co-op-2026-10-24)):
 - the game only moves forward in "segments" of 200 ms that every PC has confirmed;
@@ -46,8 +46,8 @@ Settings (`open-homm5.ini`):
 
 ```ini
 [coop]
-fast_segments=1      ; 100 ms segments when every player agrees (default: your call, see the questions)
-instant_ai_walks=0   ; AI heroes finish walking at once, as in single player (off by default: it looks different)
+fast_segments=1      ; 100 ms segments when every player agrees (default 1)
+instant_ai_walks=1   ; AI heroes finish walking at once when no human player can see them (default 1)
 ```
 
 ## Steps
