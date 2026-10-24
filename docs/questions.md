@@ -13,6 +13,18 @@ Answer: (owner fills in)
 
 ---
 
+## Q9: A better random map generator: which route, and which maps first? (2026-10-25, status: open)
+
+Context: the owner wants team maps and much more control over random maps (neutral zones, loot, personalization). The plan is [plans/map-generator.md](plans/map-generator.md), with the findings in [subsystems/rmg.md](subsystems/rmg.md). The decompilation is paused after the 2026-10-25 night batch.
+
+Questions:
+1. **Route:** the template maker plus ready templates now, then teams on random maps through the DLL, then the generator's code? **(Recommended.)** Or go straight to decompiling the generator?
+2. **Which maps first?** For example: 3 allied humans vs 3 AI on XL, 2 vs 2, or more neutral zones in free-for-all.
+3. **Template maker:** is a separate page that writes the template file OK for a start (later inside the game)? **(Recommended.)**
+4. **Teams:** is one setting in `open-homm5.ini` that every player sets the same OK, for example `teams=humans_vs_ai`? Or do they have to be chosen in the lobby?
+
+Answer:
+
 ## Q8: May the verifier learn about jump tables and loop alignment? (2026-10-24, status: open)
 
 Context: in the pilot, 4 functions came out byte-identical to the exe, but the verifier still says "differs". It has two blind spots:
