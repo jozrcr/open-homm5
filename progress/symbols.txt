@@ -89,3 +89,4 @@
 007cc260  ?Check@SSub08@@QAE_NPAUSRef@@@Z   # thiscall(this = transceiver+0x08, obj): bool, true when the object is already known (guess)
 00878fd0  ??2CRegisterWorldCmd@@SAPAXI@Z   # the game's allocator (operator new), cdecl
 00e43dd0  ??_7CRegisterWorldCmd@@6B@   # vftable of NWorld::CRegisterWorldCmd
+00826870  ?Handle@SChatSink@@QAEXPAUSChatData@@@Z   # thiscall(this = transceiver+0xb8 sink, chat data = command+0x0c): receives a chat message

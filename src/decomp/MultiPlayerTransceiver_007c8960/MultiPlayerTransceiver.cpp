@@ -48,13 +48,22 @@ struct CList {
 	SListNode<T> *head;
 };
 
+// The game's wide string: {first, last, end_of_storage}, characters are 16 bits.
+struct SWStr {
+	unsigned short *first;
+	unsigned short *last;
+	unsigned short *cap;
+
+	void Assign(const unsigned short *a, const unsigned short *b);  // 0x0040e960
+};
+
 // One entry of the player table (28 bytes).
 struct SPlayer {
-	int type;  // 0x00
+	int type;     // 0x00
 	int f04;
 	int f08;
-	int id;    // 0x0c
-	char pad[0x0c];
+	int id;       // 0x0c
+	SWStr name;   // 0x10
 };
 
 // The record of one lockstep segment, the value of a node of the transceiver's list.
@@ -116,6 +125,24 @@ public:
 			r->count++;
 	}
 	static void *operator new(unsigned size);  // 0x00878fd0, the game's allocator
+};
+
+// The data of a chat command (a second base of the command, at +0x0c).
+struct SChatData {
+	int kind;     // 0x00 (command +0x0c): 1, 2 or 3, what the receiver must share with the sender
+	int target;   // 0x04 (+0x10)
+	int value;    // 0x08 (+0x14)
+	char pad[0x0c];
+	SWStr name;   // 0x18 (+0x24)
+};
+
+// NMP::CChatCommand: a command object followed by its chat data.
+class CChatCommand : public CCmdBase, public SChatData {
+};
+
+// Handler of chat messages, at transceiver+0xb8.
+struct SChatSink {
+	void Handle(SChatData *d);  // 0x00826870
 };
 
 // The sub-object at transceiver+0x08.
@@ -180,6 +207,7 @@ public:
 	int FindPlayer(int id);
 	bool AllReported(SSegment *seg);
 	void DropPlayer(int index);
+	void OnChat(CChatCommand *msg);
 
 	int f04;
 	SSub08 m_sub08;      // 0x08
@@ -194,7 +222,9 @@ public:
 	vec<SPlayer> m_players; // 0x48
 	int m_me;            // 0x54
 	unsigned m_active;   // 0x58
-	char pad5c[0xd4 - 0x5c];
+	char pad5c[0xb8 - 0x5c];
+	SChatSink *m_chatSink;  // 0xb8
+	char padBC[0xd4 - 0xbc];
 	unsigned m_dMask;    // 0xd4
 	int m_baseTime;      // 0xd8
 };
@@ -257,12 +287,6 @@ bool CMultiPlayerTransceiver::Slot10()
 	return first == me;
 }
 
-// FUNCTION: 0x007c8bc0
-void CMultiPlayerTransceiver::Slot02(int a, int b)
-{
-	Func_00b0f580(a, m_world, b);
-}
-
 // FUNCTION: 0x007c8c10
 int CMultiPlayerTransceiver::FindPlayer(int id)
 {
@@ -304,41 +328,6 @@ void CMultiPlayerTransceiver::DropPlayer(int index)
 	}
 	m_reported.start[index] = -1;
 	g_log.Level(SLevel(1)).Str("Drop player ").Int(index).Manip(EndlManip);
-}
-
-// FUNCTION: 0x007c8dd0
-// Pacing: compares this PC's segment with the slowest player's and sets the speed factor.
-void CMultiPlayerTransceiver::Slot05(float dt, int arg)
-{
-	int me = m_me;
-	int slowest = (me >= 0) ? m_reported.start[me] : m_reported.start[0];
-	if (slowest < 0)
-		return;
-	for (int i = 0; i < m_reported.size(); i++) {
-		int v = m_reported.start[i];
-		if (v >= 0 && v < slowest)
-			slowest = v;
-	}
-	float speed;
-	if (me < 0) {
-		int behind = (m_timer->time - (slowest * 200 + 30000) - m_baseTime) / 200;
-		speed = FMax(1.0f - behind * 0.05f, 0.0f);
-	} else {
-		int ahead = m_reported.start[me] - slowest;
-		int n;
-		if (ahead < 20) {
-			n = 0;
-			if (ahead >= 0)
-				n = ahead;
-		} else {
-			ahead = 20;
-			n = ahead;
-		}
-		speed = FMin(FMax(1.0f - n * 0.05f, 0.0f), 1.0f);
-	}
-	g_speed = speed;
-	m_speed.Set(g_speed * dt, arg);
-	g_fe4d10 = GetTime();
 }
 
 // FUNCTION: 0x007c8f00
