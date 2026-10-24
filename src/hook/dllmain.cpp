@@ -5,7 +5,9 @@
 // start-up. We forward every export to the real system dinput8.dll, and on the
 // first DirectInput8Create call (the game is running and its code is decrypted
 // by then, even for the Steam-wrapped exe) we check which exe we are in and
-// install our hooks only for a build we know.
+// install our hooks only for a build we know. The few hooks that must see the
+// game's first data reads (hooks::InstallEarly) go in when the DLL is loaded,
+// if the exe can already be recognized then (not the Steam-wrapped one).
 #include <windows.h>
 #include <unknwn.h>
 
@@ -106,6 +108,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID)
 		hooklog::Open(inst);
 		hooklog::Write("open-homm5 hook DLL loaded (built " __DATE__ " " __TIME__ ")");
 		robot::Init();  // before the game reads its profile
+		hooks::InstallEarly();  // before the game reads its data
 	}
 	else if (reason == DLL_PROCESS_DETACH) {
 		hooklog::Write("process exiting");

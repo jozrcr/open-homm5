@@ -2,26 +2,47 @@
 
 #include <windows.h>
 
+#include "game_build.h"
 #include "log.h"
 #include "../mods/coop_guard.h"
 #include "../mods/fast_paths.h"
 #include "../mods/lan_discovery.h"
 #include "../mods/net_tuning.h"
+#include "../mods/original_music.h"
 
 namespace hooks {
 
 void InstallAiTrace();
 
-void InstallAll()
+namespace {
+
+// Escape hatch for testing: an empty file "open-homm5.nohooks" next to the
+// exe keeps the DLL in forwarding-only mode.
+bool NoHooks()
 {
-	// Escape hatch for testing: an empty file "open-homm5.nohooks" next to the
-	// exe keeps the DLL in forwarding-only mode.
 	wchar_t path[MAX_PATH];
 	DWORD n = GetModuleFileNameW(nullptr, path, MAX_PATH);
 	while (n > 0 && path[n - 1] != L'\\')
 		--n;
 	lstrcpynW(path + n, L"open-homm5.nohooks", MAX_PATH - n);
-	if (GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES) {
+	return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
+}
+
+}  // namespace
+
+void InstallEarly()
+{
+	// Only data-table hooks that must be in place before the game reads its
+	// data, and only in a build we know (an unwrapped exe: the Steam-wrapped
+	// one is still encrypted now, and gets them with InstallAll()).
+	if (NoHooks() || !IsHookable(DetectGameBuild()))
+		return;
+	mods::InstallOriginalMusicEarly();
+}
+
+void InstallAll()
+{
+	if (NoHooks()) {
 		hooklog::Write("open-homm5.nohooks found: hooks disabled");
 		return;
 	}
@@ -30,6 +51,7 @@ void InstallAll()
 	mods::ApplyFastPathsFromSettings();
 	mods::ApplyLanDiscoveryFromSettings();
 	mods::ApplyCoopGuardFromSettings();
+	mods::ApplyOriginalMusicFromSettings();
 }
 
 }  // namespace hooks
