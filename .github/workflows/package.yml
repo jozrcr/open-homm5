@@ -1,0 +1,64 @@
+# Builds the hook DLL and the install package (tools/package/) on GitHub's
+# Windows machines, which are free for public repositories.
+#   - every push to main and every pull request: build, run the DLL tests and
+#     the install-script tests, keep the zip as a download on the run's page;
+#   - a version tag such as v0.1.0: the same, plus a DRAFT release with the zip.
+#     The owner edits its notes and publishes it (nothing is published here).
+name: package
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write  # only for the draft release on version tags
+
+jobs:
+  package:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find Visual Studio
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw "no Visual Studio with the C++ tools on this machine" }
+          "HOOK_VCVARS=$vs\VC\Auxiliary\Build\vcvarsall.bat" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build the DLL and run its tests
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File src\hook\build.ps1 -Test
+
+      - name: Version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=0.0.0-dev.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build the package
+        shell: pwsh
+        run: python tools/package/make_package.py --version $env:VERSION
+
+      - name: Test the install scripts (fake game folders only)
+        shell: pwsh
+        run: python tools/package/test_scripts.py --bash "C:\Program Files\Git\bin\bash.exe" --work-dir "$env:RUNNER_TEMP\pkgtest"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: open-homm5-${{ env.VERSION }}
+          path: build/package/open-homm5-${{ env.VERSION }}.zip
+
+      - name: Draft release (version tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME "build/package/open-homm5-$env:VERSION.zip" --draft --title "open-homm5 $env:VERSION" --notes "Draft made by the package workflow. Edit these notes, then publish."

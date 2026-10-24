@@ -55,3 +55,17 @@ python tools\package\test_scripts.py --bash "C:\Program Files\Git\bin\bash.exe"
 ```
 
 It builds the zip, unzips it, makes **fake** Steam and game folders in a temp folder (empty files named like the game's exes), and runs the scripts against them: fresh install, re-install over our DLL, a foreign `dinput8.dll` (refused), an existing ini (kept), uninstall, several or no games found, and more. It never touches a real game folder. On Linux, leave out `--bash`; on Windows without Git Bash the Linux part is skipped.
+
+## Built by GitHub
+
+`.github/workflows/package.yml` runs on GitHub's Windows machines, which are free for public repositories.
+
+**On every push to `main` and every pull request**, it:
+1. builds the DLL and runs its tests;
+2. builds the zip (version `0.0.0-dev.<run number>`);
+3. runs `test_scripts.py`.
+
+The zip is then a download on the run's page (Actions tab).
+
+**On a version tag** (`git tag v0.1.0`, then `git push origin v0.1.0`), it does the same with that version and creates a **draft** release with the zip attached. The owner edits the notes and publishes it; the workflow never publishes anything itself.
+
