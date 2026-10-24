@@ -13,6 +13,19 @@ Answer: (owner fills in)
 
 ---
 
+## Q7: The continuous decompilation: where, budget, merging, order (2026-10-24, status: open)
+
+Context: the plan is in [plans/decomp-pipeline.md](plans/decomp-pipeline.md). AI agents decompile the game function by function, each one checked byte-for-byte, in batch PRs, on a schedule.
+
+Options (details in the plan):
+1. Where: this PC, on a schedule (recommended: nights and when you are not playing), or your Linux PC.
+2. Budget: how much of your Max plan it may use (e.g. overnight only).
+3. Merging: you merge one batch PR once or twice a day (recommended at first), or decomp-only PRs that pass GitHub's check merge by themselves (a branch-rule change on your side).
+4. Q2: the 2003 compiler on GitHub from archive.org (recommended).
+5. Order: the code our mods touch first (recommended), or plain address order.
+
+Answer:
+
 ## Q6: Easy install and easy joining: order, GitHub builds, firewall (2026-10-24, status: answered)
 
 Context: the plan is in [plans/install-and-join.md](plans/install-and-join.md):
