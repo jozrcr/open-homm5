@@ -3,3 +3,8 @@
 # every call/jump/data reference in a matched function points to the right place.
 # Format: address  mangled-name   # comment
 00401330  ?Func00401330@CGameTimer@NGameTimer@@QAEXHH@Z   # called by CGameTimer slot 21
+# --- HeroPathfinderMisc (worker W3) ---
+00879240  ?Free_00879240@@YAXPAX@Z   # free / operator delete (a jmp thunk), cdecl
+0046eae0  ?Func_0046eae0@@YGMM@Z   # float -> float, stdcall (probably a sine)
+00a68e00  ?PushBack@SEntryVec@@QAEXPBUSEntry@@@Z   # vector<{int,int}>::push_back
+00b1c6e0  ?Insert@SIntVec@@QAEXPAHPBHHH@Z   # vector<int>::insert(pos, &val, 1, 1)
