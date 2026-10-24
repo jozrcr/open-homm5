@@ -111,6 +111,21 @@ CostArg ToArg(const Cost &c)
 
 bool g_port_expand = false;
 
+// The game's own relax (0x00c09d90) still runs for the extra neighbours that
+// 0x009d22f0 adds from the search loop (via 0x009d1ce0 / 0x009d2070, e.g. for
+// teleports). Its push (0x00c099d0, called at 0x00c0a1e7) must go to the
+// ported search's own list while one runs.
+const DWORD kQueuePush = 0x00c099d0;
+const DWORD kQueuePushInRelax = 0x00c0a1e7;
+typedef void(__fastcall *QueuePushFn)(void *queue, void *edx, const Node *node);
+QueuePushFn g_queue_push = nullptr;
+
+void __fastcall QueuePushHook(void *queue, void *edx, const Node *node)
+{
+	if (!fastpaths::PushToActiveSearch(static_cast<BYTE *>(queue) - 0x10, *node))
+		g_queue_push(queue, edx, node);
+}
+
 // The search loop's call of the expansion, when port_expand=1.
 void __fastcall ExpandSiteHook(BYTE *pf, void * /*edx*/, Node *node, int count, const int *dirs, int remaining,
                                DWORD flag, DWORD *out)
@@ -677,6 +692,13 @@ void ApplyFastPathsFromSettings()
 	}
 	if (Setting(path, L"port_search", 0)) {
 		g_port_search = g_search && Setting(path, L"fast_queue", 1) && QueueMatchesGame();
+		if (g_port_search) {
+			g_queue_push = reinterpret_cast<QueuePushFn>(hookpatch::RedirectCall(kQueuePushInRelax, kQueuePush, &QueuePushHook));
+			if (!g_queue_push) {
+				hooklog::Write("fast paths: the game relax's push is not as expected: no ported search loop");
+				g_port_search = false;
+			}
+		}
 		hooklog::Write("fast paths: ported search loop %s", g_port_search ? "on" : "off (needs remembered checks and the open list)");
 	}
 	if (Setting(path, L"port_relax", 0)) {

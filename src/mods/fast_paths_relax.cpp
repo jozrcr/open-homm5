@@ -206,7 +206,8 @@ void PortedRelax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Co
 	n.d[2] = static_cast<DWORD>(spent);
 	n.d[1] = (n.d[1] & ~1u) | (flag & 1);
 	*grid = n;
-	reinterpret_cast<QueuePushFn>(kQueuePush)(pf + 0x10, nullptr, &n);
+	if (!PushToActiveSearch(pf, n))  // the ported search keeps its own copy of the list
+		reinterpret_cast<QueuePushFn>(kQueuePush)(pf + 0x10, nullptr, &n);
 }
 
 }  // namespace fastpaths

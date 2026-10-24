@@ -121,6 +121,9 @@ bool StandsHere(void *pool, DWORD *out, const Node *node);
 void RunExpand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, char flag, DWORD *out);
 // The ported search loop (fast_paths_search.cpp), 0x00c08890.
 void PortedSearch(BYTE *pf, int limit);
+// While a ported search of pf runs, its open list lives in the search: relax
+// pushes there (true), otherwise into the game's vector (false).
+bool PushToActiveSearch(BYTE *pf, const Node &n);
 
 // Robot-only timing of game helpers called by the ported functions (the path
 // trace turns it on): Measure(slot, fn) runs fn and, when measuring, adds its
