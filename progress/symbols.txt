@@ -68,3 +68,7 @@
 00415520  ?Assign@SHolder@@QAEXPBX@Z   # same function as SHandle::Assign, on a smart pointer (refcounted pointer + flag)
 00acb3a0  ?Func_00acb3a0@@YAHXZ   # number of records
 00ada2e0  ?Func_00ada2e0@@YIPADH@Z   # fastcall(idx) -> record pointer
+# --- HeroesFilter_00c07070 (worker W1, 2026-10-25) ---
+00c09260  ?InitNodes@CHeroPathfinder@@QAEXPAU?$vec@U?$Array2D@UNode@@@@@@@Z   # same function as MapRef::InitNodes, called on the pathfinder itself
+00bc7660  ??$CopyRange@U?$Array2D@E@@@@YIPAU?$Array2D@E@@PAU0@00@Z   # CopyRange for Array2D<unsigned char> ranges (vector erase)
+004b24d0  ?Alloc@?$Array2D@E@@QAEXXZ   # Array2D<unsigned char>::Alloc (data + row pointers)
