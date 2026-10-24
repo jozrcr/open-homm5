@@ -7,6 +7,12 @@
 008c6150  ?FreeWeak@CRefBase@@QAEXXZ   # HeroPathfinderSetup (W1): weak count hit zero, thiscall on the virtual base
 00c076d0  ??0CPathSettings@@QAE@HH@Z   # HeroPathfinderSetup (W1): search settings ctor(mode, arg); in the cpp, byte-identical, but verify.py cannot judge jump tables (see attempts.txt)
 00c07920  ?Prepare@CHeroPathfinder@@QAEXXZ   # HeroPathfinderSetup (W1): prepare a search; in the cpp, byte-identical, but verify.py's size check fails (see attempts.txt)
+00423bd0  ?Differs@SPos@@QBE_NPBU1@@Z   # HeroPathfinderSetup (W1): thiscall(this = position a, b): a != b (guess)
+005d4c70  ?Insert@SNodeVec@@QAEXPAUSNode@@PBU2@HH@Z   # HeroPathfinderSetup (W1): vector<SNode>::_Insert_n-like, ecx = vector, 4 stack args (where, &value, 1, 1), ret 0x10
+005d4da0  ?PushRef@SNodeVec@@QAEXPAUSNode@@@Z   # HeroPathfinderSetup (W1): out-of-line push_back(node ptr), ecx = vector, ret 4
+00ca3320  ?Clear@SNodeVec@@QAEXXZ   # HeroPathfinderSetup (W1): ecx = node vector, release/clear (guess)
+0059e980  ?NodeAt@CHeroPathfinder@@QAEPAUSNode@@PBUSPos@@@Z   # HeroPathfinderSetup (W1): thiscall(pos ptr) -> node pointer
+00c090c0  ?ReverseNodes@@YIXPAUSNode@@0@Z   # HeroPathfinderSetup (W1): __fastcall(first, last) over 64-byte nodes (reverse, guess)
 00879240  ?Free@@YAXPAX@Z   # HeroPathfinderSetup (W1): the game's operator delete (thunk to 0x008790b0), cdecl
 0086e1b0  ?InBounds@CHeroPathfinder@@QAE_NPBUSPos@@@Z   # HeroPathfinderSetup (W1): position inside the map grids (floor, x, y below the floor's size)
 00c091d0  ?NodeCheck@CHeroPathfinder@@QAE_NPAUSNode@@@Z   # HeroPathfinderSetup (W1): bool check on a boat-layer node (unknown purpose)

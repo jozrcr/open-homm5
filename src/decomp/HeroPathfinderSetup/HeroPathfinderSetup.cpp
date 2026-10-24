@@ -42,6 +42,8 @@ public:
 };
 
 void __cdecl Free(void *p);  // 0x00879240, the game's operator delete (a thunk)
+struct SNode;
+void __fastcall ReverseNodes(SNode *first, SNode *last);  // 0x00c090c0
 
 class CRefObjA;
 CRefBase * __fastcall ToBase(CRefObjA *p, CRefObjA *q);  // 0x00bc5400
@@ -64,6 +66,8 @@ struct SPos {
 	unsigned int y : 10;
 	unsigned int f : 4;  // floor
 	unsigned int top : 8;
+
+	bool Differs(const SPos *o) const;  // 0x00423bd0
 };
 
 // The settings block of a search (0x6c bytes), at pathfinder+0x20.
@@ -136,6 +140,9 @@ struct SVec {
 	T *first;
 	T *last;
 	T *end;
+
+	int size() const { return last - first; }
+	T &operator[](int i) { return first[i]; }
 };
 
 // One floor of the pathfinder's grids (16 bytes): rows[y][x] is a tile's node or mark.
@@ -153,17 +160,28 @@ struct SMarkFloor {
 	unsigned int h;
 };
 
-// The flags of a node. Only the grouping that the code shows is known.
+// The flags of a node (+4). Bits 10..14 are never set by the code seen so far.
 struct SNodeFlags {
-	unsigned int low : 15;
+	unsigned int b0 : 1;
+	unsigned int b1 : 1;
+	unsigned int b2 : 1;
+	unsigned int g3 : 6;       // bits 3..8, bit 6 = boat layer
+	unsigned int b9 : 1;
+	unsigned int g10 : 5;      // bits 10..14
 	unsigned int counter : 8;  // bits 15..22, used on the boat layer
-	unsigned int high : 9;
+	unsigned int b23 : 1;      // over the limit
+	unsigned int g24 : 2;      // bits 24..25
+	unsigned int b26 : 1;
+	unsigned int g27 : 5;
 };
 
 // A search node (64 bytes).
 struct SNode {
 	SPos pos;               // 0x00
-	SNodeFlags flags;       // 0x04
+	union {
+		SNodeFlags flags;       // 0x04
+		unsigned int flagsw;
+	};
 	unsigned int moved;     // 0x08 movement spent
 	int tie;                // 0x0c tie-breaker
 	unsigned int left;      // 0x10
@@ -172,6 +190,28 @@ struct SNode {
 	unsigned int m1c;
 	SCost cost1;            // 0x20
 	SCost cost2;            // 0x30
+};
+
+// A vector of search nodes: {first, last, end}, 64 bytes per node.
+struct SNodeVec {
+	SNode *first;
+	SNode *last;
+	SNode *end;
+
+	void push_back(const SNode &v)
+	{
+		if (last == end) {
+			Insert(last, &v, 1, 1);
+		} else {
+			if (last)
+				*last = v;
+			++last;
+		}
+	}
+	int size() const { return last - first; }
+	void Insert(SNode *where, const SNode *v, int count, int flag);  // 0x005d4c70, ret 0x10
+	void PushRef(SNode *v);                                          // 0x005d4da0 (the out-of-line push_back)
+	void Clear();                                                    // 0x00ca3320
 };
 
 // The world's tiles: floors[f].rows[y][x] (0x24 bytes per tile, kind at +0x10).
@@ -213,6 +253,9 @@ public:
 	bool NodeCheck(SNode *n);                     // 0x00c091d0
 	bool Visitable(const SPos *p);                // 0x00c072d0
 	void Prepare();                               // 0x00c07920
+	void InitStartNode(SNode *n);                 // 0x00c07110
+	int TracePath(SNodeVec *out, const SPos *target, unsigned int limit);  // 0x00c07360
+	SNode *NodeAt(const SPos *p);                 // 0x0059e980
 
 	SMapInfo *m_map;       // 0x00
 	CRefPtr m_04;
@@ -507,11 +550,14 @@ bool CHeroPathfinder::Visitable(const SPos *p)
 	pool = m_04.p;
 	if (pool) {
 		CRefObjA *o = pool->Slot0(p);
-		if (o && !(o->m_strong & 0x80000000))
-			return true;
+		if (o) {
+			CRefBase *b = o;
+			if (!(b->m_strong & 0x80000000))
+				return true;
+		}
 	}
-	int kind = m_map->floors[p->f].rows[p->y][p->x].kind;
-	if (kind == 2 || kind == 3)
+	SWorldTile *tile = &m_map->floors[p->f].rows[p->y][p->x];
+	if (tile->kind == 2 || tile->kind == 3)
 		return true;
 	return false;
 }
@@ -542,4 +588,79 @@ void CHeroPathfinder::Prepare()
 		if (m_open.Size() < n || m_open.Size() > n * 2)
 			m_open.Reset(n);
 	}
+}
+
+// FUNCTION: 0x00c07110
+void CHeroPathfinder::InitStartNode(SNode *n)
+{
+	n->pos.x = m_start.x;
+	n->pos.y = m_start.y;
+	n->pos.f = m_start.f;
+	n->moved = 0;
+	n->flags.b1 = (m_settings.m_24 == 1);
+	n->cost2.b = 0;
+	n->cost2.a = 0;
+	n->flags.g3 = 0;
+	n->tie = 0;
+	n->left = m_settings.m_30;
+	*(unsigned int *)&n->prev = 0xffffff;
+	n->flags.b0 = 0;
+	n->flags.b2 = 0;
+	n->flags.b9 = 1;
+	n->flags.g24 = 0;
+	n->cost1.b = 0;
+	n->cost1.a = 0;
+	n->flags.counter = 0;
+	n->flags.b26 = 0;
+}
+
+// FUNCTION: 0x00c07360
+int CHeroPathfinder::TracePath(SNodeVec *out, const SPos *target, unsigned int limit)
+{
+	if (out->first)
+		Free(out->first);
+	out->first = 0;
+	out->last = 0;
+	out->end = 0;
+	SPos cur = *target;
+	if (!InBounds(target) || m_c0.first[cur.f].rows[cur.y][cur.x] != m_d8) {
+		out->first = 0;
+		out->last = 0;
+		out->end = 0;
+		return 0;
+	}
+	int maxLen = m_map ? m_map->m_size.y * m_map->m_size.x : 0;
+	for (;;) {
+		if (cur.x == m_start.x && cur.y == m_start.y && cur.f == m_start.f) {
+			if (out->first == out->last || out->last[-1].pos.Differs(&m_start))
+				out->PushRef(NodeAt(&m_start));
+			ReverseNodes(out->first, out->last);
+			return out->size();
+		}
+		unsigned int f = cur.f;
+		if (f >= (unsigned int)m_a8.size())
+			break;
+		SNodeFloor &fl = m_a8[f];
+		unsigned int x = cur.x;
+		if (x >= fl.w)
+			break;
+		unsigned int y = cur.y;
+		if (y >= fl.h)
+			break;
+		SNode *n = &fl.rows[y][x];
+		if (x != n->pos.x || y != n->pos.y || f != n->pos.f)
+			break;
+		if (m_c0.first[n->pos.f].rows[n->pos.y][n->pos.x] != m_d8)
+			break;
+		if (n->moved <= limit || limit == 0) {
+			out->push_back(*n);
+			if (maxLen <= out->size())
+				break;
+		}
+		if (n->prev.x == x && n->prev.y == y && n->prev.f == f)
+			break;
+		cur = n->prev;
+	}
+	out->Clear();
+	return 0;
 }
