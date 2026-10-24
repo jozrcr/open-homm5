@@ -16,6 +16,7 @@
     "00c0a9b0": "?FillIds@@YIXPAUSIntVec@@@Z",
     "00c0abc0": "?ResetFrom@@YIXPAUSName@@H@Z",
     "00c0ac80": "?GetItem@CGrid@@QAEPAVCBonusList@@HH@Z",
+    "00c0ad30": "?SameContents@CGrid@@QAE_NPAV1@@Z",
     "00c0ae80": "?SetupOwner@@YIXPAUSOwner@@PAUSSource@@@Z"
   }
 }

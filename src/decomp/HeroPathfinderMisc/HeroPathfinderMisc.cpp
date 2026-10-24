@@ -389,19 +389,28 @@ int CGrid::ColCount(int row) const
 // FUNCTION: 0x00c0ad30
 bool CGrid::SameContents(CGrid *other)
 {
-	int on = other->m_end - other->m_begin;
-	int n = m_end - m_begin;
-	if (n != on)
+	if (m_end - m_begin != other->m_end - other->m_begin)
 		return false;
-	for (int i = 0; i < n; i++) {
-		if (other->ColCount(i) != ColCount(i))
+	int n = m_end - m_begin;
+	int i = 0;
+	while (i < n) {
+		int a = other->ColCount(i);
+		int b = ColCount(i);
+		if (a != b)
 			return false;
+		i++;
 	}
-	for (int r = 0; r < m_end - m_begin; r++) {
-		for (int c = 0; c < ColCount(r); c++) {
-			if (!other->GetItem(r, c)->Equals(GetItem(r, c)))
+	int r = 0;
+	while (r < m_end - m_begin) {
+		int c = 0;
+		while (c < ColCount(r)) {
+			CBonusList *a = other->GetItem(r, c);
+			CBonusList *b = GetItem(r, c);
+			if (!a->Equals(b))
 				return false;
+			c++;
 		}
+		r++;
 	}
 	return true;
 }
@@ -409,16 +418,34 @@ bool CGrid::SameContents(CGrid *other)
 // FUNCTION: 0x00c0af20
 void CGrid::SwapItems(int r1, int c1, int r2, int c2)
 {
-	if (r1 >= 0) {
-		int n = m_end - m_begin;
-		if (r1 < n && c1 >= 0 && c1 < ColCount(r1) && r2 >= 0 && r2 < n && c2 >= 0 && c2 < ColCount(r2)) {
-			if (c1 < m_begin[r1].end - m_begin[r1].begin && m_begin[r1].begin[c1].used == 0 && !m_begin[r2].IsUsed(c2)) {
-				CBonusList tmp(*m_begin[r1].At(c1));
-				m_begin[r1].Set(c1, m_begin[r2].At(c2));
-				m_begin[r2].Set(c2, &tmp);
-			}
-		}
-	}
+	SRow *rows = m_begin;
+	if (r1 < 0)
+		return;
+	int n = m_end - rows;
+	if (r1 >= n)
+		return;
+	if (c1 < 0)
+		return;
+	if (c1 >= ColCount(r1))
+		return;
+	if (r2 < 0)
+		return;
+	if (r2 >= n)
+		return;
+	if (c2 < 0)
+		return;
+	if (c2 >= ColCount(r2))
+		return;
+	if (c1 >= rows[r1].end - rows[r1].begin)
+		return;
+	if (rows[r1].begin[c1].used)
+		return;
+	if (rows[r2].IsUsed(c2))
+		return;
+	CBonusList tmp(*rows[r1].At(c1));
+	rows = m_begin;
+	rows[r1].Set(c1, rows[r2].At(c2));
+	rows[r2].Set(c2, &tmp);
 }
 
 // ---------------------------------------------------------------------------
