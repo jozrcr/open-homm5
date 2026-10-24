@@ -1,6 +1,11 @@
 # Trying the DLL in a real game
 
-This is for the owner and friends. It installs our hook DLL, which carries the **LAN link tuning** mod (faster co-op AI turns, see [src/mods/README.md](../src/mods/README.md)). Everything here is something **you** do; the DLL only adds files and never changes the game's own files.
+This is for the owner and friends. It installs our hook DLL, which carries two mods (see [src/mods/README.md](../src/mods/README.md)):
+
+- **LAN link tuning:** faster co-op AI turns (every player should run it).
+- **Fast AI pathfinding:** much less AI thinking late in a game on big maps, with exactly the same AI moves (it matters on the host, who runs the AI).
+
+Everything here is something **you** do; the DLL only adds files and never changes the game's own files.
 
 ## Easy install (package)
 
@@ -34,6 +39,7 @@ game build: ToE 3.1 + MMH5.5 patches (MMH55_Utility)
 net tuning: idle links send every 50 ms (game: 1000)
 net tuning: links may send every 10 ms (game: 50)
 net tuning: idle PCs batch up to 0 segment reports (game: net_batched_segments, 3)
+fast paths: ported search loop on
 ```
 
 During AI turns it adds one `ai-step` line per AI move, which is how we measure how long the AI waits.
@@ -48,16 +54,18 @@ Play a co-op game with AI players, as usual. Useful to report back:
 
 For a fair comparison, play once with the mod off (below) and once with it on.
 
-## Turn the mod off (keep the DLL)
+## Turn the mods off (keep the DLL)
 
 Create a text file `open-homm5.ini` in the same `bin` folder with:
 
 ```ini
 [net]
 tuning=0
+[ai]
+fast_paths=0
 ```
 
-All players should use the same setting. The game then uses its original network timings; the DLL still logs AI steps.
+`tuning=0`: the game's original network timings; all players should use the same setting. `fast_paths=0`: the game's own pathfinding. Leave out a line to keep that mod on. The DLL still logs AI steps.
 
 ## Uninstall
 

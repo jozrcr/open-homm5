@@ -80,8 +80,9 @@ def main():
                    help="mod setting: idle PCs batch up to N segment reports (mod default 0)")
     p.add_argument("--no-crc", dest="crc", action="store_false",
                    help="leave the game's world checksums off (mp_check_crc; on by default for the desync check)")
-    p.add_argument("--fast-paths", choices=["on", "off"], default="off",
-                   help="the fast pathfinding mod (src/mods/fast_paths.cpp) on both copies")
+    p.add_argument("--fast-paths", choices=["on", "off"], default="on",
+                   help="the fast pathfinding mod (src/mods/fast_paths.cpp) on both copies (default on, like for "
+                        "players; off = the game's own pathfinding)")
     p.add_argument("--ai-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="extra [ai] setting for both copies, e.g. port_relax=1 (repeatable)")
     p.add_argument("--quick-combat-state", type=int, default=0,
