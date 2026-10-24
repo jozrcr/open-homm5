@@ -149,7 +149,14 @@ Ruled out, robot experiments (both copies patched the same way; world checksums 
 
 So the walk speed only sets the animation, and those 200s are not the wait either.
 
-**So the remaining co-op wait needs every PC to agree.** It is the AI hero walks, simulated in game time (single player finishes them at once), plus the lockstep's 2-segment minimum (a town swap: ~420 ms).
+**AI walks are already instant when no human can see them, in co-op too** (`--trace-moves`, 2026-10-24):
+- `NWorld::CStartMoveHeroCmd` (vtable `0x00e0d778`) executes at slot 7, `0x00426d50`. It calls the hero's start-move (`NWorld::CAdvMapHero`, vtable `0x00e54274`, slot `0x64` = `0x008e5480`), which is the movement update `0x008dffd0`.
+- That update asks `0x008dae10` whether to schedule every step at once: 1 = instant. It answers 0 for heroes of a player whose slot `0x184` is true (probably "human"), or when the game settings byte `+0x1c` is set. Otherwise it answers 1, unless one of the path's tiles is visible (object at `mover+0xac`, slot `0x6c`).
+- In the robot LAN game every AI hero move was instant (1), as in single player.
+
+So the extra segment or two of co-op hero moves is not the walk itself. It is still to be found (probably the lockstep's one-segment delay before the move runs, plus the instant walk's +200 ms end time).
+
+**So the remaining co-op wait needs every PC to agree:** the lockstep's segment length (a town swap waits 2 segments, ~420 ms; a hero move 3–4).
 
 **Any co-op timing change needs a guard.** Shorter segments and faster AI walks both change game time, which runs in lockstep on every PC. So all PCs must use the same value, and a PC without our DLL must keep everyone on the original timing. Only the host runs the AI, but that does not help here.
 

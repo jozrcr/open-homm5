@@ -151,6 +151,8 @@ def prepare(game, args, out, instance="", net_port=None):
         ("walk_step_ms", getattr(args, "walk_step_ms", 0)),
         ("trace_ai_busy", int(bool(getattr(args, "trace_ai_busy", False)))),
         ("ai_busy_ignore_end", int(bool(getattr(args, "ai_busy_ignore_end", False)))),
+        ("trace_hello", int(bool(getattr(args, "trace_hello", False)))),
+        ("trace_moves", int(bool(getattr(args, "trace_moves", False)))),
         # screenshots: the DLL saves the game's own frames there as .bmp (src/hook/robot_screen.cpp)
         ("screenshot_dir", out),
         ("screenshot_every_seconds", args.shot_every),
@@ -364,6 +366,7 @@ def main():
                    help="the fast pathfinding mod (src/mods/fast_paths.cpp); compare with --trace-paths runs")
     p.add_argument("--ai-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="extra [ai] setting for the mods, e.g. port_relax=1 (repeatable)")
+    p.add_argument("--trace-moves", action="store_true", help="log what the start-move command calls (robot_trace.cpp)")
     p.add_argument("--trace-ai-busy", action="store_true",
                    help="log each change of the AI manager's 'player busy' check (robot_trace.cpp)")
     p.add_argument("--quick-combat", action="store_true",

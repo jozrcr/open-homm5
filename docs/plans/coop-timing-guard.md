@@ -14,7 +14,7 @@ Status: approved by the owner on 2026-10-24 (Q5): shorter segments on by default
 | | Today | With it | Notes |
 |---|---:|---:|---|
 | **Shorter segments** (200 → 100 ms) | 0.60 s per AI move | 0.49 s | Measured on 22 Oct, no desync. Human orders also get through a bit faster. No visible change. |
-| **AI hero walks finish at once**, as in single player | ~0.75 s per AI hero move | ~0.42 s (~0.25 s with 100 ms segments) | Estimate; to be measured (step 1). Only for AI heroes **no human player can see**: a visible AI hero walks as usual (owner's choice). Visibility comes from the shared game world, so every PC decides the same. |
+| ~~**AI hero walks finish at once**~~ | | | **Step 1 found the game already does this**, in co-op too: an AI hero walks instantly unless a human can see a tile of its path (`0x008dae10`, see multiplayer-sync.md). That is exactly the owner's rule, so there is nothing to build. The extra segment of co-op hero moves has another cause, still to be found. |
 
 Why AI moves wait at all (details in [multiplayer-sync.md](../subsystems/multiplayer-sync.md#what-an-ai-hero-move-waits-for-in-co-op-2026-10-24)):
 - the game only moves forward in "segments" of 200 ms that every PC has confirmed;
@@ -54,7 +54,7 @@ instant_ai_walks=1   ; AI heroes finish walking at once when no human player can
 
 Each step ends with something we can test.
 
-1. **Research** (about 1 session):
+1. **Research** (about 1 session). **Done 2026-10-24:** hellos arrive in order (48 of 48, robot LAN, `--trace-hello`); AI walks are already instant when unseen (`--trace-moves`). The items were:
    - find how single player finishes AI walks at once;
    - prototype "instant AI walks" as a robot experiment on both copies, and measure it (with world checksums);
    - prove the message-order assumption with a robot test: log when each hello arrives, compared with the sender's segment reports.

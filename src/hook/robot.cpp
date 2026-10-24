@@ -48,7 +48,9 @@ int g_trace_paths = 0;
 DWORD g_virtual_clock_ms = 0;  // virtual clock: ms per frame, 0 = real time (robot_clock.cpp)
 DWORD g_segment_ms = 0;
 bool g_trace_ai_busy = false;
-bool g_ai_busy_ignore_end = false;  // experiment, with the busy trace  // log the AI manager's busy check (robot_trace.cpp)
+bool g_ai_busy_ignore_end = false;  // experiment, with the busy trace
+bool g_trace_hello = false;
+bool g_trace_moves = false;  // robot_trace.cpp         // experiment: co-op guard hellos (robot_trace.cpp)  // log the AI manager's busy check (robot_trace.cpp)
 DWORD g_walk_step_ms = 0;  // experiment: hero walk steps of N ms (robot_trace.cpp)
 int g_ai_walk_scale = 0;  // experiment: AI heroes walk N times faster (robot_trace.cpp)
 DWORD g_mp_segment_ms = 0;  // 0 = leave the game's 200 ms (experiment, robot_trace.cpp)  // 0 = leave the game's 200 ms
@@ -400,6 +402,10 @@ BOOL WINAPI RobotPeekMessageA(LPMSG msg, HWND hwnd, UINT min, UINT max, UINT rem
 		SetWalkStepLength(g_walk_step_ms);
 	if (g_trace_ai_busy || g_ai_busy_ignore_end)
 		InstallAiBusyTrace(g_ai_busy_ignore_end);
+	if (g_trace_hello)
+		InstallHelloExperiment();
+	if (g_trace_moves)
+		InstallMoveTrace();
 	if (g_command_done)
 		MaybeEndHumanTurn(g_end_turn_ms, 3000, g_stuck_exit);
 	// Screenshots now and then.
@@ -729,6 +735,10 @@ bool ReadConfig(const wchar_t *path)
 			g_trace_ai_busy = atol(value) != 0;
 		else if (strcmp(line, "ai_busy_ignore_end") == 0)
 			g_ai_busy_ignore_end = atol(value) != 0;
+		else if (strcmp(line, "trace_hello") == 0)
+			g_trace_hello = atol(value) != 0;
+		else if (strcmp(line, "trace_moves") == 0)
+			g_trace_moves = atol(value) != 0;
 		else if (strcmp(line, "trace_segments") == 0)
 			g_trace_segments = atol(value) != 0;
 		else if (strcmp(line, "trace_mp") == 0)

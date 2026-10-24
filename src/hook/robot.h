@@ -146,5 +146,10 @@ void SetWalkStepLength(DWORD ms);
 // Trace: each change of the AI manager's "player busy" check (trace_ai_busy=1);
 // experiment ai_busy_ignore_end=1: movement end times no longer count.
 void InstallAiBusyTrace(bool ignore_end);
+// Experiment: the co-op guard's hello messages and their order (trace_hello=1;
+// needs trace_crc=1 for the receiving side, and trace_mp off).
+void InstallHelloExperiment();
+// Trace: what the start-move command calls (trace_moves=1).
+void InstallMoveTrace();
 
 }  // namespace robot
