@@ -13,7 +13,7 @@ Answer: (owner fills in)
 
 ---
 
-## Q7: The continuous decompilation: where, budget, merging, order (2026-10-24, status: open)
+## Q7: The continuous decompilation: where, budget, merging, order (2026-10-24, status: answered)
 
 Context: the plan is in [plans/decomp-pipeline.md](plans/decomp-pipeline.md). AI agents decompile the game function by function, each one checked byte-for-byte, in batch PRs, on a schedule.
 
@@ -24,7 +24,12 @@ Options (details in the plan):
 4. Q2: the 2003 compiler on GitHub from archive.org (recommended).
 5. Order: the code our mods touch first (recommended), or plain address order.
 
-Answer:
+Answer (2026-10-24):
+1. This PC, overnight and while the owner is at work.
+2. Up to about 90% of the subscription; the worker reads the plan usage and stops before that.
+3. Batch PRs merged by the owner at first; Claude will guide the owner through the branch-rule change for auto-merge later.
+4. Yes, the compiler from archive.org (see Q2).
+5. The code our mods touch first.
 
 ## Q6: Easy install and easy joining: order, GitHub builds, firewall (2026-10-24, status: answered)
 
@@ -81,7 +86,7 @@ Options:
 
 Answer (2026-10-24): yes, on by default (option 1).
 
-## Q2: How should CI get the 2003 compiler? (2026-10-20, status: open, not urgent)
+## Q2: How should CI get the 2003 compiler? (2026-10-20, status: answered)
 
 Context: CLAUDE.md wants CI to re-verify every matched function on each push, which needs `cl.exe` 13.10.3077. Microsoft's license does not let us commit the compiler to a public repo.
 
@@ -90,7 +95,7 @@ Options:
 2. A self-hosted runner on the owner's PC, which already has the compiler. No download, but the PC must be on.
 3. Run the verifier only locally, without CI. Simplest, but regressions could slip in.
 
-Answer:
+Answer (2026-10-24, with Q7): option 1, download from archive.org with the SHA-256 check.
 
 ## Q1: Hooking library for the hook DLL (2026-10-20, status: open, needed for session 2)
 

@@ -1,6 +1,6 @@
 # Plan: a decompilation that runs by itself
 
-Status: proposal for the owner (2026-10-24). To start after the music toggle and the 0.1.0 release.
+Status: approved by the owner on 2026-10-24 (Q7): this PC, overnight and during the owner's work hours, up to ~90% of the subscription; batch PRs; the compiler from archive.org for CI; the code our mods touch first.
 
 ## In short
 
