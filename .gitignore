@@ -47,3 +47,6 @@ desktop.ini
 
 # --- Claude Code worktrees for parallel agents ---
 .claude/worktrees/
+
+# decompilation pause switch (tools/decomp/pause.bat)
+/PAUSE
