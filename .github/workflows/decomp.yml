@@ -59,3 +59,7 @@ jobs:
 
       - name: Every recorded function still matches
         run: python tools/verify/verify.py --fingerprints
+
+      # CLAUDE.md: no inline assembly, naked functions, embedded bytes or #pragma tricks
+      - name: The decompiled source follows the rules
+        run: python tools/decomp/check_rules.py
