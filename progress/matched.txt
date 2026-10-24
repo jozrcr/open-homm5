@@ -19,7 +19,9 @@
 00c07230  HeroPathfinderSetup  ?MovesAtChecked@CHeroPathfinder@@QAEIPBUSPos@@@Z
 00c07260  HeroPathfinderSetup  ?BoatCounterAt@CHeroPathfinder@@QAEIPBUSPos@@@Z
 00c072d0  HeroPathfinderSetup  ?Visitable@CHeroPathfinder@@QAE_NPBUSPos@@@Z
+00c076d0  HeroPathfinderSetup  ??0CPathSettings@@QAE@HH@Z
 00c07860  HeroPathfinderSetup  ??0CHeroPathfinder@@QAE@XZ
+00c07920  HeroPathfinderSetup  ?Prepare@CHeroPathfinder@@QAEXXZ
 00c07a30  HeroPathfinderSetup  ?SetRefA@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z
 00c07a80  HeroPathfinderSetup  ?SetRefB@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z
 00c07ad0  HeroPathfinderSetup  ?SetRefC@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z
@@ -27,6 +29,7 @@
 00c07b60  HeroPathfinderSetup  ?SetWeakA4@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z
 00c08f30  HeroPathfinderQueue  ?Alloc@?$Array2D@UNode@@@@QAEXXZ
 00c08fd0  HeroPathfinderQueue  ?NodeLess@@YI_NABUNode@@0@Z
+00c090c0  HeroPathfinderQueue  ?ReverseNodes@@YIXPAUNode@@0@Z
 00c09110  HeroPathfinderQueue  ?Copy@?$Array2D@UNode@@@@QAEXABU1@@Z
 00c09180  HeroPathfinderQueue  ?allocate_and_copy@NodeVec@@QAEPAUNode@@HPAU2@0@Z
 00c091d0  HeroPathfinderQueue  ?IsMarked1@HeroPathfinder@@QAE_NPBI@Z
@@ -59,6 +62,7 @@
 00c0a560  HeroPathfinderMisc  ?GetBonus@CBonusList@@QAEXPAUSBonus@@H@Z
 00c0a630  HeroPathfinderMisc  ?DescribeAt@CBonusList@@QAEXPAUSText@@H@Z
 00c0a700  HeroPathfinderMisc  ?CanAdd@CBonusList@@QAE_NHPAVIHeroLike@@@Z
+00c0a770  HeroPathfinderMisc  ?Recalc@CBonusList@@QAE_NH@Z
 00c0a870  HeroPathfinderMisc  ??0CBonusList@@QAE@XZ
 00c0a8a0  HeroPathfinderMisc  ?Clear@CBonusList@@QAEXXZ
 00c0a8f0  HeroPathfinderMisc  ?Add@CBonusList@@QAEXHPAVIHeroLike@@@Z

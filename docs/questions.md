@@ -34,12 +34,13 @@ Answer (2026-10-25):
 4. **In the lobby**, like on normal maps. So the first task of step B is to find out how the lobby handles teams on random maps.
 
 ## Q8: May the verifier learn about jump tables and loop alignment? (2026-10-24, status: open)
+## Q8: May the verifier learn about jump tables and loop alignment? (2026-10-24, status: answered)
 
 Context: in the pilot, 4 functions came out byte-identical to the exe, but the verifier still says "differs". It has two blind spots:
 - **Size:** it takes each function's size from Ghidra, and Ghidra doesn't count the filler bytes a loop jumps over (3 or 6 bytes), so it says "obj 73 bytes, exe 70" for a perfect copy.
 - **Jump tables:** the compiler puts a `switch`'s jump table at the end of the function, and the verifier doesn't understand table entries that point back into the same function (it even crashed on one).
 
-The verifier is protected (CLAUDE.md: never edit `tools/verify/` to make a function pass; CI checks its hash), and the safety check rightly stopped me from changing it together with its hash. So it's your call. The proposed change is in [decomp/proposals/verifier-ends-and-jump-tables.diff](decomp/proposals/verifier-ends-and-jump-tables.diff). It keeps comparing every byte, and changes two rules:
+The verifier is protected (CLAUDE.md: never edit `tools/verify/` to make a function pass; CI checks its hash), and the safety check rightly stopped me from changing it together with its hash. So it's your call. The proposed change (applied after the answer below, in `tools/verify/verify.py`) keeps comparing every byte, and changes two rules:
 - **Size:** a function must be at least Ghidra's count **and** end exactly where the exe's function ends (only the linker's `0xCC` filler or the next function after it).
 - **Jump-table entries** must point to the same place inside the function in the exe.
 
@@ -58,7 +59,7 @@ Options:
 2. Fix only the sizes, in the inventory (`tools/inventory/`, not protected), and leave the jump tables for later. Then the 3 loop-alignment functions (and the 2,359 like them) can match without touching the verifier; the 383 functions with a jump table stay held.
 3. Leave it as is: such functions stay held.
 
-Answer:
+Answer (2026-10-24): yes, apply it (option 1). The owner trusts Claude's technical review and tests what they can.
 
 ## Q7: The continuous decompilation: where, budget, merging, order (2026-10-24, status: answered)
 

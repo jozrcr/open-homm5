@@ -2,7 +2,15 @@
   "sources": [
     "HeroPathfinderMisc.cpp"
   ],
-  "flags": ["/nologo", "/c", "/O2", "/G7", "/Ow", "/GR", "/W3"],
+  "flags": [
+    "/nologo",
+    "/c",
+    "/O2",
+    "/G7",
+    "/Ow",
+    "/GR",
+    "/W3"
+  ],
   "subsystem": "",
   "functions": {
     "00c0a200": "??0SBonus@@QAE@XZ",
@@ -14,6 +22,7 @@
     "00c0a560": "?GetBonus@CBonusList@@QAEXPAUSBonus@@H@Z",
     "00c0a630": "?DescribeAt@CBonusList@@QAEXPAUSText@@H@Z",
     "00c0a700": "?CanAdd@CBonusList@@QAE_NHPAVIHeroLike@@@Z",
+    "00c0a770": "?Recalc@CBonusList@@QAE_NH@Z",
     "00c0a870": "??0CBonusList@@QAE@XZ",
     "00c0a8a0": "?Clear@CBonusList@@QAEXXZ",
     "00c0a8f0": "?Add@CBonusList@@QAEXHPAVIHeroLike@@@Z",

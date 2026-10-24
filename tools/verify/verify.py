@@ -19,10 +19,16 @@ original translation unit and a unit.json:
 A function MATCHES when:
   1. its bytes in the .obj equal the exe bytes at its address, ignoring the
      4-byte fields that the linker fills in (relocations);
-  2. its size equals the size of the function in the exe (progress/inventory.csv);
+  2. it ends where the exe function ends: it is at least as long as Ghidra's
+     count of the function's bytes (progress/inventory.csv), and in the exe it
+     is followed only by the linker's 0xCC padding up to the next 16-byte
+     boundary or the next function. (Ghidra's count leaves out the alignment
+     bytes a loop jumps over and a switch's jump table, which the compiler
+     puts in the function; so it is a lower bound, not the size.)
   3. every relocation points to the same thing in the exe: a function or global
      with a known address (unit.json files, progress/symbols.txt, DLL imports),
-     or data whose bytes match (string literals, constant tables).
+     a place inside the function itself (jump tables), or data whose bytes
+     match (string literals, constant tables).
 
 Fingerprints (for CI, which may not have the game's exe): --record also writes
 progress/fingerprints.json. For every matched function it holds the exe's size, a
@@ -34,6 +40,7 @@ the same three conditions, with hashes and addresses in place of exe bytes.
 
 Rules (CLAUDE.md): never edit this file to make a function pass.
 """
+import bisect
 import csv
 import hashlib
 import json
@@ -82,11 +89,12 @@ class Exe:
 
 
 def load_sizes():
+    """Exe address -> Ghidra's byte count, and the sorted function addresses."""
     sizes = {}
     with open(REPO / "progress" / "inventory.csv", encoding="utf-8") as f:
         for r in csv.DictReader(f):
             sizes[int(r["address"], 16)] = int(r["size"])
-    return sizes
+    return sizes, sorted(sizes)
 
 
 def load_units(names):
@@ -153,11 +161,39 @@ def resolve(obj, sym, symbols, exe):
     return ("content", obj.section(sym.section), sym.value)
 
 
+def inside(sym, body, rsym, addend, addr):
+    """Exe address of rsym if the relocation points into this function itself
+    (a switch's jump table pointing at its cases), else None."""
+    if rsym.section != sym.section or not (sym.value <= rsym.value + addend < sym.value + len(body)):
+        return None
+    return addr + rsym.value - sym.value
+
+
+def check_end(body, addr, exe, sizes):
+    """Condition 2: the function is as long as the exe's (None if it is)."""
+    counts, starts = sizes
+    count = counts.get(addr)
+    if count is not None and len(body) < count:
+        return "size: obj %d bytes, Ghidra counts %d in the exe" % (len(body), count)
+    end = addr + len(body)
+    stop = (end + 15) & ~15
+    i = bisect.bisect_right(starts, addr)
+    if i < len(starts):
+        stop = min(stop, starts[i])
+    if end > stop:  # runs into the next function
+        return "size: obj %d bytes, the next function starts at %08x" % (len(body), stop)
+    after = exe.read(end, stop - end)
+    if after.strip(b"\xcc"):
+        return "size: obj %d bytes, but the exe function goes on (%s at %08x)" % (
+            len(body), after[:8].hex(" "), end)
+    return None
+
+
 def check_function(obj, sym, body, relocs, addr, exe, sizes, symbols):
     problems = []
-    exe_size = sizes.get(addr)
-    if exe_size is not None and exe_size != len(body):
-        problems.append("size: obj %d bytes, exe %d bytes" % (len(body), exe_size))
+    end = check_end(body, addr, exe, sizes)
+    if end:
+        problems.append(end)
     target = exe.read(addr, len(body))
     masked = set()
     for r in relocs:
@@ -181,7 +217,9 @@ def check_function(obj, sym, body, relocs, addr, exe, sizes, symbols):
         else:
             problems.append("relocation type %#x at +0x%x not supported" % (r.type, r.offset))
             continue
-        want = resolve(obj, rsym, symbols, exe)
+        want = inside(sym, body, rsym, addend, addr)
+        if want is None:
+            want = resolve(obj, rsym, symbols, exe)
         if want is None:
             problems.append("unknown address for %s (reloc at +0x%x, exe points to %08x): "
                             "add it to progress/symbols.txt" % (rsym.name, r.offset, actual))
@@ -191,7 +229,12 @@ def check_function(obj, sym, body, relocs, addr, exe, sizes, symbols):
             expect = sec.data[start:]
             if not sec.data.strip(b"\0") and not expect:
                 continue
-            got = exe.read(actual, len(expect)) if expect else b""
+            try:
+                got = exe.read(actual, len(expect)) if expect else b""
+            except pefile.PEFormatError:
+                problems.append("reloc at +0x%x to %s: the exe points to %08x, outside the exe" % (
+                    r.offset, rsym.name, actual))
+                continue
             if expect and got != expect:
                 problems.append("data at %08x for %s does not match the obj's %s section" % (
                     actual, rsym.name, sec.name))
@@ -228,14 +271,16 @@ def exe_target(r, addr, exe):
     return None
 
 
-def fingerprint(obj, body, relocs, addr, exe, symbols, used_imports):
+def fingerprint(obj, sym, body, relocs, addr, exe, symbols, used_imports):
     """The fingerprint of a function that matched, taken from the exe."""
     fp = {"size": len(body), "hash": masked_hash(exe.read(addr, len(body)), relocs), "relocs": []}
     for r in relocs:
         rsym = obj.symbols[r.symbol]
         addend = struct.unpack_from("<i", body, r.offset)[0]
         actual = exe_target(r, addr, exe)
-        want = resolve(obj, rsym, symbols, exe)
+        want = inside(sym, body, rsym, addend, addr)
+        if want is None:
+            want = resolve(obj, rsym, symbols, exe)
         if isinstance(want, tuple):
             _, sec, base_off = want
             expect = sec.data[base_off + addend:]
@@ -250,7 +295,7 @@ def fingerprint(obj, body, relocs, addr, exe, symbols, used_imports):
     return fp
 
 
-def check_fingerprint(obj, body, relocs, fp, symbols, imports):
+def check_fingerprint(obj, sym, body, relocs, addr, fp, symbols, imports):
     """check_function(), against a fingerprint instead of the exe."""
     problems = []
     if len(body) != fp["size"]:
@@ -263,7 +308,9 @@ def check_fingerprint(obj, body, relocs, fp, symbols, imports):
     for r, x in zip(relocs, fp["relocs"]):
         rsym = obj.symbols[r.symbol]
         addend = struct.unpack_from("<i", body, r.offset)[0]
-        want = resolve(obj, rsym, symbols, imports)
+        want = inside(sym, body, rsym, addend, addr)
+        if want is None:
+            want = resolve(obj, rsym, symbols, imports)
         if x[2] == "data":
             if not isinstance(want, tuple):
                 problems.append("reloc at +0x%x to %s: the original points to data" % (r.offset, rsym.name))
@@ -321,7 +368,7 @@ def main():
                 print("           - " + p)
             results.append((addr, name, unit["name"], not problems))
             if not problems:
-                fp = fingerprint(obj, body, relocs, addr, exe, symbols, used_imports)
+                fp = fingerprint(obj, sym, body, relocs, addr, exe, symbols, used_imports)
                 fingerprints["%08x" % addr] = dict(fp, name=name, unit=unit["name"])
 
     if results:
@@ -365,8 +412,8 @@ def check_fingerprints(names):
             if fp["name"] not in defined:
                 problems = ["not defined in the obj any more"]
             else:
-                obj, _sym, body, relocs = defined[fp["name"]]
-                problems = check_fingerprint(obj, body, relocs, fp, symbols, imports)
+                obj, sym, body, relocs = defined[fp["name"]]
+                problems = check_fingerprint(obj, sym, body, relocs, addr, fp, symbols, imports)
             print("  %s  %08x %s" % ("MATCH    " if not problems else "REGRESSED", addr, fp["name"]))
             for p in problems:
                 print("           - " + p)
