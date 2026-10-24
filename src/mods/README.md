@@ -39,6 +39,43 @@ batched_segments=0
 
 The DLL's log (`open-homm5.log`) says what it changed, for example `net tuning: links may send every 10 ms (game: 50)`.
 
+## Faster co-op segments (`coop_guard.cpp`, on when every player agrees)
+
+**What it fixes:** in co-op every AI move waits a few "segments" of 200 ms, the steps in which all PCs move the game forward together. Shorter segments make AI moves faster.
+
+**Why it needs agreement:** the segment length decides when things happen in the game world, and every PC runs that world itself. So all PCs must use the same length, or the game desyncs.
+
+**How:**
+1. At the start of each multiplayer game, every PC's DLL sends a small hello to the others with the segment length it wants. A PC without our DLL ignores it.
+2. Ten seconds in (segment 50), each DLL checks that **every** other PC sent the same wish.
+3. If so, they all switch together at that segment. If not (someone has no DLL, an older one, or other settings), nobody switches and the game keeps its own timing.
+
+`open-homm5.log` says which:
+
+```
+co-op timing: hello from player 1 (asks for 100 ms segments, protocol 1)
+co-op timing: ON from segment 50: 100 ms segments (all 2 PCs agree)
+```
+
+**Measured** (robot LAN game, 2 humans + 1 AI, 8 AI turns, network tuning on):
+
+| | game's 200 ms | 100 ms segments |
+|---|---:|---:|
+| per AI move | ~0.65 s | 0.53 s |
+| AI hero move | ~0.84 s | 0.58 s |
+| town swap | ~0.42 s | 0.34 s |
+
+The world checksums stayed equal on both PCs (no desync). When the copies disagree, both stay OFF.
+
+**Settings** (`open-homm5.ini`):
+
+```ini
+[coop]
+guard=1           ; 0 = take no part (no hello; never switch), as without the DLL
+fast_segments=1   ; 0 = ask for the game's 200 ms, so nobody switches
+segment_ms=100    ; 100 or 50
+```
+
 ## Fast AI pathfinding (`fast_paths*.cpp`, on by default)
 
 **What it fixes:** long AI thinking late in a game on big maps (several seconds per AI move).
