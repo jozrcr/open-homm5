@@ -42,6 +42,20 @@ python tools\robot\path_report.py build\robot\<plain run> build\robot\<mod run>
 
 Some saves do not replay the same even with the virtual clock (sauvegarde_14): `path_check.py` reports and skips them.
 
+## Checking the music (the "original music" mod)
+
+```
+python tools\robot\run_ai_test.py --turns 1 --quick-combat --audio-setting log_music=1                            # MMH5.5's music
+python tools\robot\run_ai_test.py --turns 1 --quick-combat --audio-setting original_music=1 --audio-setting log_music=1
+python tools\robot\run_ai_test.py --no-map --seconds 20 --step "8|console|credits" --audio-setting log_music=1       # the credits
+python tools\robot\run_ai_test.py --no-map --seconds 150 --turns 1 --quick-combat --step "8|console|rmg RMG/Templates/2P-Duel-T.xdb -players 2 start" --audio-setting log_music=1
+python tools\robot\run_lan_test.py --turns 3 --host-audio original_music=1 --client-audio log_music=1
+```
+
+- `--audio-setting key=value` writes `[audio]` settings (`src/mods/README.md`); `run_lan_test.py` has `--host-audio` / `--client-audio`.
+- `log_music=1`: the DLL logs every music file the game starts (`music file 2: ..\Music\AdvMap-Terrain\Terrain-Grass.ogg`). Music still streams with the robot's volume 0, so nothing is heard.
+- The `rmg` console command makes and starts a random map (template path without a leading `/`). Each run gives other factions, so the hero starts on other terrains (sand, dirt, snow, ...); the map is written to the test copy's `data\RMGTemp`. The test maps (A1M4, A2M1, ...) all start on grass.
+
 ## Robot script
 
 Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--host-step` / `--client-step`), `"<seconds>|<kind>|<text>"`, seconds counted from the first main-loop call:

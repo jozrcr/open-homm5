@@ -24,6 +24,8 @@ On the first `DirectInput8Create` call (after start-up, when even the Steam-wrap
 
 In any other exe (3.1j `MMH55(_64).exe`, the 2025 `H5_Game.exe`, …) it only forwards and logs "unknown build".
 
+One hook goes in earlier, when the DLL is loaded (`hooks::InstallEarly`), if the exe can already be recognized then (not the Steam-wrapped one): the "original music" mod's file system hook, only when that mod is on. The game reads its heroes during its splash screen, before the first `DirectInput8Create` call.
+
 If the log says "unknown build" or "could not hook" in `MMH55_Utility`, MMH5.5's own DLL (`55u.dll`) may have changed the same vtable entry or code at run time. Our DLL then stays out of the way instead of guessing. Tell me, and we'll look at what `55u.dll` does.
 
 ## The AI trace
@@ -54,10 +56,13 @@ Needs Visual Studio 2019 or 2022 (C++ build tools, x86). Already on the owner's 
 powershell -File src\hook\build.ps1 -Test
 ```
 
-This builds `build\hook\dinput8.dll` and runs two tests outside the game:
+This builds `build\hook\dinput8.dll` and runs these tests outside the game:
 
 - `test/proxy_test.cpp`: loads the DLL, calls `DirectInput8Create`, and checks that a real DirectInput object comes back.
 - `test/ai_trace_test.cpp`: calls the AI hook exactly the way the game calls the AI (`__thiscall`, command list then flag) on a fake AI object, built with the compiler's runtime stack check (`/RTCs`). It checks that the arguments reach the original function unchanged and that the log line is right. A calling-convention mistake here would crash the game, so this test matters.
+- `test/original_music_test.cpp`: the "original music" mod's text work (`src/mods/original_music_xdb.cpp`) on small made-up data files: which music lines change and which stay.
+
+The build runs in `src\hook` with relative source paths: with full paths, a deep folder (a git worktree) made the command line longer than `cmd.exe` accepts (8191 characters).
 
 ## Owner test (phase 0 gate: "DLL loads and logs AI turns; game runs normally")
 
@@ -77,7 +82,7 @@ On **Linux** (Wine/Proton) Wine prefers its own built-in `dinput8.dll`. Tell it 
 | `dllmain.cpp` | DLL entry, the forwarded exports, lazy hook installation |
 | `dinput8.def` | export names (same as the real `dinput8.dll`) |
 | `game_build.cpp/.h` | which exe are we in? |
-| `hooks.cpp/.h` | installs all hooks (honours `open-homm5.nohooks`) |
+| `hooks.cpp/.h` | installs all hooks (honours `open-homm5.nohooks`); `InstallEarly` for the few that must be in before the game reads its data |
 | `ai_trace.cpp` | the AI turn trace |
 | `log.cpp/.h` | `open-homm5.log` writer |
 | `robot.cpp/.h`, `robot_endturn.cpp`, `robot_input.cpp` | robot mode for unattended test runs; only active when `open-homm5-robot.ini` is next to the exe (see `tools/robot/README.md`) |

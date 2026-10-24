@@ -93,6 +93,10 @@ def write_mod_settings(game, args, instance):
     coop = getattr(args, "coop_setting", None) or []  # e.g. fast_segments=0
     if coop:
         lines += ["[coop]"] + coop
+    # [audio] = the original music switch (src/mods/original_music.cpp), off by default
+    audio = getattr(args, "audio_setting", None) or []  # e.g. original_music=1, log_music=1
+    if audio:
+        lines += ["[audio]"] + audio
     mod_settings_file(game, instance).write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
@@ -371,6 +375,8 @@ def main():
                         "off = the game's own pathfinding")
     p.add_argument("--ai-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="extra [ai] setting for the mods, e.g. port_relax=1 (repeatable)")
+    p.add_argument("--audio-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="[audio] setting, e.g. original_music=1 or log_music=1 (repeatable; src/mods/original_music.cpp)")
     p.add_argument("--trace-moves", action="store_true", help="log what the start-move command calls (robot_trace.cpp)")
     p.add_argument("--trace-ai-busy", action="store_true",
                    help="log each change of the AI manager's 'player busy' check (robot_trace.cpp)")
