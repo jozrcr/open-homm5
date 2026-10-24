@@ -7,6 +7,11 @@
     "00c08f30": "?Alloc@?$Array2D@UNode@@@@QAEXXZ",
     "00c08fd0": "?NodeLess@@YI_NABUNode@@0@Z",
     "00c09110": "?Copy@?$Array2D@UNode@@@@QAEXABU1@@Z",
-    "00c093e0": "??4?$Array2D@UNode@@@@QAEAAU0@ABU0@@Z"
+    "00c091d0": "?IsMarked1@HeroPathfinder@@QAE_NPBI@Z",
+    "00c09220": "?NodeAt1@HeroPathfinder@@QAEPAUNode@@PBI@Z",
+    "00c093e0": "??4?$Array2D@UNode@@@@QAEAAU0@ABU0@@Z",
+    "00c09690": "?Probe@HeroPathfinder@@QAE_NPAIPBI_N@Z",
+    "00c09960": "??4SettingsHead@@QAEAAU0@ABU0@@Z",
+    "00c09c20": "??4Settings@@QAEAAU0@ABU0@@Z"
   }
 }
