@@ -138,11 +138,11 @@ void __fastcall MpOwnStepHook(void *self, void *edx)
 }
 
 // --- world checksums (desync check) -------------------------------------------------
-// The PCs of a multiplayer game exchange world checksums (NWorld::CCrcTestCmd:
-// check number at +0x0c, checksum at +0x10) whatever the debug flags say;
-// mp_check_crc only makes the game compare them, and also saves the world at the
-// first check, which stalled the AI in our test. Instead the robot logs every
-// checksum: 0x007c9410 (__thiscall(int player, CCrcTestCmd *), ret 8) is called
+// With mp_check_crc on (or mp_check_object_crc, which freezes long games), the
+// PCs of a multiplayer game checksum the world after every segment and
+// exchange the checksums (NWorld::CCrcTestCmd: check number at +0x0c, checksum
+// at +0x10); without either flag none are computed (0x007c9be0). The LAN
+// runner sets mp_check_crc. The robot logs every checksum: 0x007c9410 (__thiscall(int player, CCrcTestCmd *), ret 8) is called
 // for this PC's own checksum (0x007c9cd0) and for each one received (0x007ca8d1).
 // Matching "crc" lines from all copies = no desync.
 const DWORD kCrcHandler = 0x007c9410;

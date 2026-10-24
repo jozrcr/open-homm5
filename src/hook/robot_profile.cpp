@@ -16,6 +16,8 @@
 #include "log.h"
 #include "robot.h"
 
+extern "C" IMAGE_DOS_HEADER __ImageBase;  // this DLL's load address (linker symbol)
+
 namespace robot {
 namespace {
 
@@ -94,6 +96,8 @@ void StartAiProfiler()
 		hooklog::Write("robot: AI profiler: cannot write %ls", path);
 		return;
 	}
+	// where our DLL is loaded, so samples in it can be named with build/hook/dinput8.map
+	fprintf(g_out, "# dll %08lx\n", reinterpret_cast<DWORD>(&__ImageBase));
 	const BYTE *exe = reinterpret_cast<const BYTE *>(GetModuleHandleW(nullptr));
 	g_exe_begin = reinterpret_cast<DWORD>(exe);
 	g_exe_end = g_exe_begin + reinterpret_cast<const IMAGE_NT_HEADERS32 *>(

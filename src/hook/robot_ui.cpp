@@ -410,24 +410,56 @@ bool UiCommand(const char *screen, const char *command)
 // to wait for a human:
 //   - the combat results: its OK runs the reaction "Close" (UI/CombatResults/Ok,
 //     handled by 0x00581120);
-//   - the retreat box a human player's hero gets when attacked
-//     (NUI::CRetreatBox, a NUI::CCommonBox): NOT solved yet. OK needs Flee or
-//     Surrender chosen first (buttons built in code, 0x00570cf0); neither the
-//     common boxes' OK message "left" nor the box's own close message
-//     "input_Combat_Retreat_Close" (Escape, registered at 0x00570b60) closed it
-//     in a test. The robot only logs it, so a stuck run says why.
+//   - a battle (NUI::CCombatArenaScreen) where the human player's hero is
+//     attacked: the tactics phase waits for "start combat" and then every
+//     turn of the human's army waits for a move. The robot posts the messages
+//     of the battle's keys (profiles/default_profile/input_a2.cfg, sections
+//     combat_screen_tactic and combat_screen), one per check:
+//     "input_start_combat" (Enter in the tactics phase), then
+//     "input_Combat_AutoCombat" (A, a toggle, sent once), so the computer
+//     fights for the human. ("autoplace_army", the tactics phase's button
+//     message, only places the units.)
+//   - the retreat box (NUI::CRetreatBox, a two-option NUI::CCommonBox built in
+//     code at 0x00570cf0): its left button posts "left" (flee), the right one
+//     "right" (surrender), OK posts "confirm" (UI/CommonBoxes/Box2p, Ok.(UISDirectRunReaction)).
+//     The robot flees: "left", then "confirm".
 // Other common boxes post "left" for OK and "right" for cancel
 // (UI/CommonBoxes/*_ARSendGameMessage).
-void AutoCloseScreens()
+// Returns true while a battle or a box is being handled, so the caller does
+// not end the turn meanwhile.
+bool AutoCloseScreens()
 {
 	g_quiet = true;
 	UiCommand("NUI::CCombatResults", "Close");  // logs only when it found the window
-	static bool retreat_logged = false;
-	if (!retreat_logged && FindScreen("NUI::CRetreatBox")) {
-		retreat_logged = true;
-		hooklog::Write("robot: a retreat box waits for the human player's choice (the robot cannot answer it yet)");
+	bool busy = false;
+	static void *last_battle = nullptr;
+	static int battle_step = 0;
+	void *battle = FindScreen("NUI::CCombatArenaScreen");
+	if (battle) {
+		busy = true;
+		if (battle != last_battle) {
+			last_battle = battle;
+			battle_step = 0;
+		}
+		// one message per check: the fight screen only takes auto-combat once
+		// the tactics phase is over
+		if (battle_step == 0) {
+			PostGameMessage("input_start_combat", 0);
+			hooklog::Write("robot: battle screen at %p: start combat (end of the tactics phase)", battle);
+		} else if (battle_step == 1) {
+			PostGameMessage("input_Combat_AutoCombat", 0);
+			hooklog::Write("robot: battle screen at %p: auto-combat on", battle);
+		}
+		++battle_step;
+	}
+	if (FindScreen("NUI::CRetreatBox")) {
+		busy = true;
+		PostGameMessage("left", 0);
+		PostGameMessage("confirm", 0);
+		hooklog::Write("robot: retreat box: chose flee and confirmed");
 	}
 	g_quiet = false;
+	return busy;
 }
 
 }  // namespace robot

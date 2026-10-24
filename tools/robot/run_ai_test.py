@@ -56,8 +56,9 @@ def check_game_dir(game):
         sys.exit("%s does not look like a game folder (no bin/)" % game)
 
 
-def install_dll(game):
-    dll = REPO / "build" / "hook" / "dinput8.dll"
+def install_dll(game, dll=None):
+    """Copy the hook DLL (default: the last build) into the test copy's bin folder."""
+    dll = pathlib.Path(dll) if dll else REPO / "build" / "hook" / "dinput8.dll"
     if not dll.is_file():
         sys.exit("build the DLL first: powershell -File src\\hook\\build.ps1")
     shutil.copy2(dll, game / "bin" / "dinput8.dll")
@@ -87,6 +88,7 @@ def write_mod_settings(game, args, instance):
             lines.append("%s=%d" % (key, value))
     # [ai] = the fast pathfinding mod (src/mods/fast_paths.cpp), off by default
     lines += ["[ai]", "fast_paths=%d" % (1 if getattr(args, "fast_paths", "off") == "on" else 0)]
+    lines += getattr(args, "ai_setting", None) or []  # e.g. port_relax=1
     mod_settings_file(game, instance).write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
@@ -102,6 +104,10 @@ def prepare(game, args, out, instance="", net_port=None):
     default = game / "profiles" / "default_profile"
     base = (default / "user_a2.cfg").read_text(encoding="latin-1") if (default / "user_a2.cfg").is_file() else ""
     extra = ROBOT_SETTINGS + "".join("setvar %s\n" % s for s in args.setvar)
+    if getattr(args, "quick_combat", False):
+        # battles resolve by themselves, so the robot's passive human player is
+        # not stuck in the tactics phase when the AI attacks it
+        extra += "setvar adventure_quick_combat = 1\n"
     (profiles / "Robot" / "user_a2.cfg").write_text(base + extra, encoding="latin-1")
     if (default / "input_a2.cfg").is_file():
         shutil.copy2(default / "input_a2.cfg", profiles / "Robot" / "input_a2.cfg")
@@ -128,6 +134,7 @@ def prepare(game, args, out, instance="", net_port=None):
         ("command", command),
         ("command_delay_seconds", args.command_delay),
         ("end_turn_every_seconds", args.end_turn_every),
+        ("stuck_exit", int(getattr(args, "stuck_exit", True))),
         ("press_enter_every_seconds", args.press_enter_every),
         ("repeat_command", args.repeat_command or ""),
         ("repeat_every_seconds", args.repeat_every),
@@ -135,7 +142,9 @@ def prepare(game, args, out, instance="", net_port=None):
         ("trace_mp", int(bool(getattr(args, "trace_mp", False)))),
         ("trace_crc", int(bool(getattr(args, "trace_crc", False)))),
         ("profile_ai", int(bool(getattr(args, "profile_ai", False)))),
-        ("trace_paths", int(bool(getattr(args, "trace_paths", False)))),
+        ("virtual_clock_ms", getattr(args, "virtual_clock", 0) or 0),
+        ("trace_paths", 3 if getattr(args, "trace_helpers", False) else 2 if getattr(args, "trace_paths_all", False)
+         else int(bool(getattr(args, "trace_paths", False)))),
         ("segment_ms", args.segment_ms),
         ("mp_segment_ms", getattr(args, "mp_segment_ms", 0)),
         # screenshots: the DLL saves the game's own frames there as .bmp (src/hook/robot_screen.cpp)
@@ -247,7 +256,8 @@ def summarize(log_text, exit_code, elapsed):
         "hooked": has("hooked AI turn driver"),
         "ai_turns_started": sum(1 for l in lines if "robot: AI turn" in l and "started" in l),
         "ai_steps": len(steps),
-        "finished_by": "turn limit" if has("AI turns done") else "time limit" if has("time limit of") else "other (crash or closed)",
+        "finished_by": "turn limit" if has("AI turns done") else "time limit" if has("time limit of") else
+                       "stuck (a battle or a box waits for the human)" if has("robot: stuck:") else "other (crash or closed)",
         "per_ai": per_ai,
         "wait_after_step_kind": wait_after_steps(steps),
     }
@@ -336,8 +346,21 @@ def main():
                    help="the LAN link tuning mod (src/mods/net_tuning.cpp); only matters in multiplayer")
     p.add_argument("--profile-ai", action="store_true",
                    help="sample where the AI spends its thinking time (ai-profile.txt, profile_report.py)")
+    p.add_argument("--dll", help="hook DLL to install (default build/hook/dinput8.dll), e.g. a frozen copy for batch runs")
     p.add_argument("--fast-paths", choices=["on", "off"], default="off",
                    help="the fast pathfinding mod (src/mods/fast_paths.cpp); compare with --trace-paths runs")
+    p.add_argument("--ai-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="extra [ai] setting for the mods, e.g. port_relax=1 (repeatable)")
+    p.add_argument("--quick-combat", action="store_true",
+                   help="battles resolve by themselves (adventure_quick_combat = 1): the robot's human player "
+                        "is not stuck in the tactics phase or the battle when the AI attacks it")
+    p.add_argument("--virtual-clock", type=int, nargs="?", const=16, default=0, metavar="MS_PER_FRAME",
+                   help="the game sees a clock that advances MS_PER_FRAME (16) per frame, not real time, so runs "
+                        "replay the same however fast the code is (src/hook/robot_clock.cpp)")
+    p.add_argument("--trace-helpers", action="store_true",
+                   help="like --trace-paths-all, and time every game helper the fast paths mod calls (slows the AI down)")
+    p.add_argument("--trace-paths-all", action="store_true",
+                   help="like --trace-paths, with a detail line for every search, also the small ones")
     p.add_argument("--trace-paths", action="store_true",
                    help="log the AI's path searches per step ('paths' lines in the log, path_report.py)")
     p.add_argument("--restore-intro", action="store_true", help="put the intro videos back in the test copy and exit")
@@ -355,7 +378,7 @@ def main():
         return
     out = REPO / "build" / "robot" / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     out.mkdir(parents=True)
-    install_dll(game)
+    install_dll(game, args.dll)
     command = prepare(game, args, out)
 
     # Not "-advmap" on the command line: WinMain runs the console command

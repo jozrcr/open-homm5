@@ -25,6 +25,23 @@ Results go to `build/robot/<date-time>-lan/host/` and `.../client/`. The host cr
 
 Both copies run the LAN link tuning mod (`src/mods/README.md`) unless `--net-tuning off`; the runner writes its settings to `bin/open-homm5-<host|client>.ini` and removes them afterwards.
 
+## Checking the AI and its speed-ups (saves, battles, virtual clock)
+
+```
+python tools\robot\run_ai_test.py --save-file <save> --load-save save_11 --quick-combat --virtual-clock 50 --turns 4 --trace-paths
+python tools\robot\path_check.py save_11 save_10 --turns 4 --ai-setting port_search=1 --robot-arg=--quick-combat --robot-arg=--virtual-clock=50
+python tools\robot\path_report.py build\robot\<plain run> build\robot\<mod run>
+```
+
+- `--load-save` / `--save-file`: start from one of the owner's saves (copied into the robot's own profile).
+- **Battles:** when the AI attacks the robot's (passive) human player, the robot starts the battle (`input_start_combat`), turns on auto-combat (`input_Combat_AutoCombat`) and answers the retreat box (flee). With `--quick-combat` (`adventure_quick_combat = 1`) battles resolve at once. A run that still cannot go on closes the game and reports `stuck` instead of idling until its time limit.
+- `--virtual-clock [ms]`: the game's main thread sees a clock that advances by a fixed step per frame (and by the time slept), not with real time. The AI's decisions depend on how fast it runs (`docs/subsystems/ai-pathfinder.md`); with this clock a save replays the same however fast the code is, so a plain run and a mod run can be compared over whole turns. 50 ms per frame also makes animations and hero walks pass faster.
+- `--trace-paths` / `--trace-paths-all`: fingerprints of the AI's path searches (big ones / all), compared by `path_report.py`; `path_check.py` does plain, plain again (reproducible?) and mod for several saves.
+- `--fast-paths on`, `--ai-setting key=value`: the pathfinding mod and its parts (`src/mods/README.md`).
+- `--profile-ai`: where the AI's thinking time goes (`profile_report.py`; samples in our DLL can be mapped with `build/hook/dinput8.map`).
+
+Some saves do not replay the same even with the virtual clock (sauvegarde_14): `path_check.py` reports and skips them.
+
 ## Robot script
 
 Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--host-step` / `--client-step`), `"<seconds>|<kind>|<text>"`, seconds counted from the first main-loop call:
@@ -73,6 +90,8 @@ In robot mode the DLL:
 Each copy gets `OPEN_HOMM5_INSTANCE=host` or `client` in its environment; the DLL then uses `open-homm5-robot-<instance>.ini` and `open-homm5-<instance>.log`, the runner gives it its own profile (`robot_home-<instance>`), and the DLL renames the game's "already running" mutex (`NIVAL_H5`).
 
 LAN games are found through UDP broadcasts on the discovery port (`net_lan_match_maker_port`, default 8889): every copy sends a 5-byte "02" packet each second, and a host also sends its game (an 826-byte "03" packet) to the copies it heard from. Two copies cannot both bind port 8889 ("address in use", the second copy's LAN screen never opened), and with a shared port (`SO_REUSEADDR`) they could not tell each other apart. So each copy gets its own discovery port (host 8889, client 8891) and the DLL also sends every discovery broadcast to the other copy's port on 127.0.0.1 (`net_lan_relay_ports`, `robot_net.cpp`). The game ports are 8888 (host) and 8890 (client). `net_log=1` logs the socket calls and the first packets.
+
+**Desync check:** the runner sets `mp_check_crc = 1` on both copies (`--no-crc` leaves it off); without it the game computes no world checksums at all. Both copies log every checksum (`trace_crc`), and `lan_report.py` says "all equal on both copies (no desync)" or where they first differ. `--fast-paths on` and `--ai-setting` set the fast pathfinding mod on both copies, as in `run_ai_test.py`. The client never runs the AI (the host does), so its "stuck" exit is off (`stuck_exit=0`). Not handled yet: a battle between the AI and the client's human player can leave the host waiting (the host then exits as stuck).
 
 ## Things learned getting here (2026-10-21)
 

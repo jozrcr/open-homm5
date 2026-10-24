@@ -32,6 +32,9 @@ bool g_installed = false;
 volatile DWORD g_last_ai_step = 0;
 DWORD g_last_end_turn = 0;
 long g_end_turns = 0;
+volatile long g_end_turns_since_ai = 0;  // end-turn attempts with no AI step since
+const long kStuckAfter = 4;  // that many in a row: a battle or a box waits for the human
+const long kStuckInBattleAfter = 36;  // checks (every few seconds) a battle may take
 
 void *__fastcall ControllerSlot0Hook(void *self, void *edx)
 {
@@ -58,6 +61,7 @@ bool CallEndTurn(void *controller)
 void OnAiStep()
 {
 	g_last_ai_step = GetTickCount();
+	g_end_turns_since_ai = 0;
 	PathTraceStep();
 }
 
@@ -79,7 +83,7 @@ void InstallEndTurnHelper()
 	}
 }
 
-void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms)
+void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms, bool stuck_exit)
 {
 	void *controller = g_controller;
 	if (!controller || !every_ms)
@@ -90,7 +94,29 @@ void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms)
 	if (g_last_ai_step && now - g_last_ai_step < ai_idle_ms)
 		return;  // an AI is (or just was) playing: not the human's turn
 	g_last_end_turn = now;
-	AutoCloseScreens();  // e.g. a battle's results window waiting for "OK"
+	// e.g. a battle's results window waiting for "OK", or a battle against the
+	// human player's hero: not the time to end the turn
+	static long battle_polls = 0;
+	if (AutoCloseScreens()) {
+		if (++battle_polls > kStuckInBattleAfter && stuck_exit) {
+			hooklog::Write("robot: stuck: a battle or a box has waited for %ld checks, closing the game", battle_polls);
+			hooklog::Close();
+			TerminateProcess(GetCurrentProcess(), 4);  // no game shutdown code: it can crash mid-turn
+		}
+		return;
+	}
+	battle_polls = 0;
+	if (++g_end_turns_since_ai > kStuckAfter && stuck_exit) {
+		// The human's turn does not end and no AI plays: a battle (tactics
+		// phase) or a box (the retreat box) waits for the robot's human player,
+		// which cannot answer it. Waiting for the time limit would only waste
+		// time, so the run ends here (exit code 4 = stuck).
+		hooklog::Write("robot: stuck: %ld turn ends without an AI step (a battle or a box waits for the human player), "
+		               "closing the game",
+		               kStuckAfter);
+		hooklog::Close();
+		TerminateProcess(GetCurrentProcess(), 4);  // no game shutdown code: it can crash mid-turn
+	}
 	++g_end_turns;
 	const bool ok = CallEndTurn(controller);
 	hooklog::Write("robot: ending the human player's turn (#%ld)%s", g_end_turns, ok ? "" : " FAILED (crash caught)");

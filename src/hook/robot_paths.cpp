@@ -83,7 +83,8 @@ WORD g_search_id = 0;
 LONGLONG g_tiles = 0;      // distinct tiles expanded
 LONGLONG g_same = 0;       // expansions of a tile with the same node data as its previous one
 LARGE_INTEGER g_freq;
-LONG g_details_left = 3000;  // detail lines (searches of 2,000+ nodes) left for the run
+LONG g_details_left = 3000;  // detail lines left for the run
+LONGLONG g_detail_min_nodes = 2000;  // searches with fewer nodes get no detail line
 bool g_installed = false;
 
 Site &SiteFor(DWORD call)
@@ -181,6 +182,36 @@ DWORD ResultHash(const void *self, LONG *reached, DWORD fields[16], DWORD flag_b
 	return h;
 }
 
+// More of a search's output, which callers may read besides the grids: the
+// list of newly reached tiles (vector of grid node pointers, object at
+// pf+0xdc: begin +0, end +4; filled by relax in order of first reach) and what
+// is left in the open list (pf+0x10..0x14, 64-byte nodes in heap order).
+// Hashed in order, by position for the list and by every compared dword for
+// the open list (dwords 7, 9, 13 never read are left out).
+void OutputHashes(const void *self, LONG *listed, DWORD *list_hash, LONG *open, DWORD *open_hash)
+{
+	*list_hash = *open_hash = 2166136261u;
+	__try {
+		const DWORD list = Field(self, 0xdc);
+		if (list) {
+			const DWORD *begin = reinterpret_cast<const DWORD *>(Field(reinterpret_cast<const void *>(list), 0));
+			const DWORD *end = reinterpret_cast<const DWORD *>(Field(reinterpret_cast<const void *>(list), 4));
+			for (const DWORD *p = begin; p && p < end; ++p, ++*listed)
+				*list_hash = Hash(*list_hash, reinterpret_cast<const BYTE *>(*p), 4);  // the node's position
+		}
+		const DWORD *first = reinterpret_cast<const DWORD *>(Field(self, 0x10));
+		const DWORD *last = reinterpret_cast<const DWORD *>(Field(self, 0x14));
+		for (const DWORD *n = first; n && n < last; n += 16, ++*open)
+			for (int i = 0; i < 16; ++i)
+				if (i != 7 && i != 9 && i != 13) {
+					const DWORD v = i == 1 ? n[i] & ~0x7c00u : n[i];  // flag bits 10-14 are never initialized
+					*open_hash = Hash(*open_hash, reinterpret_cast<const BYTE *>(&v), 4);
+				}
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+	}
+}
+
 // Once per call site: the vtables of the objects the search calls back
 // (this+4 object pool, this+0xc valuation, this+0xa4, this+0x70 world), to
 // find out which classes they are (analysis/classes.txt).
@@ -222,7 +253,7 @@ void Record(DWORD call, DWORD key, const void *self, DWORD start, LONGLONG ticks
 	const bool exhausted = *(static_cast<const BYTE *>(self) + kOffExhausted) != 0;
 	if (exhausted)
 		++s.exhausted;
-	if (g_details_left > 0 && nodes >= 2000) {
+	if (g_details_left > 0 && nodes >= g_detail_min_nodes) {
 		--g_details_left;
 		LONG reached = 0;
 		DWORD fields[16], flag_bits[32];
@@ -233,11 +264,15 @@ void Record(DWORD call, DWORD key, const void *self, DWORD start, LONGLONG ticks
 		memcpy(per_field + 80, "bits=", 5);
 		for (int i = 0; i < 32; ++i)
 			_snprintf_s(per_field + 85 + i * 2, 3, _TRUNCATE, "%02lx", flag_bits[i] & 0xff);
+		LONG listed = 0, open = 0;
+		DWORD list_hash = 0, open_hash = 0;
+		OutputHashes(self, &listed, &list_hash, &open, &open_hash);
 		hooklog::Write("path site=%08lx pf=%p start=%lu,%lu,%lu target=%08lx limit=%ld nodes=%lld tiles=%lld same=%lld "
-		               "us=%.0f reached=%ld result=%08lx%s%s fields=%s",
+		               "us=%.0f reached=%ld result=%08lx%s%s fields=%s list=%ld/%08lx open=%ld/%08lx ends=%02x%02x",
 		               call, self, start & 0x3ff, (start >> 10) & 0x3ff, (start >> 20) & 0xf, Field(self, kOffTarget),
 		               static_cast<LONG>(Field(self, kOffLimit)), nodes, tiles, same, ticks * 1e6 / g_freq.QuadPart,
-		               reached, result, exhausted ? " exhausted" : "", repeat ? " REPEAT" : "", per_field);
+		               reached, result, exhausted ? " exhausted" : "", repeat ? " REPEAT" : "", per_field, listed,
+		               list_hash, open, open_hash, static_cast<const BYTE *>(self)[0x90], static_cast<const BYTE *>(self)[0x91]);
 		LogCallbacks(call, self);
 	}
 }
@@ -298,12 +333,17 @@ void __fastcall ExpandHook(void *self, void *edx, DWORD a, DWORD b, DWORD c, DWO
 
 }  // namespace
 
-void InstallPathTrace()
+void InstallPathTrace(int level)
 {
+	if (level >= 2) {  // every search, also the small ones
+		g_detail_min_nodes = 0;
+		g_details_left = 200000;
+	}
 	if (g_installed || !IsHookable(DetectGameBuild()))
 		return;
 	g_installed = true;
 	QueryPerformanceFrequency(&g_freq);
+	mods::FastPathsMeasure(level >= 3);  // timing every helper call costs time itself
 	g_tile_search = static_cast<WORD *>(VirtualAlloc(nullptr, kTiles * sizeof(WORD), MEM_COMMIT, PAGE_READWRITE));
 	g_tile_hash = static_cast<DWORD *>(VirtualAlloc(nullptr, kTiles * sizeof(DWORD), MEM_COMMIT, PAGE_READWRITE));
 	if (!g_tile_search || !g_tile_hash)
@@ -344,10 +384,15 @@ void PathTraceStep()
 	}
 	LONGLONG hits = 0, misses = 0;
 	mods::FastPathsStats(&hits, &misses);
+	char checks[600];
+	mods::FastPathsCheckStats(checks, 300);
+	const size_t n = strlen(checks);
+	_snprintf_s(checks + n, sizeof(checks) - n, _TRUNCATE, " | helpers ");
+	mods::FastPathsHelperStats(checks + strlen(checks), sizeof(checks) - strlen(checks));
 	hooklog::Write("paths step searches=%ld repeats=%ld exhausted=%ld nodes=%lld tiles=%lld same=%lld ms=%.1f "
-	               "remembered=%lld/%lld sites:%s",
+	               "remembered=%lld/%lld sites:%s | misses %s",
 	               count, repeats, exhausted, nodes, tiles, same, ticks * 1e3 / g_freq.QuadPart, hits, hits + misses,
-	               sites);
+	               sites, checks);
 	g_site_count = 0;
 	memset(g_sites, 0, sizeof(g_sites));
 	memset(g_keys, 0, sizeof(g_keys));

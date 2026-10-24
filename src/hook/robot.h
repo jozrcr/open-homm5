@@ -14,6 +14,8 @@
 //   command=advmap /Maps/Multiplayer/A1M4/map.xdb#xpointer(/AdvMapDesc) 0 1 1
 //   command_delay_seconds=8
 //   end_turn_every_seconds=5      (ends the passive human's turns, see robot_endturn.cpp)
+//   stuck_exit=1                  (close the game when the human player is stuck; 0 for a LAN
+//                                  client, which never sees an AI step)
 //   press_enter_every_seconds=0   (robot keyboard; not read by the game in the background yet)
 //   step=12|menu|multi lan        (script steps: console, menu, ui or shot; see robot.cpp)
 //   screenshot_dir=C:\Games\H5_test\robot_frames
@@ -41,7 +43,7 @@ bool PressKey(int dik_code);
 // Robot human player (robot_endturn.cpp): ends the passive human's turns.
 void OnAiStep();               // from the AI trace, every AI step
 void InstallEndTurnHelper();   // from the main loop, once the build is known
-void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms);
+void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms, bool stuck_exit);
 
 // The game's narrow string as passed to button-command handlers: {begin, end,
 // capacity} of chars (the handlers only read it).
@@ -65,7 +67,7 @@ const void *TypeDescriptorOf(const char *name);
 // Research: "<screen class> <hex offset> ..." logs the objects along a pointer chain.
 void Peek(const char *spec);
 // Close windows waiting for a click the robot cannot give (combat results).
-void AutoCloseScreens();
+bool AutoCloseScreens();  // true while a battle or a box is being handled
 // Post a game message by name, like a button with an ARSendGameMessage reaction.
 bool PostGameMessage(const char *name, int param);
 // The live object with this vftable and, at second_offset, second_vftable (last
@@ -113,9 +115,14 @@ void *PatchImport(const char *dll, const char *function, void *replacement);
 void StartAiProfiler();
 void OnAiThinking(bool thinking);
 
+// Virtual clock (robot_clock.cpp), when virtual_clock_ms=N: the main thread's
+// clock advances N ms per frame and by the time slept, not with real time.
+void InstallVirtualClock(DWORD frame_ms);
+void VirtualClockFrame();
+
 // Pathfinder trace (robot_paths.cpp), when trace_paths=1: per AI step, the path
 // searches by call site, their time, visited nodes and repeats ("paths step" lines).
-void InstallPathTrace();
+void InstallPathTrace(int level);  // 1 = details of big searches, 2 = of every search, 3 = also time the mod's game helpers
 void PathTraceStep();  // from OnAiStep
 
 // Optional segment trace (robot_trace.cpp), when trace_segments=1.
