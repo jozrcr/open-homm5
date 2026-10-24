@@ -13,6 +13,17 @@ Answer: (owner fills in)
 
 ---
 
+## Q5: Faster co-op AI moves behind a "same settings" guard: defaults, and go ahead? (2026-10-24, status: open)
+
+Context: the plan is in [plans/coop-timing-guard.md](plans/coop-timing-guard.md). Our DLLs check at the start of each game that every player has them with the same settings. Only then do they all switch to shorter segments and, optionally, AI hero walks that finish at once. Expected: AI moves in co-op 2–3 times faster.
+
+Options:
+1. Shorter segments: on by default when every player agrees? **Recommended: yes.** Nothing looks different.
+2. Instant AI walks: off by default, since AI heroes then jump instead of walking. If possible, should it apply only to AI heroes no human can see? **Recommended: yes to both.**
+3. Go ahead with step 1 of the plan (research and a message-order test)? **Recommended: yes.**
+
+Answer:
+
 ## Q4: "Option 2" (faster AI paths that may differ): go on with the re-expansion cap? (2026-10-24, status: open)
 
 Context: you asked for a faster search order as a setting, with the original by default. A first test is in (`[ai] max_expansions=16`, off by default). It halves the remaining AI thinking on your day-50 save (16.7 s to 8.3 s over 4 AI turns; the game alone takes 93 s). Only the AI hero's giant long-range searches change. On that save and on save_9 the AI then made the same moves; on save_10 it took another branch after a few moves (36 moves instead of 41 in 4 turns). Whether it plays worse is not known yet. See "Experiment: a cap on re-expansions" in docs/subsystems/ai-pathfinder.md.
