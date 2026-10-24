@@ -53,4 +53,19 @@ DWORD RedirectCalls(const DWORD *sites, int count, DWORD original, const void *r
 	return previous;
 }
 
+DWORD PatchPointer(DWORD slot_address, DWORD original, const void *replacement)
+{
+	DWORD *slot = reinterpret_cast<DWORD *>(slot_address);
+	const DWORD previous = *slot;
+	if (g_count >= kMaxRecords || (previous != original && !HookedOver(slot_address, original, previous)))
+		return 0;
+	DWORD old;
+	if (!VirtualProtect(slot, sizeof(DWORD), PAGE_READWRITE, &old))
+		return 0;
+	*slot = reinterpret_cast<DWORD>(replacement);
+	VirtualProtect(slot, sizeof(DWORD), old, &old);
+	g_records[g_count++] = {slot_address, original, reinterpret_cast<DWORD>(replacement)};
+	return previous;
+}
+
 }  // namespace hookpatch
