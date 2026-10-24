@@ -147,6 +147,8 @@ def prepare(game, args, out, instance="", net_port=None):
          else int(bool(getattr(args, "trace_paths", False)))),
         ("segment_ms", args.segment_ms),
         ("mp_segment_ms", getattr(args, "mp_segment_ms", 0)),
+        ("ai_walk_speed_scale", getattr(args, "ai_walk_speed_scale", 0)),
+        ("walk_step_ms", getattr(args, "walk_step_ms", 0)),
         # screenshots: the DLL saves the game's own frames there as .bmp (src/hook/robot_screen.cpp)
         ("screenshot_dir", out),
         ("screenshot_every_seconds", args.shot_every),
@@ -272,14 +274,23 @@ def launch(game, exe, instance=""):
     return subprocess.Popen([str(bin_dir / exe)], cwd=bin_dir, env=env)
 
 
-def wait(procs, limit_s):
-    """Wait for the games to close themselves; kill them after limit_s seconds."""
+def wait(procs, limit_s, leader=None, grace_s=15):
+    """Wait for the games to close themselves; kill them after limit_s seconds.
+    With a leader (the LAN host): once it has closed, the others get grace_s
+    seconds, then are closed too (a LAN client otherwise sits on the game's
+    "host disconnected" box until its own time limit)."""
     start = time.time()
+    leader_done = None
     try:
         while any(p.poll() is None for p in procs):
             if time.time() - start > limit_s:
                 print("game did not close itself in time: killing it")
                 break
+            if leader is not None and leader.poll() is not None:
+                leader_done = leader_done or time.time()
+                if time.time() - leader_done > grace_s:
+                    print("the host has closed: closing the other copies")
+                    break
             time.sleep(1)
     finally:
         for p in procs:

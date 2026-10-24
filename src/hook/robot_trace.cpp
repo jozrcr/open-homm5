@@ -15,6 +15,7 @@
 
 #include "game_build.h"
 #include "log.h"
+#include "patch.h"
 #include "robot.h"
 
 namespace robot {
@@ -286,6 +287,79 @@ void SetMpSegmentLength(DWORD ms)
 		FlushInstructionCache(GetCurrentProcess(), p, 16);
 	}
 	hooklog::Write("robot: EXPERIMENT multiplayer segment length set to %lu ms (was 200)", ms);
+}
+
+// EXPERIMENT (robot mode only, ai_walk_speed_scale=N): AI heroes walk N times
+// faster. 0x008da900 __fastcall(world, player) returns a hero's walk speed (a
+// float, at least 0): in multiplayer from the game's shared settings (world
+// slot 5 -> +0x24 for AI players, +0x20 for humans), in single player from
+// adventure_speed_ai / adventure_speed_human; the player's slot 0x18c says
+// "AI". The hero movement update (0x008dffd0) calls it at 0x008e021a (the
+// other caller, 0x004b4d0c, passes no player). For measuring how long AI moves
+// wait for their heroes to walk; every copy of a multiplayer game must use the
+// same N.
+namespace {
+const DWORD kWalkSpeed = 0x008da900;
+const DWORD kWalkSpeedCall = 0x008e021a;
+typedef float(__fastcall *WalkSpeedFn)(void *world, void *player);
+WalkSpeedFn g_walk_speed = nullptr;
+float g_walk_scale = 1;
+int g_walk_logs = 0;
+
+float __fastcall WalkSpeedHook(void *world, void *player)
+{
+	typedef bool(__fastcall * IsAiFn)(void *self, void *edx);
+	const float speed = g_walk_speed(world, player);
+	const bool ai = player && (*reinterpret_cast<IsAiFn *const *>(player))[0x18c / 4](player, nullptr);
+	if (g_walk_logs < 12) {
+		++g_walk_logs;
+		hooklog::Write("robot: walk speed %.2f for a %s hero", speed, ai ? "AI" : "human");
+	}
+	return ai ? speed * g_walk_scale : speed;
+}
+}  // namespace
+
+void SetAiWalkSpeedScale(int scale)
+{
+	static bool done = false;
+	if (done || scale <= 1 || !IsHookable(DetectGameBuild()))
+		return;
+	done = true;
+	g_walk_scale = static_cast<float>(scale);
+	g_walk_speed = reinterpret_cast<WalkSpeedFn>(hookpatch::RedirectCall(kWalkSpeedCall, kWalkSpeed, &WalkSpeedHook));
+	hooklog::Write("robot: EXPERIMENT AI heroes walk %d times faster %s", scale,
+	               g_walk_speed ? "(patched)" : "FAILED (code not as expected)");
+}
+
+// EXPERIMENT (robot mode only, walk_step_ms=N): the hero movement update
+// 0x008dffd0 works in steps of 200 ms of game time: it runs only once 200 ms
+// have passed since the last scheduled step (0x008dfffa) and schedules the
+// walk with 200 ms offsets (0x008e01a9, 0x008e023b, 0x008e039b). An AI hero
+// move waits a fixed ~400 ms of game time in multiplayer; this changes the
+// four 200s to N, to see whether that is the wait. Every copy of a
+// multiplayer game must use the same N.
+void SetWalkStepLength(DWORD ms)
+{
+	static bool done = false;
+	if (done || !IsHookable(DetectGameBuild()))
+		return;
+	done = true;
+	const DWORD immediates[] = {0x008dfffc, 0x008e01ad, 0x008e023c, 0x008e039d};
+	for (DWORD a : immediates) {
+		if (*reinterpret_cast<const DWORD *>(a) != 200) {
+			hooklog::Write("robot: walk step constant at %08lx not as expected: not changed", a);
+			return;
+		}
+	}
+	DWORD old;
+	for (DWORD a : immediates) {
+		DWORD *imm = reinterpret_cast<DWORD *>(a);
+		VirtualProtect(imm, sizeof(DWORD), PAGE_EXECUTE_READWRITE, &old);
+		*imm = ms;
+		VirtualProtect(imm, sizeof(DWORD), old, &old);
+		FlushInstructionCache(GetCurrentProcess(), imm, sizeof(DWORD));
+	}
+	hooklog::Write("robot: EXPERIMENT hero walk steps of %lu ms (game: 200)", ms);
 }
 
 void InstallSegmentTrace()

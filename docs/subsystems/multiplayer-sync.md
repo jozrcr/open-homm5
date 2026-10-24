@@ -125,6 +125,24 @@ Hero moves (most AI steps) stay at ~0.55 s, so shorter segments buy ~20% more. T
 
 Network detail seen on one PC: the game binds UDP 8889 (`net_lan_match_maker_port`, game discovery and then the game link) and 8888 (`net_game_port`). See `tools/robot/README.md` for how two copies share one PC.
 
+### What an AI hero move waits for in co-op (2026-10-24)
+
+Robot LAN game on A1M4 (link tuning on, `mp_check_crc` on), 8 AI turns: the wait before the AI's next step, after a hero move (`CSetHeroAITargetCmd` + `CSetWalkPathCmd` + `CStartMoveHeroCmd`), falls into **two tight groups: ~620 ms and ~860 ms, i.e. 3 or 4 segments** of 200 ms. It does not spread with the path length. A town swap waits 2 segments, as every move does in single player. So in co-op a hero move costs 1–2 segments more, ~350–400 ms of game time (with 50 ms segments, ~9 segments in all).
+
+The AI manager (`0x006082f0`) calls the turn driver only when `world->slot 0xa4(transceiver->slot 8(player))` is false: probably "this player still has something running". What keeps it true after a hero move in co-op is still to be found.
+
+Ruled out, robot experiments (both copies patched the same way; world checksums equal in all runs):
+
+| Experiment | What it changes | AI hero move wait |
+|---|---|---|
+| none | | 840 ms (median) |
+| `--ai-walk-speed-scale 4` / `16` | the walk speed `0x008da900` returns for AI heroes (in co-op from the shared game settings `+0x24`; it is 1.0), at its caller `0x008e021a` in the movement update | 840 / 646 ms (noise) |
+| `--walk-step-ms 50` / `100` | the four 200 ms constants of the movement update `0x008dffd0` (`0x008dfffc`, `0x008e01ad`, `0x008e023c`, `0x008e039d`) | 857 / 856 ms |
+
+So the walk speed only sets the animation, and those 200s are not the wait either.
+
+**Any co-op timing change needs a guard.** Shorter segments and faster AI walks both change game time, which runs in lockstep on every PC. So all PCs must use the same value, and a PC without our DLL must keep everyone on the original timing. Only the host runs the AI, but that does not help here.
+
 ### How LAN games are found (robot socket logs, 50 runs)
 
 1. A player on the LAN screen **broadcasts a 5-byte query** (first byte `02`) to `net_lan_match_maker_port`, about once a second.

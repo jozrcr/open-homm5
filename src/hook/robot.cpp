@@ -47,6 +47,8 @@ bool g_profile_ai = false;
 int g_trace_paths = 0;
 DWORD g_virtual_clock_ms = 0;  // virtual clock: ms per frame, 0 = real time (robot_clock.cpp)
 DWORD g_segment_ms = 0;
+DWORD g_walk_step_ms = 0;  // experiment: hero walk steps of N ms (robot_trace.cpp)
+int g_ai_walk_scale = 0;  // experiment: AI heroes walk N times faster (robot_trace.cpp)
 DWORD g_mp_segment_ms = 0;  // 0 = leave the game's 200 ms (experiment, robot_trace.cpp)  // 0 = leave the game's 200 ms
 DWORD g_press_enter_ms = 0;  // 0 = never
 DWORD g_last_enter = 0;
@@ -390,6 +392,10 @@ BOOL WINAPI RobotPeekMessageA(LPMSG msg, HWND hwnd, UINT min, UINT max, UINT rem
 		SetSegmentLength(g_segment_ms);
 	if (g_mp_segment_ms)
 		SetMpSegmentLength(g_mp_segment_ms);
+	if (g_ai_walk_scale)
+		SetAiWalkSpeedScale(g_ai_walk_scale);
+	if (g_walk_step_ms)
+		SetWalkStepLength(g_walk_step_ms);
 	if (g_command_done)
 		MaybeEndHumanTurn(g_end_turn_ms, 3000, g_stuck_exit);
 	// Screenshots now and then.
@@ -711,6 +717,10 @@ bool ReadConfig(const wchar_t *path)
 			g_segment_ms = static_cast<DWORD>(atol(value));
 		else if (strcmp(line, "mp_segment_ms") == 0)
 			g_mp_segment_ms = static_cast<DWORD>(atol(value));
+		else if (strcmp(line, "ai_walk_speed_scale") == 0)
+			g_ai_walk_scale = static_cast<int>(atol(value));
+		else if (strcmp(line, "walk_step_ms") == 0)
+			g_walk_step_ms = static_cast<DWORD>(atol(value));
 		else if (strcmp(line, "trace_segments") == 0)
 			g_trace_segments = atol(value) != 0;
 		else if (strcmp(line, "trace_mp") == 0)
