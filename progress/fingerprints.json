@@ -1,0 +1,105 @@
+{
+ "about": "fingerprints of the matched functions, see tools/verify/verify.py",
+ "exe_sha256": "94309157dc65498203c1ee0c357a30ae8788184b91d73bcd5eb5c3159aa81375",
+ "imports": {},
+ "functions": {
+  "00401000": {
+   "size": 4,
+   "hash": "90c2f8a333061ae3ae2c6cda2961f701575b0dd8515b766f152618f87c5624f6",
+   "relocs": [],
+   "name": "?GetStepStartPtr@CGameTimer@NGameTimer@@UAEPAIXZ",
+   "unit": "GameTimer"
+  },
+  "00401010": {
+   "size": 4,
+   "hash": "7e6bda0a031f94dbe8477fe3ce3ba2b7e3d761a050d55625bc7d92212670e60c",
+   "relocs": [],
+   "name": "?GetStepCount@CGameTimer@NGameTimer@@UAEHXZ",
+   "unit": "GameTimer"
+  },
+  "00401020": {
+   "size": 30,
+   "hash": "5e0612221c181973817234d1b9e3640e8ea20c06d692204dd90b9f92d4b39da0",
+   "relocs": [],
+   "name": "?Step@CGameTimer@NGameTimer@@UAE_NXZ",
+   "unit": "GameTimer"
+  },
+  "00401040": {
+   "size": 4,
+   "hash": "68b70ba1e6ad2356c69cac8e846649e599945994fa7690a0bf4af28fa25c24a5",
+   "relocs": [],
+   "name": "?GetMember40@CGameTimer@NGameTimer@@UAEHXZ",
+   "unit": "GameTimer"
+  },
+  "00401050": {
+   "size": 6,
+   "hash": "b216d2ceb73aab0a3a47ca29fd733dab0d0c4abe725a397c9fabd97112d60975",
+   "relocs": [],
+   "name": "?GetMinValue@CGameTimer@NGameTimer@@UAEHXZ",
+   "unit": "GameTimer"
+  },
+  "00401060": {
+   "size": 6,
+   "hash": "07297dca94be1b975a5dc696b5976f205b84057995fa3d3fbb157101b1ae8098",
+   "relocs": [],
+   "name": "?GetMaxValue@CGameTimer@NGameTimer@@UAEHXZ",
+   "unit": "GameTimer"
+  },
+  "00401230": {
+   "size": 4,
+   "hash": "108eb05660dfe1a041240deb6da273082575a75017fa45a5f13e0086c713bc3d",
+   "relocs": [],
+   "name": "?GetTimePtr@CGameTimer@NGameTimer@@UAEPAIXZ",
+   "unit": "GameTimer"
+  },
+  "00401240": {
+   "size": 4,
+   "hash": "4f2f5aebc83e057a70bdaddfb7545120a3e11bcdaa823c1def1422f8768ac3ed",
+   "relocs": [],
+   "name": "?GetMember24Ptr@CGameTimer@NGameTimer@@UAEPAIXZ",
+   "unit": "GameTimer"
+  },
+  "00401250": {
+   "size": 12,
+   "hash": "93cbb3932528d045046520f1ac4d76e98cfe25a469e5eabfdf19c576f59b5a30",
+   "relocs": [],
+   "name": "?GetStepsElapsed@CGameTimer@NGameTimer@@UAEIXZ",
+   "unit": "GameTimer"
+  },
+  "00401260": {
+   "size": 15,
+   "hash": "d35aa0b285c62068668c12e26e6bf6590768f91b4776d660f83b49f0ccbab44a",
+   "relocs": [],
+   "name": "?IsStepDue@CGameTimer@NGameTimer@@UAE_NXZ",
+   "unit": "GameTimer"
+  },
+  "00401270": {
+   "size": 21,
+   "hash": "2055a797fd51f2a62843809cf707f8074744b5fa206a03ea13e628857f68f1c2",
+   "relocs": [],
+   "name": "?GetLastListValue@CGameTimer@NGameTimer@@UAEHXZ",
+   "unit": "GameTimer"
+  },
+  "00401290": {
+   "size": 37,
+   "hash": "e911a5e72a11311a065f2999186cb26b838ed9948d4e995e2a382e8019a094ee",
+   "relocs": [],
+   "name": "?ListContains@CGameTimer@NGameTimer@@UAE_NH@Z",
+   "unit": "GameTimer"
+  },
+  "00401410": {
+   "size": 35,
+   "hash": "5a364829217d6b984855ef859919761ecf01d1b8a360a06d9b179b3238335bb6",
+   "relocs": [
+    [
+     16,
+     20,
+     "addr",
+     "00401330"
+    ]
+   ],
+   "name": "?Slot21@CGameTimer@NGameTimer@@UAEXHH@Z",
+   "unit": "GameTimer"
+  }
+ }
+}
