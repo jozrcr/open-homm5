@@ -62,3 +62,7 @@ GitHub must re-check every matched function on every push (CLAUDE.md), but the g
 - **Units:** the linker kept each source file's functions together, so a unit is a contiguous address range. Boundaries come from class names, string references and the gaps between objects; each unit gets a `unit.json` (see `src/decomp/GameTimer/`).
 - **Fingerprint for CI:** per function, the SHA-256 of its bytes with relocation fields zeroed, its size, and the list of (offset, target address). `verify.py` produces it locally from the exe and stores it on `--record`. CI then runs a `--fingerprints` mode against `progress/`. **The verifier is hashed in CI and must not be edited to make a function pass**, so adding this mode is a reviewed change on its own.
 - **The loop:** a queue file (next functions per unit), one worker session at a time on this PC, batch PRs per unit. A run that fails or stalls leaves the queue as it was.
+- **Since the pilot (2026-10-24):**
+  - A scheduled coordinator session runs 3 Sonnet workers in parallel, each on its own group of functions in its own worktree. It merges, checks and records their work into one batch PR a day: [../decomp/coordinator.md](../decomp/coordinator.md), [../decomp/worker-brief.md](../decomp/worker-brief.md).
+  - The pilot did 54 matches per one-hour run, for about 4% of the weekly limit.
+  - What the workers learned: [../decomp/matching-notes.md](../decomp/matching-notes.md).
