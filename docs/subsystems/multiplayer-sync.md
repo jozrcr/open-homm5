@@ -182,7 +182,13 @@ Untested workarounds: on Windows, make the ZeroTier network Private and give it 
 - Each query also goes to the broadcast address of **every adapter** that is up. On the owner's PC that is `192.168.1.255` (Ethernet), `10.21.174.255` (ZeroTier One), and two Hyper-V/WSL adapters.
 - It also goes to any `[net] lan_peers` addresses, for VPNs that carry no broadcasts.
 - The robot's LAN games also show that the join handshake (packets `07`) already goes to **every** address of the other PC, its ZeroTier address included. So once the game shows up in the list, joining should work.
-- Still to be tried by two real players. The Windows host's ZeroTier network must still be Private for the firewall.
+- The Windows host's ZeroTier network must still be Private for the firewall.
+
+**First real game, 2026-10-24:**
+- **The players:** the owner (Windows, host) and a friend (Linux, Proton), over ZeroTier, with package 0.1.0-test1 installed by its scripts.
+- **Joining:** the friend found and joined the game. The host's log shows its join requests going to all of the friend's addresses, his ZeroTier one included (`10.21.174.125`; the others were his LAN and Docker bridges).
+- **The guard:** the co-op timing guard switched on with both PCs agreeing, the friend's DLL running under Proton.
+- **AI speed:** 247 AI moves by 4 AI players, median wait before an AI move 0.49 s, after an AI hero move 0.50 s. That is faster than the robot's LAN game with the game's own timing (0.65 s / 0.84 s), even over the internet.
 
 ## Desync detection
 
