@@ -63,4 +63,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create $env:GITHUB_REF_NAME "build/package/open-homm5-$env:VERSION.zip" --draft --title "open-homm5 $env:VERSION" --notes "Draft made by the package workflow. Edit these notes, then publish."
+        run: |
+          $notes = "docs/releases/$env:VERSION.md"
+          if (-not (Test-Path $notes)) { throw "no release notes $notes: write them before tagging" }
+          gh release create $env:GITHUB_REF_NAME "build/package/open-homm5-$env:VERSION.zip" --draft --title "open-homm5 $env:VERSION" --notes-file $notes
