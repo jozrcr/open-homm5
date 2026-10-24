@@ -34,11 +34,6 @@
 00bc76a0  ??$CopyBackwardRange@U?$Array2D@E@@@@YIPAU?$Array2D@E@@PAU0@00@Z   # copy_backward for Array2D<unsigned char> ranges (not in this unit)
 00bc7720  ?DestroyRange@@YIXPAU?$Array2D@UNode@@@@0@Z   # destroy a range of Array2D<Node>
 00bc7720  ?DestroyRange@@YIXPAU?$Array2D@E@@0@Z   # same code for Array2D<unsigned char>
-# Known addresses of functions and globals that decompiled code refers to but that
-# are not (yet) reconstructed in a unit.json. The verifier uses this to check that
-# every call/jump/data reference in a matched function points to the right place.
-# Format: address  mangled-name   # comment
-00401330  ?Func00401330@CGameTimer@NGameTimer@@QAEXHH@Z   # called by CGameTimer slot 21
 # --- HeroPathfinderMisc (worker W3) ---
 00879240  ?Free_00879240@@YAXPAX@Z   # free / operator delete (a jmp thunk), cdecl
 0046eae0  ?Func_0046eae0@@YGMM@Z   # float -> float, stdcall (probably a sine)
