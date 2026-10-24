@@ -78,9 +78,9 @@
 00f3fa60  ?g_asyncSave@@3_NA   # enables async_<player>_<n>.sav at a desync
 00ff540c  ?g_log@@3USLog@@A   # the game's text log object
 00403550  ?EndlManip@@YAXXZ   # log manipulator (end of line), passed as a function pointer
-008c9750  ?Level@SLog@@QAEAAU1@PBH@Z   # log << &level
+008c9750  ?Level@SLog@@QAEAAU1@ABUSLevel@@@Z   # log << &level
 008c9630  ?Str@SLog@@QAEAAU1@PBD@Z   # log << "text"
-008c9450  ?Int@SLog@@QAEAAU1@PBH@Z   # log << &int
+008c9450  ?Int@SLog@@QAEAAU1@ABH@Z   # log << &int
 008c9190  ?Manip@SLog@@QAEAAU1@P6AXXZ@Z   # log << manipulator
 00b0f580  ?Func_00b0f580@@YIXHPAXH@Z   # __fastcall(a, world, b), ret 4; called by the multiplayer transceiver slot 2
 00465640  ?FMax@@YGMMM@Z   # __stdcall float max(a, b): a < b ? b : a

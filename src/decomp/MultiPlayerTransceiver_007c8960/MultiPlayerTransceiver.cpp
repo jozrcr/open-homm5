@@ -67,10 +67,14 @@ struct SSegment {
 };
 
 // The game's text log (a global stream object at 0x00ff540c).
+struct SLevel {
+	int value;
+	SLevel(int v) : value(v) {}
+};
 struct SLog {
-	SLog &Level(const int *level);
+	SLog &Level(const SLevel &level);
 	SLog &Str(const char *s);
-	SLog &Int(const int *n);
+	SLog &Int(const int &n);
 	SLog &Manip(void (*f)());
 };
 extern SLog g_log;  // 0x00ff540c
@@ -255,21 +259,20 @@ void CMultiPlayerTransceiver::DropPlayer(int index)
 {
 	if (index < 0)
 		return;
-	unsigned keep = ~(1 << index);
-	m_active &= keep;
+	unsigned bit = 1 << index;
+	m_active &= ~bit;
 	for (int s = m_reported.start[index]; s <= m_segments.head->prev->value.number; s++) {
 		for (SListNode<SSegment> *n = m_segments.head->next; n != m_segments.head; n = n->next) {
 			if (n->value.number == s) {
 				SSegment *seg = &n->value;
 				if (seg)
-					seg->mask &= keep;
+					seg->mask &= ~bit;
 				break;
 			}
 		}
 	}
 	m_reported.start[index] = -1;
-	int level = 1;
-	g_log.Level(&level).Str("Drop player ").Int(&index).Manip(EndlManip);
+	g_log.Level(SLevel(1)).Str("Drop player ").Int(index).Manip(EndlManip);
 }
 
 // FUNCTION: 0x007c8dd0
