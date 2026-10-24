@@ -5,6 +5,8 @@
 //
 // See docs/subsystems/ai-pathfinder.md for what the pathfinder does.
 
+#include <string.h>
+
 // A cost as the pathfinder stores it in a node (+0x20 and +0x30): `pad` is never read.
 struct SCost {
 	int a;
@@ -38,6 +40,8 @@ public:
 	void Destroy(unsigned int mask);  // 0x008c61d0
 	void FreeWeak();                  // 0x008c6150
 };
+
+void __cdecl Free(void *p);  // 0x00879240, the game's operator delete (a thunk)
 
 class CRefObjA;
 CRefBase * __fastcall ToBase(CRefObjA *p, CRefObjA *q);  // 0x00bc5400
@@ -115,6 +119,16 @@ struct SOpenList : SPtrVec {
 		Reserve(10);
 	}
 	void Reserve(int count);
+	int Size() const { return (last - first) >> 6; }
+	void Reset(int count)
+	{
+		if (first)
+			Free(first);
+		first = 0;
+		last = 0;
+		end = 0;
+		Reserve(count);
+	}
 };
 
 template <class T>
@@ -160,9 +174,22 @@ struct SNode {
 	SCost cost2;            // 0x30
 };
 
+// The world's tiles: floors[f].rows[y][x] (0x24 bytes per tile, kind at +0x10).
+struct SWorldTile {
+	char m_pad[0x10];
+	int kind;
+	char m_pad2[0x24 - 0x14];
+};
+struct SWorldFloor {
+	char m_pad[4];
+	SWorldTile **rows;
+	char m_pad2[0x58 - 8];
+};
+
 struct SMapInfo {
 	char m_pad[0x1c];
 	SPos m_size;
+	SWorldFloor *floors;  // 0x20
 };
 
 struct CRefPtr {
@@ -184,6 +211,8 @@ public:
 	unsigned int MovesAtChecked(const SPos *p);   // 0x00c07230
 	unsigned int BoatCounterAt(const SPos *p);    // 0x00c07260
 	bool NodeCheck(SNode *n);                     // 0x00c091d0
+	bool Visitable(const SPos *p);                // 0x00c072d0
+	void Prepare();                               // 0x00c07920
 
 	SMapInfo *m_map;       // 0x00
 	CRefPtr m_04;
@@ -465,4 +494,52 @@ unsigned int CHeroPathfinder::BoatCounterAt(const SPos *p)
 			return n->flags.counter;
 	}
 	return 0;
+}
+
+// FUNCTION: 0x00c072d0
+bool CHeroPathfinder::Visitable(const SPos *p)
+{
+	CRefObjA *pool = m_04.p;
+	if (pool) {
+		if (pool->Slot3(p))
+			return false;
+	}
+	pool = m_04.p;
+	if (pool) {
+		CRefObjA *o = pool->Slot0(p);
+		if (o && !(o->m_strong & 0x80000000))
+			return true;
+	}
+	int kind = m_map->floors[p->f].rows[p->y][p->x].kind;
+	if (kind == 2 || kind == 3)
+		return true;
+	return false;
+}
+
+// FUNCTION: 0x00c07920
+void CHeroPathfinder::Prepare()
+{
+	if (m_map) {
+		SPos size = m_map->m_size;
+		unsigned char mark = m_d8;
+		unsigned int height = size.y;
+		unsigned int width = size.x;
+		int floors = size.f;
+		if (mark >= 0xff) {
+			for (int i = 0; i < floors; ++i) {
+				SMarkFloor &a = m_c0.first[i];
+				memset(a.data, 0, a.h * a.w);
+				SMarkFloor &b = m_cc.first[i];
+				memset(b.data, 0, b.h * b.w);
+			}
+			m_d8 = 1;
+		} else {
+			m_d8 = mark + 1;
+		}
+		m_90 = false;
+		m_91 = false;
+		int n = height + width;
+		if (m_open.Size() < n || m_open.Size() > n * 2)
+			m_open.Reset(n);
+	}
 }
