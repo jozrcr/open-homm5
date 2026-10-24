@@ -101,6 +101,677 @@
    "name": "?Slot21@CGameTimer@NGameTimer@@UAEXHH@Z",
    "unit": "GameTimer"
   },
+  "007c80a0": {
+   "size": 26,
+   "hash": "3de61b9e7d49e3a3c98c267e0925d2a8497293c8e5400c0b51770736d13e3b0d",
+   "relocs": [
+    [
+     19,
+     20,
+     "addr",
+     "0079edf0"
+    ]
+   ],
+   "name": "?Send@CSinglePlayerTransceiver@@UAEXPAVCCmd@@@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c80c0": {
+   "size": 50,
+   "hash": "914317e1530c7d8542a2c5749e80794ee6c13dcf9eb911d97f0ae083411eb126",
+   "relocs": [
+    [
+     17,
+     20,
+     "addr",
+     "007c8100"
+    ],
+    [
+     28,
+     6,
+     "addr",
+     "00e0a7a0"
+    ],
+    [
+     36,
+     20,
+     "addr",
+     "008790b0"
+    ]
+   ],
+   "name": "??_GCSinglePlayerTransceiver@@UAEPAXI@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c8100": {
+   "size": 271,
+   "hash": "bf3a6e47cf7f2f0a20b8248930c44ae11fea0398afa2dbb03b01dc294cbcbc37",
+   "relocs": [
+    [
+     11,
+     20,
+     "addr",
+     "00778a20"
+    ],
+    [
+     24,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     40,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     75,
+     20,
+     "addr",
+     "008c61d0"
+    ],
+    [
+     104,
+     20,
+     "addr",
+     "008c61d0"
+    ],
+    [
+     118,
+     20,
+     "addr",
+     "00c8b150"
+    ],
+    [
+     142,
+     20,
+     "addr",
+     "008c61d0"
+    ],
+    [
+     183,
+     20,
+     "addr",
+     "008c61d0"
+    ],
+    [
+     191,
+     20,
+     "addr",
+     "007c63b0"
+    ],
+    [
+     220,
+     20,
+     "addr",
+     "008c61d0"
+    ],
+    [
+     264,
+     20,
+     "addr",
+     "008c61d0"
+    ]
+   ],
+   "name": "??1CSinglePlayerTransceiver@@UAE@XZ",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c8240": {
+   "size": 62,
+   "hash": "b15dfb7bf76c62e70e2a156548d9e8952481a40e74f07d393b1f4d46b02000c2",
+   "relocs": [
+    [
+     55,
+     20,
+     "addr",
+     "0068bd20"
+    ]
+   ],
+   "name": "?Send@CSimpleTempTransceiver@@UAEXPAVCCmd@@@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c8280": {
+   "size": 44,
+   "hash": "31f4fec487ff90e250c30785004493cd0395efc78b4aaef9ee9ec5fdebfe6608",
+   "relocs": [
+    [
+     11,
+     20,
+     "addr",
+     "007c82b0"
+    ],
+    [
+     22,
+     6,
+     "addr",
+     "00e0a7a0"
+    ],
+    [
+     30,
+     20,
+     "addr",
+     "008790b0"
+    ]
+   ],
+   "name": "??_GCSimpleTempTransceiver@@UAEPAXI@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c82b0": {
+   "size": 104,
+   "hash": "6f38a476acf972a771cc3cec8599540a866d953979d290daf0634179da7e0053",
+   "relocs": [
+    [
+     10,
+     20,
+     "addr",
+     "00778a20"
+    ],
+    [
+     23,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     56,
+     20,
+     "addr",
+     "008c61d0"
+    ],
+    [
+     98,
+     20,
+     "addr",
+     "008c61d0"
+    ]
+   ],
+   "name": "??1CSimpleTempTransceiver@@UAE@XZ",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c8330": {
+   "size": 73,
+   "hash": "aa4f5b9981c48c894407d41b5b8d5fee5d2365ee2d4d12004bd3511abf01153b",
+   "relocs": [
+    [
+     6,
+     20,
+     "addr",
+     "007c82b0"
+    ],
+    [
+     37,
+     20,
+     "addr",
+     "007c7d40"
+    ]
+   ],
+   "name": "?Reset@CSimpleTempTransceiver@@UAEXXZ",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c8390": {
+   "size": 103,
+   "hash": "e856e15e7fa477a771675f56c1996671e6d23e2b9c25c4f3ec6e1cc2d694ab29",
+   "relocs": [
+    [
+     6,
+     20,
+     "addr",
+     "007c8100"
+    ],
+    [
+     49,
+     20,
+     "addr",
+     "007c78a0"
+    ]
+   ],
+   "name": "?Reset@CSinglePlayerTransceiver@@UAEXXZ",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c8410": {
+   "size": 123,
+   "hash": "efb21dafce00197125dfa02e7745598128eae9569ecfa00afea12a4d154b724a",
+   "relocs": [
+    [
+     23,
+     20,
+     "addr",
+     "0063ae40"
+    ],
+    [
+     42,
+     20,
+     "addr",
+     "0058a100"
+    ],
+    [
+     88,
+     20,
+     "addr",
+     "007c8490"
+    ]
+   ],
+   "name": "??ICSimpleTempTransceiver@@UAEHPAVIBinSaver@@@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c8570": {
+   "size": 129,
+   "hash": "6930658c2685c05d642c2d347695d35296fe87c0173c55b3130185c4512ec38d",
+   "relocs": [
+    [
+     23,
+     20,
+     "addr",
+     "0063ae40"
+    ],
+    [
+     42,
+     20,
+     "addr",
+     "0058a100"
+    ],
+    [
+     98,
+     20,
+     "addr",
+     "007c8600"
+    ]
+   ],
+   "name": "??ICReplayTransceiver@@UAEHPAVIBinSaver@@@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c8600": {
+   "size": 46,
+   "hash": "8cf439105a2f9ff75767c8855dbaa5145a9287d6dcd0bdbb3bf1378ee3619090",
+   "relocs": [
+    [
+     32,
+     20,
+     "addr",
+     "007c8630"
+    ]
+   ],
+   "name": "??$Chunk@USubA@@PAVIBinSaver@@@@YAXPAVIBinSaver@@HHPAUSubA@@PAPAV0@@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c8630": {
+   "size": 54,
+   "hash": "5f587062a4f1f060c6b4a47edd02848d1496ff528a01814a2543be9391f3bbdb",
+   "relocs": [
+    [
+     23,
+     20,
+     "addr",
+     "007c8670"
+    ]
+   ],
+   "name": "??ISubA@@QAEHPAVIBinSaver@@@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c8670": {
+   "size": 46,
+   "hash": "8cf439105a2f9ff75767c8855dbaa5145a9287d6dcd0bdbb3bf1378ee3619090",
+   "relocs": [
+    [
+     32,
+     20,
+     "addr",
+     "007c86a0"
+    ]
+   ],
+   "name": "??$Chunk@USubB@@PAVIBinSaver@@@@YAXPAVIBinSaver@@HHPAUSubB@@PAPAV0@@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c86a0": {
+   "size": 116,
+   "hash": "2038718da97d4f7a7cc63e99dbc49a7bf029f1d022684083638bbc8f8bc52115",
+   "relocs": [
+    [
+     20,
+     20,
+     "addr",
+     "007c8720"
+    ],
+    [
+     88,
+     20,
+     "addr",
+     "00403d10"
+    ]
+   ],
+   "name": "??ISubB@@QAEHPAVIBinSaver@@@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c8720": {
+   "size": 48,
+   "hash": "21a4426250d5cec8827c13dc8d539515159b56351a51f752e7a524096ba900db",
+   "relocs": [
+    [
+     34,
+     20,
+     "addr",
+     "007c8750"
+    ]
+   ],
+   "name": "??$Chunk@UCPtrC@@PAVIBinSaver@@@@YAXPAVIBinSaver@@HHPAUCPtrC@@PAPAV0@@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c8750": {
+   "size": 86,
+   "hash": "4c13d17d438e6ff9c35ca8d6bc7f16e12ceacc155f339c15a447d6bd9b68d5ed",
+   "relocs": [
+    [
+     27,
+     20,
+     "addr",
+     "00c8b160"
+    ],
+    [
+     43,
+     20,
+     "addr",
+     "007c7460"
+    ],
+    [
+     51,
+     20,
+     "addr",
+     "00611aa0"
+    ],
+    [
+     71,
+     20,
+     "addr",
+     "00c8b150"
+    ]
+   ],
+   "name": "?AddPtrC@IBinSaver@@QAEXPAUCPtrC@@@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c87c0": {
+   "size": 280,
+   "hash": "9e8f81a4ff38d00fc6a0af228408280bb472dabebc5ef83b0cc1b715f4b7158f",
+   "relocs": [
+    [
+     26,
+     20,
+     "addr",
+     "0063ae40"
+    ],
+    [
+     48,
+     20,
+     "addr",
+     "0058a100"
+    ],
+    [
+     104,
+     20,
+     "addr",
+     "007c8600"
+    ],
+    [
+     123,
+     20,
+     "addr",
+     "0063ae40"
+    ],
+    [
+     142,
+     20,
+     "addr",
+     "007c8720"
+    ],
+    [
+     161,
+     20,
+     "addr",
+     "004fa250"
+    ],
+    [
+     200,
+     20,
+     "addr",
+     "007c88e0"
+    ],
+    [
+     229,
+     20,
+     "addr",
+     "004a5c10"
+    ],
+    [
+     262,
+     20,
+     "addr",
+     "007c8490"
+    ]
+   ],
+   "name": "??ICSinglePlayerTransceiver@@UAEHPAVIBinSaver@@@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c88e0": {
+   "size": 48,
+   "hash": "21a4426250d5cec8827c13dc8d539515159b56351a51f752e7a524096ba900db",
+   "relocs": [
+    [
+     34,
+     20,
+     "addr",
+     "007c8910"
+    ]
+   ],
+   "name": "??$Chunk@UCPtrD@@PAVIBinSaver@@@@YAXPAVIBinSaver@@HHPAUCPtrD@@PAPAV0@@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c8910": {
+   "size": 74,
+   "hash": "e97058a6652c0af3dfc09221a7f28ada4ab2f26365c72baf02d4c80084a0bc1e",
+   "relocs": [
+    [
+     26,
+     20,
+     "addr",
+     "007c8960"
+    ],
+    [
+     52,
+     20,
+     "addr",
+     "00611aa0"
+    ]
+   ],
+   "name": "?AddPtrD@IBinSaver@@QAEXPAUCPtrD@@@Z",
+   "unit": "SinglePlayerTransceiver_007c80a0"
+  },
+  "007c8a00": {
+   "size": 15,
+   "hash": "0d30edec7bfa3e650bb7effdb28010a4a76749dd9053dce7c011d42f6b8a30e2",
+   "relocs": [],
+   "name": "?Slot15@CMultiPlayerTransceiver@@UAE_NXZ",
+   "unit": "MultiPlayerTransceiver_007c8960"
+  },
+  "007c8a10": {
+   "size": 6,
+   "hash": "76811197299fd7215ff45276752d25eaa8889353ee70ada1fd839c8a55d34ffc",
+   "relocs": [
+    [
+     1,
+     6,
+     "addr",
+     "00fe4d10"
+    ]
+   ],
+   "name": "?Func_007c8a10@@YAHXZ",
+   "unit": "MultiPlayerTransceiver_007c8960"
+  },
+  "007c8a20": {
+   "size": 6,
+   "hash": "76811197299fd7215ff45276752d25eaa8889353ee70ada1fd839c8a55d34ffc",
+   "relocs": [
+    [
+     1,
+     6,
+     "addr",
+     "00fe4d14"
+    ]
+   ],
+   "name": "?Func_007c8a20@@YAHXZ",
+   "unit": "MultiPlayerTransceiver_007c8960"
+  },
+  "007c8a30": {
+   "size": 7,
+   "hash": "ee43de7e2764d551eda94e7adc8b24c27ea34c74f7bd1334213299e3490ded98",
+   "relocs": [
+    [
+     2,
+     6,
+     "addr",
+     "00f3fa5c"
+    ]
+   ],
+   "name": "?Func_007c8a30@@YAMXZ",
+   "unit": "MultiPlayerTransceiver_007c8960"
+  },
+  "007c8b00": {
+   "size": 12,
+   "hash": "5a1901c207d97916c2606286c41e54c30f65564f2d6a778259ce13c3aa98de96",
+   "relocs": [],
+   "name": "?GetTime@CMultiPlayerTransceiver@@UAEHXZ",
+   "unit": "MultiPlayerTransceiver_007c8960"
+  },
+  "007c8b10": {
+   "size": 32,
+   "hash": "b4f3498794c476076f8a4d13ab1479abef79aec0103dae38395d2cb3c4c726fd",
+   "relocs": [],
+   "name": "?Slot06@CMultiPlayerTransceiver@@UAE_NPAI@Z",
+   "unit": "MultiPlayerTransceiver_007c8960"
+  },
+  "007c8b30": {
+   "size": 133,
+   "hash": "a6eb40ca9ed0627f1f7d21d2bc523f2325a4a821512dc4aa9923220b1559ebb5",
+   "relocs": [],
+   "name": "?Slot10@CMultiPlayerTransceiver@@UAE_NXZ",
+   "unit": "MultiPlayerTransceiver_007c8960"
+  },
+  "007c8c10": {
+   "size": 106,
+   "hash": "e63905283fdc98ea3c3364092b2830f3653add0f7e74bad10b64ceaca47cfef7",
+   "relocs": [],
+   "name": "?FindPlayer@CMultiPlayerTransceiver@@QAEHH@Z",
+   "unit": "MultiPlayerTransceiver_007c8960"
+  },
+  "007c8c80": {
+   "size": 139,
+   "hash": "a4a5ddb7801e657aa39345b02a7f1dd4d73ea7963cb7f9e677fea1c1b5090f54",
+   "relocs": [],
+   "name": "?AllReported@CMultiPlayerTransceiver@@QAE_NPAUSSegment@@@Z",
+   "unit": "MultiPlayerTransceiver_007c8960"
+  },
+  "007c8d10": {
+   "size": 180,
+   "hash": "6836882933bfd386142df51e3e5d704cab7cfd173ce188b8400c47abfdc19c51",
+   "relocs": [
+    [
+     109,
+     6,
+     "addr",
+     "00403550"
+    ],
+    [
+     126,
+     6,
+     "data",
+     "f7ca9fccc458cd9900db5aebb3b56b12160d2c43870c8b5fe58daeaa722d963a",
+     13
+    ],
+    [
+     136,
+     6,
+     "addr",
+     "00ff540c"
+    ],
+    [
+     149,
+     20,
+     "addr",
+     "008c9750"
+    ],
+    [
+     156,
+     20,
+     "addr",
+     "008c9630"
+    ],
+    [
+     163,
+     20,
+     "addr",
+     "008c9450"
+    ],
+    [
+     170,
+     20,
+     "addr",
+     "008c9190"
+    ]
+   ],
+   "name": "?DropPlayer@CMultiPlayerTransceiver@@QAEXH@Z",
+   "unit": "MultiPlayerTransceiver_007c8960"
+  },
+  "007c8f00": {
+   "size": 194,
+   "hash": "527b6e638dffa298a6b83713f9b0c587fac518c6e60f3f97602a14c984448b45",
+   "relocs": [],
+   "name": "?Slot13@CMultiPlayerTransceiver@@UAEHXZ",
+   "unit": "MultiPlayerTransceiver_007c8960"
+  },
+  "007c8fd0": {
+   "size": 124,
+   "hash": "6609fc99860f47c6b1b0046aa30497e6d7d7619ce1adccea8c112fb6b7e8334b",
+   "relocs": [],
+   "name": "?Slot09@CMultiPlayerTransceiver@@UAE_NH@Z",
+   "unit": "MultiPlayerTransceiver_007c8960"
+  },
+  "007c9050": {
+   "size": 134,
+   "hash": "b147c2ec9d442fe38af83e9777e3d3e5f8e92f1038e68a2fc5983cf2e11809c2",
+   "relocs": [
+    [
+     2,
+     6,
+     "addr",
+     "00fe4d1a"
+    ]
+   ],
+   "name": "?Slot11@CMultiPlayerTransceiver@@UAE_NH@Z",
+   "unit": "MultiPlayerTransceiver_007c8960"
+  },
+  "007c90e0": {
+   "size": 86,
+   "hash": "12b90161d4fa447dc64e715f961ae9711ef261b667330e706dc75c9c18f35f3a",
+   "relocs": [
+    [
+     13,
+     20,
+     "addr",
+     "007cc260"
+    ],
+    [
+     24,
+     20,
+     "addr",
+     "00878fd0"
+    ],
+    [
+     47,
+     6,
+     "addr",
+     "00e43dd0"
+    ]
+   ],
+   "name": "?Slot01@CMultiPlayerTransceiver@@UAEXHPAUSRef@@H@Z",
+   "unit": "MultiPlayerTransceiver_007c8960"
+  },
   "00c070c0": {
    "size": 60,
    "hash": "a0d6bbfff7d2384c320c614fe930115a7cc2335da363e3de7783896c05b31613",
@@ -376,6 +1047,268 @@
    ],
    "name": "?SetWeakA4@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
    "unit": "HeroPathfinderSetup"
+  },
+  "00c07ba0": {
+   "size": 992,
+   "hash": "41f8a6c47273ca38a69032731ad15e0e5e413436a9b2dd476b29b218a67ad072",
+   "relocs": [
+    [
+     64,
+     20,
+     "addr",
+     "008c6150"
+    ],
+    [
+     123,
+     20,
+     "addr",
+     "00bc7720"
+    ],
+    [
+     136,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     176,
+     20,
+     "addr",
+     "00c09720"
+    ],
+    [
+     188,
+     20,
+     "addr",
+     "00bc7720"
+    ],
+    [
+     208,
+     20,
+     "addr",
+     "00c09a40"
+    ],
+    [
+     231,
+     20,
+     "addr",
+     "00bc7720"
+    ],
+    [
+     244,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     284,
+     20,
+     "addr",
+     "00c09720"
+    ],
+    [
+     296,
+     20,
+     "addr",
+     "00bc7720"
+    ],
+    [
+     316,
+     20,
+     "addr",
+     "00c09a40"
+    ],
+    [
+     339,
+     20,
+     "addr",
+     "00bc7720"
+    ],
+    [
+     352,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     392,
+     20,
+     "addr",
+     "00bc7660"
+    ],
+    [
+     404,
+     20,
+     "addr",
+     "00bc7720"
+    ],
+    [
+     424,
+     20,
+     "addr",
+     "00c09b30"
+    ],
+    [
+     447,
+     20,
+     "addr",
+     "00bc7720"
+    ],
+    [
+     460,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     500,
+     20,
+     "addr",
+     "00bc7660"
+    ],
+    [
+     512,
+     20,
+     "addr",
+     "00bc7720"
+    ],
+    [
+     532,
+     20,
+     "addr",
+     "00c09b30"
+    ],
+    [
+     584,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     600,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     620,
+     20,
+     "addr",
+     "00c08f30"
+    ],
+    [
+     663,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     679,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     699,
+     20,
+     "addr",
+     "00c08f30"
+    ],
+    [
+     746,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     762,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     782,
+     20,
+     "addr",
+     "004b24d0"
+    ],
+    [
+     813,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     829,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     849,
+     20,
+     "addr",
+     "004b24d0"
+    ],
+    [
+     950,
+     20,
+     "addr",
+     "00c09260"
+    ],
+    [
+     964,
+     20,
+     "addr",
+     "00c09260"
+    ],
+    [
+     978,
+     20,
+     "addr",
+     "00c07920"
+    ]
+   ],
+   "name": "?SetMap@CHeroPathfinder@@QAEXPAVCMapObj@@@Z",
+   "unit": "HeroesFilter_00c07070"
+  },
+  "00c08890": {
+   "size": 840,
+   "hash": "214a791dc5474ad514b473b27af7b7fadfe47129476fd0ee1790f73959ab1f57",
+   "relocs": [
+    [
+     191,
+     20,
+     "addr",
+     "00c095b0"
+    ],
+    [
+     436,
+     20,
+     "addr",
+     "009d1350"
+    ],
+    [
+     469,
+     20,
+     "addr",
+     "009d22f0"
+    ],
+    [
+     656,
+     6,
+     "addr",
+     "00f757c8"
+    ],
+    [
+     670,
+     20,
+     "addr",
+     "00c07f80"
+    ]
+   ],
+   "name": "?Run@CHeroPathfinder@@QAEXH@Z",
+   "unit": "HeroesFilter_00c07070"
   },
   "00c08f30": {
    "size": 149,
