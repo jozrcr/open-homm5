@@ -10,3 +10,4 @@
 007c8dd0  2026-10-25  MultiPlayerTransceiver_007c8960: Slot05, clamp 0..20 shares one store of eax in the exe
 007c9140  2026-10-25  MultiPlayerTransceiver_007c8960: OnChat, same code but tail merged differently
 00c08be0  2026-10-25  HeroesFilter_00c07070: StartSearch, 11 bytes over (extra start position built with mask-or, Cost temp registers)
+007c8490  2026-10-25  SinglePlayerTransceiver_007c80a0: IBinSaver::AddVec, register allocation (ebx=0 constant, test/mov scheduling)

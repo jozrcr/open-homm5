@@ -106,3 +106,31 @@
 010c5889  ?g_dbgPaths@@3_NA   # byte: print the pathfinder grid after a search
 00a47fd0  ?Format@@YAPADPBDZZ   # printf-like formatter returning a text, cdecl
 00f757c8  ?g_dirs@@3PAHA   # table of the 8 step directions passed to the expand step
+
+# --- SinglePlayerTransceiver_007c80a0 ---
+0079edf0  ?PushBackOut@CmdVec@@QAEXABQAVCCmd@@@Z   # W2: vector<CCmd*>::push_back(const&), thiscall, ret 4 (out-of-line copy)
+0068bd20  ?InsertOverflow@CmdVec@@QAEXPAPAVCCmd@@PBQAV2@HH@Z   # W2: the vector's insert-when-full (where, &x, 1, 1), ret 0x10
+00778a20  ?DestroyRange@@YIXPAPAVCCmd@@0@Z   # W2: __fastcall(first, last): releases the pointers in [first,last)
+008c61d0  ?Destroy@CObjectBase@@QAEXI@Z   # W2: strong count hit zero, thiscall on the object, arg 0xfffff
+00c8b150  ?ToBaseC@@YIPAVCObjectBase@@PAVCConvObj@@0@Z   # W2: fastcall(p, p) -> the virtual base CObjectBase of p
+007c63b0  ??1SubA@@QAE@XZ   # W2: destructor of the 0x44-byte helper struct at transceiver+0x1c
+00706ac0  ?Resize@CmdVec@@QAEXH@Z   # W2: vector resize(n), thiscall, ret 4
+00403d10  ?AddSubD@IBinSaver@@QAEXHPAVSubD@@H@Z   # W2: IBinSaver::Add(id, item, n) for an item type, thiscall ret 0xc
+00c8b160  ?CastC@@YIPAVCConvObj@@PAVCObjectBase@@HH@Z   # W2: fastcall(obj, 0, 0): cast of a loaded object (ecx=obj, edx=0, stack 0)
+007c7460  ?OnSet@CPtrC@@QAEXPAVCConvObj@@@Z   # W2: smart pointer: a new object was stored (thiscall(ptr slot, obj))
+00611aa0  ?Release@CPtrC@@QAEXPAVCConvObj@@@Z   # W2: smart pointer: drop the old object (thiscall(ptr slot, old))
+00611aa0  ?Release@CPtrD@@QAEXPAVCChatLogic@@@Z   # W2: same function, other pointer type
+007c8960  ?CastD@@YIPAVCChatLogic@@PAVCObjectBase@@HH@Z   # W2: fastcall(obj, 0, 0): dynamic cast to NMP::CChatInGameLogicInternal
+004a5c10  ?AddBuf@IBinSaver@@QAEXPAUCBuffer@@@Z   # W2: IBinSaver member, thiscall(ptr to a heap buffer holder), ret 4
+0063ae40  ??$Chunk@UCPtrTimer@@PAVIBinSaver@@@@YAXPAVIBinSaver@@HHPAUCPtrTimer@@PAPAV0@@Z   # W2: save/load chunk for the timer pointer
+0058a100  ??$Chunk@USTypeB@@PAVIBinSaver@@@@YAXPAVIBinSaver@@HHPAUSTypeB@@PAPAV0@@Z   # W2: save/load chunk for the dword at +0xc
+004fa250  ??$Chunk@U?$CPtrPlain@VCRefObj@@@@PAVIBinSaver@@@@YAXPAVIBinSaver@@HHPAU?$CPtrPlain@VCRefObj@@@@PAPAV0@@Z   # W2: save/load chunk for a plain counted pointer
+0044b560  ??$Chunk@PAVCCmd@@PAUCmdVec@@@@YAXPAVIBinSaver@@HHPAPAVCCmd@@PAPAUCmdVec@@@Z   # W2: save/load chunk for one vector element
+007c78a0  ??0CSinglePlayerTransceiver@@QAE@XZ   # W2: constructor, hidden arg 1 = construct the virtual base too
+007c7d40  ??0CSimpleTempTransceiver@@QAE@XZ   # W2: constructor, hidden arg 1 = construct the virtual base too
+00e0a7a0  ??_7CObjectBase@@6B@   # W2: vtable of CObjectBase (the virtual base)
+008790b0  ??3CObjectBase@@SAXPAX@Z   # W2: the delete the deleting destructors call (the real operator delete; 0x00879240 is its thunk)
+007c8100  ??1CSinglePlayerTransceiver@@UAE@XZ   # W2: destructor (the compiler's implicit one)
+007c82b0  ??1CSimpleTempTransceiver@@UAE@XZ   # W2: destructor (the compiler's implicit one)
+007c8910  ?AddPtrD@IBinSaver@@QAEXPAUCPtrD@@@Z   # W2: IBinSaver member, pointer load/save
+007c8490  ?AddVec@IBinSaver@@QAEXPAUCmdVec@@@Z   # W2: IBinSaver member, vector load/save
