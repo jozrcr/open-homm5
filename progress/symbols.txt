@@ -17,4 +17,3 @@
 00bc76a0  ??$CopyBackwardRange@U?$Array2D@E@@@@YIPAU?$Array2D@E@@PAU0@00@Z   # copy_backward for Array2D<unsigned char> ranges (not in this unit)
 00bc7720  ?DestroyRange@@YIXPAU?$Array2D@UNode@@@@0@Z   # destroy a range of Array2D<Node>
 00bc7720  ?DestroyRange@@YIXPAU?$Array2D@E@@0@Z   # same code for Array2D<unsigned char>
-00c08f30  ?Alloc@?$Array2D@UNode@@@@QAEXXZ   # Array2D<Node>::Alloc: allocate the nodes and the row table (not matching yet, see src/decomp/HeroPathfinderQueue/attempts.txt)

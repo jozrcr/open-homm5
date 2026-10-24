@@ -9,6 +9,9 @@
 //
 // All names are guesses. Declarations here are local to this unit (pilot).
 //
+// ReverseNodes (0x00c090c0) is byte-identical to the exe but is not listed in unit.json:
+// the inventory size (70) leaves out the 3 padding bytes inside the function (see attempts.txt).
+//
 // Build flags: unit.json overrides the default flags by leaving out /GX. The code in
 // this part of the exe has no exception frames at all (no SEH prologue between
 // 0x00bf9957 and 0x00c0d797), and library code that normally has try/catch
@@ -27,11 +30,17 @@ struct Cost {
 	unsigned pad;
 	__int64 b;
 
+	Cost()
+	{
+		a = 0;
+		b = 0;
+	}
 };
 
-// A search node (64 bytes). Positions are x | y << 10 | floor << 20 in 24 bits,
-// the top byte is cleared by the constructor.
-struct Node {
+// The first 0x20 bytes of a search node. Positions are x | y << 10 | floor << 20 in
+// 24 bits; the constructor clears the top byte of the three position fields and the top
+// 5 bits of the flags (everything else is left as it was).
+struct NodeBase {
 	union {
 		unsigned pos;  // 0x00
 		unsigned char posb[4];
@@ -48,9 +57,9 @@ struct Node {
 			unsigned flagsTop : 5;
 		};
 	};
-	int moved;       // 0x08
-	unsigned tie;    // 0x0c tie-breaker
-	unsigned d10;    // 0x10
+	int moved;     // 0x08
+	unsigned tie;  // 0x0c tie-breaker
+	unsigned d10;  // 0x10
 	union {
 		unsigned prev;  // 0x14 previous position
 		unsigned char prevb[4];
@@ -60,20 +69,23 @@ struct Node {
 		unsigned char d18b[4];
 	};
 	unsigned d1c;  // 0x1c
-	Cost cost;     // 0x20
-	Cost cost2;    // 0x30
 
-	Node()
+	// The order of these statements (and the split into this class and the two Costs,
+	// which are constructed afterwards) decides the order of the stores in the compiled
+	// loop of Array2D<Node>::Alloc, which matches the exe.
+	NodeBase()
 	{
-		flagsTop = 0;
 		posb[3] = 0;
 		prevb[3] = 0;
 		d18b[3] = 0;
-		cost.a = 0;
-		cost.b = 0;
-		cost2.a = 0;
-		cost2.b = 0;
+		flagsTop = 0;
 	}
+};
+
+// A search node (64 bytes).
+struct Node : NodeBase {
+	Cost cost;   // 0x20
+	Cost cost2;  // 0x30
 };
 
 // FUNCTION: 0x00c08fd0
