@@ -3,3 +3,5 @@
 # every call/jump/data reference in a matched function points to the right place.
 # Format: address  mangled-name   # comment
 00401330  ?Func00401330@CGameTimer@NGameTimer@@QAEXHH@Z   # called by CGameTimer slot 21
+008c61d0  ?Destroy@CRefBase@@QAEXI@Z   # HeroPathfinderSetup (W1): strong count hit zero, arg 0xfffff, thiscall on the virtual base
+008c6150  ?FreeWeak@CRefBase@@QAEXXZ   # HeroPathfinderSetup (W1): weak count hit zero, thiscall on the virtual base
