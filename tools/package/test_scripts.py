@@ -383,9 +383,9 @@ def main():
                         "--out-dir", str(out_dir)])
     if r.returncode != 0:
         sys.exit("make_package.py failed")
-    pkg = work / "package"
     with zipfile.ZipFile(out_dir / "open-homm5-test.zip") as z:
-        z.extractall(pkg)
+        z.extractall(work / "package")
+    pkg = work / "package" / "open-homm5-test"  # the zip's one top folder
 
     if os.name == "nt":
         windows_tests(pkg, work / "win")

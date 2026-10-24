@@ -24,7 +24,7 @@ python tools\package\make_package.py --rebuild  # build the DLL again first
 | `install.sh`, `uninstall.sh` | Linux (Steam / Proton) installer and uninstaller |
 | `README.txt` | ten lines for a friend; `@VERSION@` is filled in |
 
-The scripts and templates are in `tools/package/files/`. The zip is flat (no top folder). Line endings are set when the zip is written: CRLF for `.bat`, `.ps1`, `.txt` and `.ini` (Notepad, cmd.exe), LF for `.sh`, which also get the executable bit. In the repo, `.gitattributes` keeps `.bat` as CRLF and `.sh` as LF.
+The scripts and templates are in `tools/package/files/`. Everything is in one top folder, `open-homm5-<version>/`, so that unzipping on Linux does not spread the files around. Line endings are set when the zip is written: CRLF for `.bat`, `.ps1`, `.txt` and `.ini` (Notepad, cmd.exe), LF for `.sh`, which also get the executable bit. In the repo, `.gitattributes` keeps `.bat` as CRLF and `.sh` as LF.
 
 ## What the scripts do
 

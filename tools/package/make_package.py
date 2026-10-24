@@ -143,7 +143,7 @@ def main():
     with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for name, source in CONTENTS:
             data = file_bytes(name, source, args.dll, args.version)
-            info = zipfile.ZipInfo(name, stamp)
+            info = zipfile.ZipInfo(f"open-homm5-{args.version}/{name}", stamp)  # one top folder
             info.compress_type = zipfile.ZIP_DEFLATED
             info.create_system = 3  # Unix, so that unzip on Linux honours the mode below
             mode = 0o755 if Path(name).suffix in EXECUTABLE_SUFFIXES else 0o644
