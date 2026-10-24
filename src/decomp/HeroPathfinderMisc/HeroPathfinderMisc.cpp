@@ -7,26 +7,32 @@
 //
 //   * CBonusList (0x24 bytes): a short list of {kind, level} entries (kind 1..10)
 //     plus the summed per-kind bonus of all entries (SBonus, at +0xc). Looks like
-//     a hero's chosen "specialisations"; entries are limited by a hero value.
+//     a hero's chosen "specialisations": at most 3 entries, limited by a hero value.
 //   * CGrid: a grid (vector of rows, 16 bytes each) of cells (40 bytes each:
-//     a "used" byte and a CBonusList), and a few helpers that read and swap cells.
-//   * a few small helpers for text (tooltips) and for vectors of ints.
+//     a "used" byte and a CBonusList), with helpers that read, compare and swap cells.
+//   * a few small helpers for text (tooltips), reference-counted handles and
+//     vectors of ints.
 //
-// The compiler is Visual C++ 2003 (13.10.3077), /O2 /G7 /GR. Free functions use
-// __fastcall (the game seems to be built with /Gr).
-
-#include <math.h>
-
-// The game's own placement new: no throw() specification, so the compiler
-// does not add a null check (the standard <new> one does).
-inline void *operator new(unsigned int, void *p) { return p; }
-inline void operator delete(void *, void *) {}
+// Compiler: Visual C++ 2003 (13.10.3077), /O2 /G7 /GR, but WITHOUT /GX (see unit.json
+// "flags"): the original CGrid::SwapItems (0x00c0af20) has a local object with a
+// destructor and no exception-handling frame, and nothing in this unit shows one.
+// Free functions use __fastcall (the game seems to be built with /Gr).
+//
+// Matching notes (what the compiler taught us here):
+//   * A "const" member function (CGrid::ColCount) lets the compiler keep member loads
+//     across calls to it.
+//   * "do { if (bad) break; ... return x; } while (0); <fallback>" lays the blocks out
+//     like the original GetItem; plain if/else puts the return first.
+//   * Stack slots go to locals in the order their address is first used in the code, so
+//     the order of temporaries and arguments in an expression matters (Describe).
+//   * A constructor-style call on a temporary (SFmtA(...).Conv()) reuses EAX, a named
+//     local re-loads its address.
+//   * m_total = SBonus(); compiles to the same stores as the original's inlined reset.
 
 // ---------------------------------------------------------------------------
 // Things outside this unit (addresses in progress/symbols.txt)
 
 void __cdecl Free_00879240(void *p);          // 0x00879240: operator delete / free (cdecl)
-float __stdcall Func_0046eae0(float x);       // 0x0046eae0: float -> float (probably a sine)
 
 // An object with a big virtual table (a hero?).
 class IHeroLike {
@@ -74,24 +80,6 @@ SBonus::SBonus()
 		b[i] = 0;
 }
 
-// FUNCTION: 0x00c0a220
-SBonus &SBonus::Add(const SBonus *o)
-{
-	b[0] += o->b[0];
-	b[1] += o->b[1];
-	b[2] += o->b[2];
-	b[3] += o->b[3];
-	b[4] += o->b[4];
-	b[5] += o->b[5];
-	b[6] += o->b[6];
-	b[7] += o->b[7];
-	int t9 = o->b[9];
-	int t8 = o->b[8];
-	b[8] += t8;
-	b[9] += t9;
-	return *this;
-}
-
 // ---------------------------------------------------------------------------
 // CBonusList
 
@@ -136,48 +124,11 @@ public:
 
 int __fastcall BonusLevel(int kind, int n);         // 0x00c0a2f0
 
-// FUNCTION: 0x00c0a2f0
-int __fastcall BonusLevel(int kind, int n)
-{
-	int m = (n > 0) ? n : 1;
-	n = m;
-	switch (kind) {
-	case 1: case 4:
-		return n / 5 + 1;
-	case 2: case 5:
-		return n / 4 + 1;
-	case 6: {
-		double t = log(n * 10.0) / log(600.0);
-		t = t * t * t;
-		t = (t < 1.0) ? t : 1.0;
-		float s = Func_0046eae0((float)(t * 1.5707964f));
-		return (int)(s * 85.0);
-	}
-	case 7:
-		return n / 10 + 1;
-	case 8:
-		return n / 10 + 1;
-	case 3: case 9:
-		return n / 15 + 1;
-	case 10:
-		return n;
-	default:
-		return -1;
-	}
-}
-
 // FUNCTION: 0x00c0a870
 CBonusList::CBonusList()
 {
 	m_1c = 0;
 	m_flag = false;
-}
-
-// FUNCTION: 0x00c0a2c0
-void CBonusList::GetTotal(SBonus *out)
-{
-	if (out)
-		*out = m_total;
 }
 
 // FUNCTION: 0x00c0a440
@@ -232,28 +183,6 @@ bool CBonusList::CanAdd(int kind, IHeroLike *hero)
 	for (int i = 0; i < n; i++) {
 		if (m_vec.begin[i].kind == kind)
 			return false;
-	}
-	return true;
-}
-
-// FUNCTION: 0x00c0a770
-bool CBonusList::Recalc(int level)
-{
-	bool changed = false;
-	for (int i = 0; i < Count(); i++) {
-		int v = BonusLevel(m_vec.begin[i].kind, level);
-		if (v > m_vec.begin[i].level) {
-			changed = true;
-			m_vec.begin[i].level = v;
-		}
-	}
-	if (!changed)
-		return false;
-	m_total = SBonus();
-	for (int i = 0; i < Count(); i++) {
-		SBonus tmp;
-		GetBonus(&tmp, i);
-		m_total.Add(&tmp);
 	}
 	return true;
 }
@@ -415,36 +344,6 @@ bool CGrid::SameContents(CGrid *other)
 		r++;
 	}
 	return true;
-}
-
-// FUNCTION: 0x00c0af20
-void CGrid::SwapItems(int r1, int c1, int r2, int c2)
-{
-	if (r1 < 0)
-		return;
-	if (r1 >= m_end - m_begin)
-		return;
-	if (c1 < 0)
-		return;
-	if (c1 >= ColCount(r1))
-		return;
-	if (r2 < 0)
-		return;
-	if (r2 >= m_end - m_begin)
-		return;
-	if (c2 < 0)
-		return;
-	if (c2 >= ColCount(r2))
-		return;
-	if (c1 >= m_begin[r1].end - m_begin[r1].begin)
-		return;
-	if (m_begin[r1].begin[c1].used)
-		return;
-	if (m_begin[r2].IsUsed(c2))
-		return;
-	CBonusList tmp(*m_begin[r1].At(c1));
-	m_begin[r1].Set(c1, m_begin[r2].At(c2));
-	m_begin[r2].Set(c2, &tmp);
 }
 
 // ---------------------------------------------------------------------------
