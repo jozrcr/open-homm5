@@ -66,6 +66,7 @@ Each step ends with something we can test.
    **Done 2026-10-24:** the two formula sites call `SegmentTime()`. Robot LAN game, 8 AI turns: per AI move 0.53 s (0.65 s before), hero moves 0.58 s (0.84 s), town swaps 0.34 s (0.42 s), 743 checksums equal.
 4. ~~**Instant AI walks behind the guard**~~: not needed, the game already does it (step 1).
 5. **Real games:** you and your friend (Windows + Linux), then 3 players on GameRanger.
+   **First one done, 2026-10-24:** owner (Windows) + friend (Linux, Proton) over ZeroTier. The guard was ON with both agreeing; 247 AI moves, median 0.49 s per AI move, 0.50 s after a hero move. Still to do: 3+ players, GameRanger, and a longer game.
 
 ## Risks
 

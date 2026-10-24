@@ -2,7 +2,7 @@
 
 A step-by-step guide for a player on Linux who joins a co-op game hosted on Windows. You end up with Heroes V: Tribes of the East + MMH5.5 running under Steam's Proton, our DLL with the faster co-op AI mod, and a ZeroTier network that makes the two PCs look like they are on the same LAN. GameRanger is not needed.
 
-**Fixed in the DLL (2026-10-24), not yet tried by two real players:**
+**Fixed in the DLL (2026-10-24), and it works: the owner (Windows) and a Linux friend played over ZeroTier the same day, using the install package.** History of the problem:
 - The first try (23 Oct) connected the two PCs, but the host's game never showed up in the LAN list. Windows and Linux sent the game's "any games here?" message only out of the normal network card, not into ZeroTier ([details](subsystems/multiplayer-sync.md#over-the-internet-with-zerotier-2026-10-23-failed)).
 - Our DLL now also sends that message into every network, ZeroTier included (`src/mods/lan_discovery.cpp`).
 - **Both players need the new DLL**, and the Windows host's ZeroTier network must be **Private** (step 3 of the host's part).
