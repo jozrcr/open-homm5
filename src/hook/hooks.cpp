@@ -5,6 +5,7 @@
 #include "log.h"
 #include "../mods/coop_guard.h"
 #include "../mods/fast_paths.h"
+#include "../mods/lan_discovery.h"
 #include "../mods/net_tuning.h"
 
 namespace hooks {
@@ -27,6 +28,7 @@ void InstallAll()
 	InstallAiTrace();
 	mods::ApplyNetTuningFromSettings();
 	mods::ApplyFastPathsFromSettings();
+	mods::ApplyLanDiscoveryFromSettings();
 	mods::ApplyCoopGuardFromSettings();
 }
 

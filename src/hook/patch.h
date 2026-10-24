@@ -27,4 +27,10 @@ inline DWORD RedirectCall(DWORD site, DWORD original, const void *replacement)
 // Returns what it held (to be called in turn), or 0 when it is not as expected.
 DWORD PatchPointer(DWORD slot_address, DWORD original, const void *replacement);
 
+// Point the exe's import table entry for dll!function (by name, or for
+// WSOCK32.dll by number) to replacement. Data, not code: nothing in the game
+// is patched. Returns what the entry pointed to before (to be called in
+// turn), or nullptr if the exe does not import it. Stacks like the above.
+void *PatchImport(const char *dll, const char *function, void *replacement);
+
 }  // namespace hookpatch
