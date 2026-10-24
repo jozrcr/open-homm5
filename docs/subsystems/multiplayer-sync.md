@@ -125,6 +125,41 @@ Hero moves (most AI steps) stay at ~0.55 s, so shorter segments buy ~20% more. T
 
 Network detail seen on one PC: the game binds UDP 8889 (`net_lan_match_maker_port`, game discovery and then the game link) and 8888 (`net_game_port`). See `tools/robot/README.md` for how two copies share one PC.
 
+### What an AI hero move waits for in co-op (2026-10-24)
+
+Robot LAN game on A1M4 (link tuning on, `mp_check_crc` on), 8 AI turns: the wait before the AI's next step, after a hero move (`CSetHeroAITargetCmd` + `CSetWalkPathCmd` + `CStartMoveHeroCmd`), falls into **two tight groups: ~620 ms and ~860 ms, i.e. 3 or 4 segments** of 200 ms. It does not spread with the path length. A town swap waits 2 segments, as every move does in single player. So in co-op a hero move costs 1–2 segments more, ~350–400 ms of game time (with 50 ms segments, ~9 segments in all).
+
+The AI manager (`0x006082f0`) calls the turn driver only when the busy check `world->slot 0xa4(time, player)` is false (`0x0098e1c0`, called at `0x0060868e`; `time` = the transceiver's game time from its slot 8, the player pushed before that call; `ret 8`). It is true if:
+- the player's slot `0x8c` gives a live object; or
+- one of the player's movers (the list at world `+0x118` for player type 2, else `+0x5c`) says "moving" (slot `0xc`) or has an end time (slot `0x10`) at or after `time`.
+
+The robot's `--trace-ai-busy` logs each change of its answer:
+- **co-op:** after each AI hero move it turns true ~400 ms later and false again ~220–690 ms after that, and the AI moves at once;
+- **single player:** it never turns true; AI hero walks are done within the segment.
+
+`--ai-busy-ignore-end` (host only: asks with time `0xffffffff`, so end times no longer count) changed nothing: the "moving" flag stays on for as long. So **in co-op an AI hero move waits for the hero to really finish walking in game time**.
+
+Ruled out, robot experiments (both copies patched the same way; world checksums equal in all runs):
+
+| Experiment | What it changes | AI hero move wait |
+|---|---|---|
+| none | | 840 ms (median) |
+| `--ai-walk-speed-scale 4` / `16` | the walk speed `0x008da900` returns for AI heroes (in co-op from the shared game settings `+0x24`; it is 1.0), at its caller `0x008e021a` in the movement update | 840 / 646 ms (noise) |
+| `--walk-step-ms 50` / `100` | the four 200 ms constants of the movement update `0x008dffd0` (`0x008dfffc`, `0x008e01ad`, `0x008e023c`, `0x008e039d`) | 857 / 856 ms |
+
+So the walk speed only sets the animation, and those 200s are not the wait either.
+
+**AI walks are already instant when no human can see them, in co-op too** (`--trace-moves`, 2026-10-24):
+- `NWorld::CStartMoveHeroCmd` (vtable `0x00e0d778`) executes at slot 7, `0x00426d50`. It calls the hero's start-move (`NWorld::CAdvMapHero`, vtable `0x00e54274`, slot `0x64` = `0x008e5480`), which is the movement update `0x008dffd0`.
+- That update asks `0x008dae10` whether to schedule every step at once: 1 = instant. It answers 0 for heroes of a player whose slot `0x184` is true (probably "human"), or when the game settings byte `+0x1c` is set. Otherwise it answers 1, unless one of the path's tiles is visible (object at `mover+0xac`, slot `0x6c`).
+- In the robot LAN game every AI hero move was instant (1), as in single player.
+
+So the extra segment or two of co-op hero moves is not the walk itself. It is still to be found (probably the lockstep's one-segment delay before the move runs, plus the instant walk's +200 ms end time).
+
+**So the remaining co-op wait needs every PC to agree:** the lockstep's segment length (a town swap waits 2 segments, ~420 ms; a hero move 3–4).
+
+**Any co-op timing change needs a guard.** Shorter segments and faster AI walks both change game time, which runs in lockstep on every PC. So all PCs must use the same value, and a PC without our DLL must keep everyone on the original timing. Only the host runs the AI, but that does not help here.
+
 ### How LAN games are found (robot socket logs, 50 runs)
 
 1. A player on the LAN screen **broadcasts a 5-byte query** (first byte `02`) to `net_lan_match_maker_port`, about once a second.

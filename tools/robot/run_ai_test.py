@@ -147,6 +147,12 @@ def prepare(game, args, out, instance="", net_port=None):
          else int(bool(getattr(args, "trace_paths", False)))),
         ("segment_ms", args.segment_ms),
         ("mp_segment_ms", getattr(args, "mp_segment_ms", 0)),
+        ("ai_walk_speed_scale", getattr(args, "ai_walk_speed_scale", 0)),
+        ("walk_step_ms", getattr(args, "walk_step_ms", 0)),
+        ("trace_ai_busy", int(bool(getattr(args, "trace_ai_busy", False)))),
+        ("ai_busy_ignore_end", int(bool(getattr(args, "ai_busy_ignore_end", False)))),
+        ("trace_hello", int(bool(getattr(args, "trace_hello", False)))),
+        ("trace_moves", int(bool(getattr(args, "trace_moves", False)))),
         # screenshots: the DLL saves the game's own frames there as .bmp (src/hook/robot_screen.cpp)
         ("screenshot_dir", out),
         ("screenshot_every_seconds", args.shot_every),
@@ -272,14 +278,23 @@ def launch(game, exe, instance=""):
     return subprocess.Popen([str(bin_dir / exe)], cwd=bin_dir, env=env)
 
 
-def wait(procs, limit_s):
-    """Wait for the games to close themselves; kill them after limit_s seconds."""
+def wait(procs, limit_s, leader=None, grace_s=15):
+    """Wait for the games to close themselves; kill them after limit_s seconds.
+    With a leader (the LAN host): once it has closed, the others get grace_s
+    seconds, then are closed too (a LAN client otherwise sits on the game's
+    "host disconnected" box until its own time limit)."""
     start = time.time()
+    leader_done = None
     try:
         while any(p.poll() is None for p in procs):
             if time.time() - start > limit_s:
                 print("game did not close itself in time: killing it")
                 break
+            if leader is not None and leader.poll() is not None:
+                leader_done = leader_done or time.time()
+                if time.time() - leader_done > grace_s:
+                    print("the host has closed: closing the other copies")
+                    break
             time.sleep(1)
     finally:
         for p in procs:
@@ -352,6 +367,9 @@ def main():
                         "off = the game's own pathfinding")
     p.add_argument("--ai-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="extra [ai] setting for the mods, e.g. port_relax=1 (repeatable)")
+    p.add_argument("--trace-moves", action="store_true", help="log what the start-move command calls (robot_trace.cpp)")
+    p.add_argument("--trace-ai-busy", action="store_true",
+                   help="log each change of the AI manager's 'player busy' check (robot_trace.cpp)")
     p.add_argument("--quick-combat", action="store_true",
                    help="battles resolve by themselves (adventure_quick_combat = 1): the robot's human player "
                         "is not stuck in the tactics phase or the battle when the AI attacks it")

@@ -137,5 +137,19 @@ void SetSegmentLength(DWORD ms);
 // Experiment: multiplayer segment length, 100 or 50 ms (mp_segment_ms=N); every
 // copy of the game must use the same value.
 void SetMpSegmentLength(DWORD ms);
+// Experiment: AI heroes walk N times faster (ai_walk_speed_scale=N); in
+// multiplayer every copy must use the same N.
+void SetAiWalkSpeedScale(int scale);
+// Experiment: the hero movement update's 200 ms step (walk_step_ms=N); in
+// multiplayer every copy must use the same N.
+void SetWalkStepLength(DWORD ms);
+// Trace: each change of the AI manager's "player busy" check (trace_ai_busy=1);
+// experiment ai_busy_ignore_end=1: movement end times no longer count.
+void InstallAiBusyTrace(bool ignore_end);
+// Experiment: the co-op guard's hello messages and their order (trace_hello=1;
+// needs trace_crc=1 for the receiving side, and trace_mp off).
+void InstallHelloExperiment();
+// Trace: what the start-move command calls (trace_moves=1).
+void InstallMoveTrace();
 
 }  // namespace robot

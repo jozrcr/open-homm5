@@ -15,6 +15,7 @@
 
 #include "game_build.h"
 #include "log.h"
+#include "patch.h"
 #include "robot.h"
 
 namespace robot {
@@ -150,12 +151,79 @@ const DWORD kCrcCallOwn = 0x007c9cd0;
 const DWORD kCrcCallReceived = 0x007ca8d1;
 typedef void(__fastcall *CrcFn)(void *self, void *edx, int player, const BYTE *cmd);
 
+// EXPERIMENT (trace_hello=1, docs/plans/coop-timing-guard.md step 1): the co-op
+// guard's hello is a world-checksum message with check number -1 (which the
+// game ignores, see the plan). Received hellos are logged with what they carry
+// (how many segments the sender had reported when it sent it) and how many of
+// the sender's reports this PC has seen: if each sender's messages arrive in
+// order, the second is never larger.
+const DWORD kHelloMagic = 0x48000000;  // 'H' in the top byte, the report count below
+
+void LogHello(void *self, int player, DWORD payload)
+{
+	const DWORD *counts = reinterpret_cast<const DWORD *>(Read(self, 0x3c));
+	const int players = static_cast<int>((Read(self, 0x40) - Read(self, 0x3c)) / 4);
+	const LONG sent_after = static_cast<LONG>(payload & 0xffffff);
+	const LONG seen = player >= 0 && player < players ? static_cast<LONG>(counts[player]) : -1;
+	hooklog::Write("hello from player %d: sent after its report %ld, its reports seen here %ld: %s", player, sent_after,
+	               seen, seen <= sent_after ? "in order" : "OUT OF ORDER");
+}
+
 void __fastcall CrcHook(void *self, void *edx, int player, const BYTE *cmd)
 {
+	if (cmd && *reinterpret_cast<const LONG *>(cmd + 0x0c) == -1) {
+		const DWORD payload = *reinterpret_cast<const DWORD *>(cmd + 0x10);
+		if ((payload & 0xff000000) == kHelloMagic)
+			LogHello(self, player, payload);
+		return;  // not a checksum: the game would only ignore it
+	}
 	if (cmd)
 		hooklog::Write("crc player=%d check=%ld crc=%08lx", player, *reinterpret_cast<const LONG *>(cmd + 0x0c),
 		               *reinterpret_cast<const DWORD *>(cmd + 0x10));
 	reinterpret_cast<CrcFn>(kCrcHandler)(self, edx, player, cmd);
+}
+
+// Send a world-checksum message (NWorld::CCrcTestCmd, 0x2c bytes, vtable
+// 0x00e43db0: check number at +0x0c, checksum at +0x10, two empty lists) to
+// the other PCs, as the segment runner does at 0x007c9c74-0x007c9cf6:
+// operator new 0x00878fd0, a reference (+4) held while the network object
+// (transceiver+0x34) sends it (slot 7), then 0x008c61d0 if it was the last.
+void SendCheckMessage(void *transceiver, LONG check, DWORD value)
+{
+	typedef void *(__cdecl * NewFn)(unsigned size);
+	typedef void(__fastcall * SendFn)(void *net, void *edx, void *cmd);
+	typedef void(__fastcall * ReleaseFn)(void *cmd, void *edx, DWORD mask);
+	BYTE *cmd = static_cast<BYTE *>(reinterpret_cast<NewFn>(0x00878fd0)(0x2c));
+	if (!cmd)
+		return;
+	memset(cmd, 0, 0x2c);
+	*reinterpret_cast<DWORD *>(cmd) = 0x00e43db0;
+	*reinterpret_cast<LONG *>(cmd + 0x0c) = check;
+	*reinterpret_cast<DWORD *>(cmd + 0x10) = value;
+	*reinterpret_cast<DWORD *>(cmd + 4) += 1;
+	void *net = reinterpret_cast<void *>(Read(transceiver, 0x34));
+	(*reinterpret_cast<SendFn *const *>(net))[7](net, nullptr, cmd);
+	*reinterpret_cast<DWORD *>(cmd + 4) -= 1;
+	if ((*reinterpret_cast<DWORD *>(cmd + 4) & 0xfffff) == 0)
+		reinterpret_cast<ReleaseFn>(0x008c61d0)(cmd, nullptr, 0xfffff);
+}
+
+// This PC's own step (multiplayer transceiver slot 4): after every 10th
+// report, the first 30 times, a hello with the number of reports sent.
+void __fastcall HelloOwnStepHook(void *self, void *edx)
+{
+	reinterpret_cast<MpOwnStepFn>(kMpOwnStep)(self, edx);
+	static int sent = 0;
+	const int me = static_cast<int>(Read(self, 0x54));
+	const int players = static_cast<int>((Read(self, 0x40) - Read(self, 0x3c)) / 4);
+	if (me < 0 || me >= players || sent >= 30)
+		return;
+	const DWORD reported = reinterpret_cast<const DWORD *>(Read(self, 0x3c))[me];
+	if (reported % 10 != 0)
+		return;
+	++sent;
+	SendCheckMessage(self, -1, kHelloMagic | (reported & 0xffffff));
+	hooklog::Write("hello sent after own report %lu", reported);
 }
 
 // Redirect a "call rel32" to replacement if it still calls `expected`.
@@ -184,6 +252,75 @@ void InstallCrcTrace()
 	const bool a = PatchCall(kCrcCallOwn, kCrcHandler, reinterpret_cast<void *>(&CrcHook));
 	const bool b = PatchCall(kCrcCallReceived, kCrcHandler, reinterpret_cast<void *>(&CrcHook));
 	hooklog::Write("robot: world checksum trace %s", a && b ? "installed" : "FAILED (code not as expected)");
+}
+
+// Trace (trace_moves=1): NWorld::CStartMoveHeroCmd's execute (vtable
+// 0x00e0d778, slot 7 = 0x00426d50) checks the world (+0xc) and the hero (+0x10),
+// then calls hero->slot 0x64(world->slot 0x9c()) to start the walk. Logs, for
+// the first moves, the hero object's vtable and that slot's function, to find
+// the walk code (instant in single player, in game time in co-op).
+const DWORD kStartMoveExecuteSlot = 0x00e0d778 + 7 * 4;
+const DWORD kStartMoveExecute = 0x00426d50;
+typedef DWORD(__fastcall *CmdExecuteFn)(void *cmd, void *edx);
+
+DWORD __fastcall StartMoveExecuteHook(void *cmd, void *edx)
+{
+	static int logged = 0;
+	const DWORD r = reinterpret_cast<CmdExecuteFn>(kStartMoveExecute)(cmd, edx);
+	if (logged < 6) {
+		++logged;
+		const DWORD hero = Read(cmd, 0x10);
+		const DWORD vtable = hero ? Read(reinterpret_cast<void *>(hero), 0) : 0;
+		hooklog::Write("move: start-move cmd %p result %lu, hero %08lx vtable %08lx slot 0x64 %08lx", cmd, r, hero,
+		               vtable, vtable ? Read(reinterpret_cast<void *>(vtable), 0x64) : 0);
+	}
+	return r;
+}
+
+// The walk's "instant?" decision 0x008dae10 __fastcall(mover), called at
+// 0x008e035e in the movement update: 1 = all step times at once (no walk in
+// game time). It returns 0 for a hero whose player's slot 0x184 is true, or
+// when the game settings byte +0x1c (world slot 8 -> slot 0x14) is set;
+// otherwise 1 unless one of the path's tiles (+0xc8..+0xcc) is visible
+// (object at +0xac, slot 0x6c). Logged for the first calls, with that byte.
+const DWORD kInstantWalk = 0x008dae10;
+const DWORD kInstantWalkCall = 0x008e035e;
+typedef bool(__fastcall *InstantWalkFn)(void *mover, void *edx);
+InstantWalkFn g_instant_walk = nullptr;
+
+bool __fastcall InstantWalkHook(void *mover, void *edx)
+{
+	static int logged = 0;
+	const bool instant = g_instant_walk(mover, edx);
+	if (logged < 12) {
+		++logged;
+		const BYTE *m = static_cast<const BYTE *>(mover);
+		const int path = static_cast<int>((Read(m, 0xcc) - Read(m, 0xc8)) / 4);
+		hooklog::Write("move: instant walk %d, path %d tiles", instant ? 1 : 0, path);
+	}
+	return instant;
+}
+
+void InstallMoveTrace()
+{
+	static bool done = false;
+	if (done || !IsHookable(DetectGameBuild()))
+		return;
+	done = true;
+	const bool a = Patch(kStartMoveExecuteSlot, kStartMoveExecute, reinterpret_cast<void *>(&StartMoveExecuteHook));
+	g_instant_walk = reinterpret_cast<InstantWalkFn>(hookpatch::RedirectCall(kInstantWalkCall, kInstantWalk, &InstantWalkHook));
+	hooklog::Write("robot: move trace %s, instant-walk decision %s", a ? "installed" : "FAILED (vtable not as expected)",
+	               g_instant_walk ? "traced" : "NOT traced (code not as expected)");
+}
+
+void InstallHelloExperiment()
+{
+	static bool done = false;
+	if (done || !IsHookable(DetectGameBuild()))
+		return;
+	done = true;
+	const bool a = Patch(kMpTransceiverVftable + 4 * 4, kMpOwnStep, reinterpret_cast<void *>(&HelloOwnStepHook));
+	hooklog::Write("robot: EXPERIMENT hellos %s", a ? "installed" : "FAILED (vftable not as expected; trace_mp is on?)");
 }
 
 void InstallMpTrace()
@@ -286,6 +423,140 @@ void SetMpSegmentLength(DWORD ms)
 		FlushInstructionCache(GetCurrentProcess(), p, 16);
 	}
 	hooklog::Write("robot: EXPERIMENT multiplayer segment length set to %lu ms (was 200)", ms);
+}
+
+// EXPERIMENT (robot mode only, ai_walk_speed_scale=N): AI heroes walk N times
+// faster. 0x008da900 __fastcall(world, player) returns a hero's walk speed (a
+// float, at least 0): in multiplayer from the game's shared settings (world
+// slot 5 -> +0x24 for AI players, +0x20 for humans), in single player from
+// adventure_speed_ai / adventure_speed_human; the player's slot 0x18c says
+// "AI". The hero movement update (0x008dffd0) calls it at 0x008e021a (the
+// other caller, 0x004b4d0c, passes no player). For measuring how long AI moves
+// wait for their heroes to walk; every copy of a multiplayer game must use the
+// same N.
+namespace {
+const DWORD kWalkSpeed = 0x008da900;
+const DWORD kWalkSpeedCall = 0x008e021a;
+typedef float(__fastcall *WalkSpeedFn)(void *world, void *player);
+WalkSpeedFn g_walk_speed = nullptr;
+float g_walk_scale = 1;
+int g_walk_logs = 0;
+
+float __fastcall WalkSpeedHook(void *world, void *player)
+{
+	typedef bool(__fastcall * IsAiFn)(void *self, void *edx);
+	const float speed = g_walk_speed(world, player);
+	const bool ai = player && (*reinterpret_cast<IsAiFn *const *>(player))[0x18c / 4](player, nullptr);
+	if (g_walk_logs < 12) {
+		++g_walk_logs;
+		hooklog::Write("robot: walk speed %.2f for a %s hero", speed, ai ? "AI" : "human");
+	}
+	return ai ? speed * g_walk_scale : speed;
+}
+}  // namespace
+
+void SetAiWalkSpeedScale(int scale)
+{
+	static bool done = false;
+	if (done || scale <= 1 || !IsHookable(DetectGameBuild()))
+		return;
+	done = true;
+	g_walk_scale = static_cast<float>(scale);
+	g_walk_speed = reinterpret_cast<WalkSpeedFn>(hookpatch::RedirectCall(kWalkSpeedCall, kWalkSpeed, &WalkSpeedHook));
+	hooklog::Write("robot: EXPERIMENT AI heroes walk %d times faster %s", scale,
+	               g_walk_speed ? "(patched)" : "FAILED (code not as expected)");
+}
+
+// EXPERIMENT (robot mode only, walk_step_ms=N): the hero movement update
+// 0x008dffd0 works in steps of 200 ms of game time: it runs only once 200 ms
+// have passed since the last scheduled step (0x008dfffa) and schedules the
+// walk with 200 ms offsets (0x008e01a9, 0x008e023b, 0x008e039b). An AI hero
+// move waits a fixed ~400 ms of game time in multiplayer; this changes the
+// four 200s to N, to see whether that is the wait. Every copy of a
+// multiplayer game must use the same N.
+void SetWalkStepLength(DWORD ms)
+{
+	static bool done = false;
+	if (done || !IsHookable(DetectGameBuild()))
+		return;
+	done = true;
+	const DWORD immediates[] = {0x008dfffc, 0x008e01ad, 0x008e023c, 0x008e039d};
+	for (DWORD a : immediates) {
+		if (*reinterpret_cast<const DWORD *>(a) != 200) {
+			hooklog::Write("robot: walk step constant at %08lx not as expected: not changed", a);
+			return;
+		}
+	}
+	DWORD old;
+	for (DWORD a : immediates) {
+		DWORD *imm = reinterpret_cast<DWORD *>(a);
+		VirtualProtect(imm, sizeof(DWORD), PAGE_EXECUTE_READWRITE, &old);
+		*imm = ms;
+		VirtualProtect(imm, sizeof(DWORD), old, &old);
+		FlushInstructionCache(GetCurrentProcess(), imm, sizeof(DWORD));
+	}
+	hooklog::Write("robot: EXPERIMENT hero walk steps of %lu ms (game: 200)", ms);
+}
+
+// Trace (robot mode only, trace_ai_busy=1): the AI manager 0x006082f0 calls
+// the current player's AI only when world->slot 0xa4(transceiver->slot 8(),
+// player) is false (0x0060868e: call dword ptr [ebx+0xa4], thiscall, two
+// arguments: the player is pushed before the transceiver call, ret 8). Logs
+// each change of that answer ("ai-busy"), to see what an AI hero move waits
+// for in co-op. The 6-byte indirect call becomes nop + call.
+//
+// 0x0098e1c0 (the world's slot 0xa4): busy if the player's slot 0x8c gives a
+// live object, or if one of the player's movers (lists at world+0x118 for
+// player type 2, else world+0x5c) says "moving" (slot 0xc) or has an end time
+// (slot 0x10) at or after the given time; arg = the transceiver's game time.
+// EXPERIMENT (ai_busy_ignore_end=1): ask with time 0xffffffff, so that an end
+// time in the future no longer counts. Only the host runs the AI, so this
+// only changes when the host's AI thinks next.
+namespace {
+const DWORD kAiBusyCall = 0x0060868e;
+bool g_ai_busy_ignore_end = false;
+typedef bool(__fastcall *AiBusyFn)(void *world, void *edx, DWORD arg, void *player);
+
+bool __fastcall AiBusyHook(void *world, void *edx, DWORD arg, void *player)
+{
+	const AiBusyFn fn = (*reinterpret_cast<AiBusyFn *const *>(world))[0xa4 / 4];
+	static bool first = true;
+	if (first) {
+		first = false;
+		hooklog::Write("ai-busy first call: world %p, slot 0xa4 %p, arg %08lx, player %p", world,
+		               reinterpret_cast<void *>(fn), arg, player);
+	}
+	const bool busy = fn(world, edx, g_ai_busy_ignore_end ? 0xffffffffu : arg, player);
+	static int last = -1;
+	if (static_cast<int>(busy) != last) {
+		last = busy;
+		hooklog::Write("ai-busy %d arg=%08lx", busy ? 1 : 0, arg);
+	}
+	return busy;
+}
+}  // namespace
+
+void InstallAiBusyTrace(bool ignore_end)
+{
+	g_ai_busy_ignore_end = ignore_end;
+	static bool done = false;
+	if (done || !IsHookable(DetectGameBuild()))
+		return;
+	done = true;
+	BYTE *p = reinterpret_cast<BYTE *>(kAiBusyCall);
+	const BYTE expected[] = {0xff, 0x93, 0xa4, 0x00, 0x00, 0x00};
+	if (memcmp(p, expected, sizeof(expected)) != 0) {
+		hooklog::Write("robot: AI busy trace FAILED (code not as expected)");
+		return;
+	}
+	DWORD old;
+	VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old);
+	p[0] = 0x90;  // nop, then call rel32: returns to the next instruction (0x00608694)
+	p[1] = 0xe8;
+	*reinterpret_cast<LONG *>(p + 2) = static_cast<LONG>(reinterpret_cast<DWORD>(&AiBusyHook) - (kAiBusyCall + 6));
+	VirtualProtect(p, 6, old, &old);
+	FlushInstructionCache(GetCurrentProcess(), p, 6);
+	hooklog::Write("robot: AI busy trace installed%s", ignore_end ? "; EXPERIMENT: movement end times ignored" : "");
 }
 
 void InstallSegmentTrace()

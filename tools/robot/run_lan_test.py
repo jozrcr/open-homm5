@@ -50,6 +50,9 @@ def instance_args(args, name, steps):
         net_log_packets=args.net_log_packets, net_tuning=args.net_tuning,
         net_keepalive_ms=args.net_keepalive_ms, net_send_interval_ms=args.net_send_interval_ms,
         net_batched_segments=args.net_batched_segments, mp_segment_ms=args.mp_segment_ms,
+        ai_walk_speed_scale=args.ai_walk_speed_scale, walk_step_ms=args.walk_step_ms,
+        trace_ai_busy=args.trace_ai_busy, ai_busy_ignore_end=args.ai_busy_ignore_end, trace_hello=args.trace_hello,
+        trace_moves=args.trace_moves,
         fast_paths=args.fast_paths, ai_setting=args.ai_setting,
         # the client never runs the AI (the host does), so "no AI step for 4
         # turn ends" means nothing there
@@ -71,6 +74,17 @@ def main():
     p.add_argument("--trace-mp", action="store_true", help="log every multiplayer segment step and command sent")
     p.add_argument("--mp-segment-ms", type=int, default=0,
                    help="EXPERIMENT: multiplayer segment length 100 or 50 ms on both copies (game: 200)")
+    p.add_argument("--ai-walk-speed-scale", type=int, default=0,
+                   help="EXPERIMENT: AI heroes walk N times faster on both copies")
+    p.add_argument("--walk-step-ms", type=int, default=0,
+                   help="EXPERIMENT: the hero movement update's 200 ms step on both copies")
+    p.add_argument("--trace-ai-busy", action="store_true",
+                   help="log each change of the AI manager's 'player busy' check (host)")
+    p.add_argument("--ai-busy-ignore-end", action="store_true",
+                   help="EXPERIMENT: the host's AI does not wait for its heroes' movement end times")
+    p.add_argument("--trace-moves", action="store_true", help="log the start-move command and the instant-walk decision")
+    p.add_argument("--trace-hello", action="store_true",
+                   help="EXPERIMENT: both copies send co-op guard hellos and log their order")
     p.add_argument("--net-log-packets", type=int, default=-1, help="packets logged per socket and direction")
     p.add_argument("--net-tuning", choices=["on", "off"], default="on",
                    help="the LAN link tuning mod (src/mods/net_tuning.cpp) on both copies; off = the game's timings")
@@ -131,11 +145,13 @@ def main():
     for name, _port, steps in copies:
         print("starting", name, "with steps:", steps)
         procs.append(robot.launch(game, args.exe, name))
-    exit_codes, elapsed = robot.wait(procs, args.seconds + 60)
+    exit_codes, elapsed = robot.wait(procs, args.seconds + 60, leader=procs[0])
 
     summaries = {}
     for (name, _port, _steps), code in zip(copies, exit_codes):
         summaries[name] = robot.collect(game, out / name, name, code, elapsed)
+        if name != "host" and summaries[name]["finished_by"].startswith("other") and procs[0].poll() is not None:
+            summaries[name]["finished_by"] = "closed after the host"
         (out / name / "summary.json").write_text(json.dumps(summaries[name], indent=2), encoding="utf-8")
     print(json.dumps({n: {k: s[k] for k in ("exit_code", "finished_by", "ai_turns_started", "ai_steps", "screenshots")}
                       for n, s in summaries.items()}, indent=2))

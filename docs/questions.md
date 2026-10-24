@@ -13,6 +13,39 @@ Answer: (owner fills in)
 
 ---
 
+## Q6: Easy install and easy joining: order, GitHub builds, firewall (2026-10-24, status: answered)
+
+Context: the plan is in [plans/install-and-join.md](plans/install-and-join.md):
+- a zip with one install script for Windows and one for Linux;
+- LAN games over ZeroTier through our DLL (the "who is hosting?" broadcast also goes to every network adapter);
+- later, built-in online play.
+
+Options:
+1. Order: LAN over VPNs first, then the package (done by a parallel agent), then co-op timing step 1. **Recommended.**
+2. GitHub builds the package for each version tag, and you publish each release. **Recommended: yes.**
+3. Firewall: the install script only explains how to make the ZeroTier network Private (recommended), or it offers to add a firewall rule (needs admin; Windows asks you).
+
+Answer (2026-10-24):
+1. The order is fine (done: LAN over VPNs in PR #12, the package in PR #13).
+2. Yes, GitHub builds. They are free for public repositories; the owner's Actions limit is for private ones. Added to PR #13: `.github/workflows/package.yml`.
+3. The firewall: the script only explains.
+
+## Q5: Faster co-op AI moves behind a "same settings" guard: defaults, and go ahead? (2026-10-24, status: answered)
+
+Context: the plan is in [plans/coop-timing-guard.md](plans/coop-timing-guard.md). Our DLLs check at the start of each game that every player has them with the same settings. Only then do they all switch to shorter segments and, optionally, AI hero walks that finish at once. Expected: AI moves in co-op 2–3 times faster.
+
+Options:
+1. Shorter segments: on by default when every player agrees? **Recommended: yes.** Nothing looks different.
+2. Instant AI walks: off by default, since AI heroes then jump instead of walking. If possible, should it apply only to AI heroes no human can see? **Recommended: yes to both.**
+3. Go ahead with step 1 of the plan (research and a message-order test)? **Recommended: yes.**
+
+Answer (2026-10-24):
+1. Shorter segments: yes, on by default.
+2. Instant AI walks: **on** by default, but an AI hero that a human player can see walks normally.
+3. Go ahead.
+
+The owner also asked for an easy install and much easier multiplayer joining: see [plans/install-and-join.md](plans/install-and-join.md).
+
 ## Q4: "Option 2" (faster AI paths that may differ): go on with the re-expansion cap? (2026-10-24, status: answered)
 
 Context: you asked for a faster search order as a setting, with the original by default. A first test is in (`[ai] max_expansions=16`, off by default). It halves the remaining AI thinking on your day-50 save (16.7 s to 8.3 s over 4 AI turns; the game alone takes 93 s). Only the AI hero's giant long-range searches change. On that save and on save_9 the AI then made the same moves; on save_10 it took another branch after a few moves (36 moves instead of 41 in 4 turns). Whether it plays worse is not known yet. See "Experiment: a cap on re-expansions" in docs/subsystems/ai-pathfinder.md.
