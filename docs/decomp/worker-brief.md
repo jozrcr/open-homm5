@@ -48,10 +48,13 @@ Put them in a new unit folder `src/decomp/{UNIT}/` with a `.cpp`, a `unit.json` 
 
 ## Shell notes
 - In worktrees, chained commands (`&&`, several heredoc steps) may be refused: run plain separate commands.
-- Helper scripts go in your scratchpad, not in the repo.
+- Helper scripts go in a subfolder of the scratchpad named after you (for example `scratchpad\{WORKER}`), not in the repo. The scratchpad is shared with the other workers, who may overwrite files at its top level.
+- `cl /FAcs` listings (in your scratchpad) are the best way to see what differs.
 
 ## Time box
-Stop when every function has been tried, or after about **75 minutes**, whichever comes first. Commit everything on your branch; do not push and do not open a PR.
+- Run `date` at the start, and again before each new function.
+- Stop when every function has been tried, or **75 minutes after your start time**, whichever comes first. Don't guess the time: in the first night run, workers stopped after about 25 minutes, believing they had used 75.
+- Commit everything on your branch; do not push and do not open a PR.
 
 ## Report back (short)
 - your branch name and unit folder(s);
