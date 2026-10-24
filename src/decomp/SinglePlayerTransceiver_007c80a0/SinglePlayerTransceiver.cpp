@@ -13,6 +13,11 @@
 // save/load methods override CObjectBase's, so the compiler passes `this` as the
 // address of the virtual base (offset 0x90 / 0x2c / 0x68) and adds a vtordisp
 // thunk in front (not in this list).
+//
+// Status (see attempts.txt): 19 of the 20 functions listed for this area match.
+// 0x007c8490 (IBinSaver::AddVec) is close; its draft is in drafts.cpp.
+// The destructors are the compiler's implicit ones (declaring them adds vtable
+// stores that the exe's lack), and the constructors are empty stand-ins.
 
 typedef unsigned int uint;
 
