@@ -8,3 +8,5 @@
 0046eae0  ?Func_0046eae0@@YGMM@Z   # float -> float, stdcall (probably a sine)
 00a68e00  ?PushBack@SEntryVec@@QAEXPBUSEntry@@@Z   # vector<{int,int}>::push_back
 00b1c6e0  ?Insert@SIntVec@@QAEXPAHPBHHH@Z   # vector<int>::insert(pos, &val, 1, 1)
+00c0a220  ?Add@SBonus@@QAEAAU1@PBU1@@Z   # SBonus::Add (HeroPathfinderMisc, called by CBonusList::Add)
+00c0a2f0  ?BonusLevel@@YIHHH@Z   # (kind, n) -> level (HeroPathfinderMisc, called by CBonusList::Add and Recalc)

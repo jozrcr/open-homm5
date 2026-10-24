@@ -270,14 +270,18 @@ void CBonusList::Add(int kind, IHeroLike *hero)
 	if (hero && CanAdd(kind, hero)) {
 		int level = BonusLevel(kind, hero->GetValue());
 		if (level >= 0) {
-			SEntry e;
-			e.kind = kind;
-			e.level = level;
-			m_vec.PushBack(&e);
+			{
+				SEntry e;
+				e.kind = kind;
+				e.level = level;
+				m_vec.PushBack(&e);
+			}
 			m_flag = m_flag || hero->GetStat(0x11) >= 4;
-			SBonus tmp;
-			GetBonus(&tmp, Count() - 1);
-			m_total.Add(&tmp);
+			{
+				SBonus tmp;
+				GetBonus(&tmp, Count() - 1);
+				m_total.Add(&tmp);
+			}
 		}
 	}
 }
@@ -292,13 +296,13 @@ struct SIntVec {
 	void Insert(int *pos, const int *val, int n, int flag);     // 0x00b1c6e0
 	void PushBack(const int &v)
 	{
-		if (end == cap)
-			Insert(end, &v, 1, 1);
-		else {
-			if (end)
-				*end = v;
-			end++;
-		}
+		int *last = end;
+		if (last != cap) {
+			if (last)
+				*last = v;
+			end = last + 1;
+		} else
+			Insert(last, &v, 1, 1);
 	}
 };
 
