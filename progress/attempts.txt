@@ -1,0 +1,7 @@
+# Failed match attempts, one line per attempt (tools/decomp/next.py stops offering a
+# function after 3). The details are in the unit's attempts.txt.
+# address  date  unit: reason in a few words
+00c07110  2026-10-24  HeroPathfinderSetup: InitStartNode, store order around setz differs
+00c07360  2026-10-24  HeroPathfinderSetup: TracePath, 4 bytes short, registers permuted
+00c0a2f0  2026-10-24  HeroPathfinderMisc: BonusLevel, fmul scheduled after the float-to-int control word
+00c0af20  2026-10-24  HeroPathfinderMisc2: CGrid::SwapItems, register allocation (rows in ebx, this spilled)
