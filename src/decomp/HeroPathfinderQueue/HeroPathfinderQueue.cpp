@@ -8,6 +8,13 @@
 // See docs/subsystems/ai-pathfinder.md.
 //
 // All names are guesses. Declarations here are local to this unit (pilot).
+//
+// Build flags: unit.json overrides the default flags by leaving out /GX. The code in
+// this part of the exe has no exception frames at all (no SEH prologue between
+// 0x00bf9957 and 0x00c0d797), and library code that normally has try/catch
+// (vector::_M_insert_overflow, uninitialized_copy) has none either, so this part was
+// evidently built without C++ exception handling. With /GX the compiler adds EH
+// frames to functions that use placement new on classes with constructors.
 
 #include <new>
 
@@ -175,6 +182,189 @@ Array2D<Node> &Array2D<Node>::operator=(const Array2D &o)
 	return *this;
 }
 
+// --- range helpers for vector<Array2D<T>> (the STL algorithms, all __fastcall) -------
+
+// FUNCTION: 0x00c09720 (T = Array2D<Node>)
+template <class T>
+T *__fastcall CopyRange(T *first, T *last, T *result)
+{
+	for (; first != last; ++first, ++result)
+		*result = *first;
+	return result;
+}
+
+// FUNCTION: 0x00c09460 (T = Array2D<Node>)
+template <class T>
+T *__fastcall CopyBackwardRange(T *first, T *last, T *result)
+{
+	while (first != last)
+		*--result = *--last;
+	return result;
+}
+
+// FUNCTION: 0x00c094a0 (T = Array2D<Node>), 0x00c094d0 (T = Array2D<unsigned char>)
+template <class T>
+void __fastcall FillRange(T *first, T *last, const T &val)
+{
+	for (; first != last; ++first)
+		*first = val;
+}
+
+// FUNCTION: 0x00c09760 (T = Array2D<Node>), 0x00c09790 (T = Array2D<unsigned char>)
+template <class T>
+T *__fastcall UninitCopyRange(T *first, T *last, T *result)
+{
+	T *cur = result;
+	for (; first != last; ++first, ++cur)
+		new (cur) T(*first);
+	return cur;
+}
+
+// Not decompiled yet: build n empty elements at p (0x00bc7600 for Node grids, 0x00bc76a0 for mark grids)
+// and destroy the elements in [first, last) (0x00bc7720, the same code for both).
+void __fastcall ConstructN(Array2D<Node> *p, int n);
+void __fastcall ConstructN(Array2D<unsigned char> *p, int n);
+void __fastcall DestroyRange(Array2D<Node> *first, Array2D<Node> *last);
+void __fastcall DestroyRange(Array2D<unsigned char> *first, Array2D<unsigned char> *last);
+
+template <class X>
+inline const X &max_(const X &a, const X &b)
+{
+	return a < b ? b : a;
+}
+
+template <class T>
+inline T *ufill_n(T *first, int n)
+{
+	T *cur = first;
+	for (; n > 0; --n, ++cur)
+		new (cur) T();
+	return cur;
+}
+
+template <class T>
+inline T *allocate_n(int n)
+{
+	return (T *)operator new(n * sizeof(T));
+}
+
+// vector::_M_insert_overflow for n empty elements at pos (no value argument).
+// FUNCTION: 0x00c097c0 (T = Array2D<Node>), 0x00c09890 (T = Array2D<unsigned char>)
+template <class T>
+void vec<T>::insert_overflow(T *pos, int n, bool atend)
+{
+	const int old_size = int(finish - start);
+	const int len = old_size + max_(old_size, n);
+	T *new_start = allocate_n<T>(len);
+	T *new_finish = new_start;
+	new_finish = UninitCopyRange(start, pos, new_start);
+	new_finish = ufill_n(new_finish, n);
+	if (!atend)
+		new_finish = UninitCopyRange(pos, finish, new_finish);
+	DestroyRange(start, finish);
+	operator delete(start);
+	finish = new_finish;
+	start = new_start;
+	end_of_storage = new_start + len;
+}
+
+// vector::insert(pos, n empty elements)
+// FUNCTION: 0x00c09a40 (T = Array2D<Node>), 0x00c09b30 (T = Array2D<unsigned char>)
+template <class T>
+void vec<T>::insert_n(T *pos, int n)
+{
+	if (n != 0) {
+		if (end_of_storage - finish >= n) {
+			int elems_after = int(finish - pos);
+			T *old_finish = finish;
+			if (elems_after > n) {
+				UninitCopyRange(finish - n, finish, finish);
+				finish += n;
+				CopyBackwardRange(pos, old_finish - n, old_finish);
+				FillRange(pos, pos + n, T());
+			} else {
+				ConstructN(finish, n - elems_after);
+				finish += n - elems_after;
+				UninitCopyRange(pos, old_finish, finish);
+				finish += elems_after;
+				FillRange(pos, old_finish, T());
+			}
+		} else
+			insert_overflow(pos, n, false);
+	}
+}
+
+template void vec<Array2D<Node> >::insert_n(Array2D<Node> *, int);
+template void vec<Array2D<unsigned char> >::insert_n(Array2D<unsigned char> *, int);
+template void vec<Array2D<Node> >::insert_overflow(Array2D<Node> *, int, bool);
+template void vec<Array2D<unsigned char> >::insert_overflow(Array2D<unsigned char> *, int, bool);
+template Array2D<Node> *__fastcall CopyRange(Array2D<Node> *, Array2D<Node> *, Array2D<Node> *);
+
+// Reverse a range of nodes (swapping through a 64-byte temporary).
+// FUNCTION: 0x00c090c0
+void __fastcall ReverseNodes(Node *first, Node *last)
+{
+	while (true) {
+		if (first == last || first == --last)
+			return;
+		Node tmp = *first;
+		*first = *last;
+		++first;
+		*last = tmp;
+	}
+}
+
+// The open list's vector of nodes: {start, finish, end_of_storage}.
+struct NodeVec {
+	Node *start;
+	Node *finish;
+	Node *end_of_storage;
+
+	// Not decompiled yet: 0x005d4c70, _M_insert_overflow(pos, x, 1 element, at end), thiscall, ret 0x10.
+	void insert_overflow(Node *pos, const Node &x, int n, bool atend);
+	Node *allocate_and_copy(int n, Node *first, Node *last);
+	void reserve(int n);
+};
+
+inline void Construct(Node *p, const Node &x)
+{
+	new (p) Node(x);
+}
+
+inline Node *ucopy(Node *first, Node *last, Node *result)
+{
+	Node *cur = result;
+	for (; first != last; ++first, ++cur)
+		Construct(cur, *first);
+	return cur;
+}
+
+// FUNCTION: 0x00c09180
+Node *NodeVec::allocate_and_copy(int n, Node *first, Node *last)
+{
+	Node *result = (Node *)operator new(n * sizeof(Node));
+	ucopy(first, last, result);
+	return result;
+}
+
+// FUNCTION: 0x00c09370
+void NodeVec::reserve(int n)
+{
+	if (int(end_of_storage - start) < n) {
+		int old_size = int(finish - start);
+		Node *tmp;
+		if (start) {
+			tmp = allocate_and_copy(n, start, finish);
+			operator delete(start);
+			start = 0;
+		} else
+			tmp = (Node *)operator new(n * sizeof(Node));
+		finish = tmp + old_size;
+		start = tmp;
+		end_of_storage = tmp + n;
+	}
+}
+
 // --- the pathfinder object (only what these functions read) ----------------------
 
 // A map object as the pool returns it. It has a virtual base whose byte at +7 holds
@@ -271,16 +461,11 @@ void __fastcall AdjustHeap(Node *first, int hole, int bottom, Node val, NodeComp
 	PushHeap(first, hole, top, val, comp);
 }
 
-// The open list: a priority queue of nodes at pf+0x10: {start, finish,
-// end_of_storage} followed by the comparator.
+// The open list: a priority queue of nodes at pf+0x10: the vector, then the comparator.
 struct OpenList {
-	Node *start;
-	Node *finish;
-	Node *end_of_storage;
+	NodeVec c;
 	NodeCompare comp;
 
-	// Not decompiled yet: 0x005d4c70, vector<Node>::_M_insert_overflow(pos, x, 1 element, at end), ret 0x10.
-	void insert_overflow(Node *pos, const Node &x, int n, bool atend);
 	void push(const Node &x);
 };
 
@@ -298,12 +483,12 @@ inline void push_heap(Node *first, Node *last, NodeCompare comp)
 // priority_queue::push: append, then push_heap.
 void OpenList::push(const Node &x)
 {
-	if (finish != end_of_storage) {
-		new (finish) Node(x);
-		++finish;
+	if (c.finish != c.end_of_storage) {
+		new (c.finish) Node(x);
+		++c.finish;
 	} else
-		insert_overflow(finish, x, 1, true);
-	push_heap(start, finish, comp);
+		c.insert_overflow(c.finish, x, 1, true);
+	push_heap(c.start, c.finish, comp);
 }
 
 class HeroPathfinder {

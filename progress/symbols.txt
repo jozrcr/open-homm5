@@ -7,4 +7,13 @@
 00879240  ??_V@YAXPAX@Z   # operator delete[] (thunk to 008790b0)
 008c6150  ?Free@Counted@@QAEXXZ   # called when a reference count drops to 0 (ECX = the virtual base of the counted object)
 00c27d20  ?CheckObjectForPlayer@@YIHPAUOwner@@PAUObj@@PAUPlayer@@@Z   # __fastcall(owner, object, player), ret 4
-005d4c70  ?insert_overflow@OpenList@@QAEXPAUNode@@ABU2@H_N@Z   # vector<Node>::_M_insert_overflow(pos, x, 1, true), thiscall, ret 0x10; called by the open list push
+005d4c70  ?insert_overflow@NodeVec@@QAEXPAUNode@@ABU2@H_N@Z   # vector<Node>::_M_insert_overflow(pos, x, 1, true), thiscall, ret 0x10; called by the open list push
+008791f0  ??2@YAPAXI@Z   # operator new (same thunk as new[])
+00879240  ??3@YAXPAX@Z   # operator delete (same thunk as delete[])
+004fb110  ??4?$Array2D@E@@QAEAAU0@ABU0@@Z   # Array2D<unsigned char>::operator=
+004f8260  ?Copy@?$Array2D@E@@QAEXABU1@@Z   # Array2D<unsigned char>::Copy (copy constructor body)
+00bc7600  ?ConstructN@@YIXPAU?$Array2D@UNode@@@@H@Z   # build n empty Array2D<Node>
+00bc7600  ?ConstructN@@YIXPAU?$Array2D@E@@H@Z   # same code as the Array2D<Node> version (folded)
+00bc76a0  ??$CopyBackwardRange@U?$Array2D@E@@@@YIPAU?$Array2D@E@@PAU0@00@Z   # copy_backward for Array2D<unsigned char> ranges (not in this unit)
+00bc7720  ?DestroyRange@@YIXPAU?$Array2D@UNode@@@@0@Z   # destroy a range of Array2D<Node>
+00bc7720  ?DestroyRange@@YIXPAU?$Array2D@E@@0@Z   # same code for Array2D<unsigned char>
