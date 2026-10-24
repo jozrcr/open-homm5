@@ -59,3 +59,13 @@ Goal: a friend downloads one zip, double-clicks one file, and plays.
 1. OK with this order?
 2. OK to set up the GitHub build of the package? It only builds; you publish.
 3. Firewall on Windows: should `install.bat` offer to add a firewall rule for the game? That needs admin rights, and Windows asks you first. Or should it only explain how to make the ZeroTier network Private? Recommended: explain only. It's one setting, and the script then changes nothing in Windows.
+
+## Later (owner's notes)
+
+- **Check that MMH5.5 is properly installed** (owner, 2026-10-24). Today the installer only warns when `MMH55_Utility_64.exe` is missing. It could also check:
+  - MMH5.5's data files in `data\`;
+  - which MMH5.5 version it is;
+  - that the game is started through MMH5.5's exe.
+
+  It should then say plainly what is missing. It must still never change the game's files, and it must not install MMH5.5 itself, which is a separate project's download.
+- **Upgrades:** when an existing `open-homm5.ini` is kept, add the setting sections that are new in this version, commented out, so players see them. As of 0.1.1, upgraders have to add `[audio]` by hand.
