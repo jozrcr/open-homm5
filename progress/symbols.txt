@@ -12,11 +12,18 @@
 00c0a2f0  ?BonusLevel@@YIHHH@Z   # (kind, n) -> level (HeroPathfinderMisc, called by CBonusList::Add and Recalc)
 00433d20  ?ColCount@CGrid@@QBEHH@Z   # CGrid::ColCount(row) const: number of cells in a row, 0 when out of range
 00c0b780  ?At@SRow@@QAEPAVCBonusList@@H@Z   # SRow::At(col): the cell's CBonusList, or a static empty one
-00c0b700  ?IsUsed@SRow@@QAE_NH@Z   # SRow::IsUsed(col): the cell's "used" byte
+00c0b700  ?IsUsed@SRow@@QBE_NH@Z   # SRow::IsUsed(col): the cell's "used" byte
 00c0bcc0  ?Set@SRow@@QAEXHPBVCBonusList@@@Z   # SRow::Set(col, item): assigns the cell's CBonusList
 00434350  ??0CBonusList@@QAE@ABV0@@Z   # CBonusList copy constructor
 006404d0  ?Equals@CBonusList@@QAE_NPBV1@@Z   # CBonusList::Equals(other)
 00d11a46  _atexit   # CRT atexit
+009d0330  ??0SFmtA@@QAE@PBXPAXH@Z   # text builder A constructor (fmt, buf, n)
+009d0f60  ?Conv@SFmtA@@QAEPAXXZ   # text builder A -> text
+009d0370  ?Init@SFmtB@@QAEPAU1@HHHHHHHABUSBuf28@@H@Z   # text builder B constructor (7 ints, ptr, int)
+009d0e00  ?Conv@SFmtSub@@QAEPAXXZ   # text builder C -> text
+009d03b0  ?Assign@SText@@QAEXPAX@Z   # text assign
+009d0a60  ?Combine@SText@@QAEPAUSFmtSub@@PAU2@PAUSFmtB@@@Z   # text combine (z, b)
+009d0910  ?Func_009d0910@@YAPAXXZ   # the default text
 010c58d8  ?s_empty@?M@??GetItem@CGrid@@QAEPAVCBonusList@@HH@Z@4V3@A   # static empty CBonusList inside CGrid::GetItem (0x24 bytes)
 010c58fc  ?$S1@?M@??GetItem@CGrid@@QAEPAVCBonusList@@HH@Z@4IA   # its init guard flags (bit 0)
 00e04530  _$E2   # atexit destructor stub of that static (HeroPathfinderMisc.cpp, if (begin) free(begin))

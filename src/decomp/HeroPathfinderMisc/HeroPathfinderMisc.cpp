@@ -121,6 +121,8 @@ public:
 	CBonusList(const CBonusList &o);                // 0x00434350 (not decompiled)
 	~CBonusList() { if (m_vec.begin) Free_00879240(m_vec.begin); }
 	bool Equals(const CBonusList *o);               // 0x006404d0 (not decompiled)
+	void Describe(struct SText *out, int kind, IHeroLike *hero);   // 0x00c0a450
+	void DescribeAt(struct SText *out, int idx);    // 0x00c0a630
 
 	void GetTotal(SBonus *out);                     // 0x00c0a2c0
 	int Count();                                    // 0x00c0a440
@@ -344,7 +346,7 @@ struct SRow {
 	int pad;                   // +0xc
 
 	CBonusList *At(int col);                        // 0x00c0b780 (not decompiled)
-	bool IsUsed(int col);                           // 0x00c0b700 (not decompiled)
+	bool IsUsed(int col) const;                         // 0x00c0b700 (not decompiled)
 	void Set(int col, const CBonusList *item);      // 0x00c0bcc0 (not decompiled)
 };
 
@@ -418,11 +420,9 @@ bool CGrid::SameContents(CGrid *other)
 // FUNCTION: 0x00c0af20
 void CGrid::SwapItems(int r1, int c1, int r2, int c2)
 {
-	SRow *rows = m_begin;
 	if (r1 < 0)
 		return;
-	int n = m_end - rows;
-	if (r1 >= n)
+	if (r1 >= m_end - m_begin)
 		return;
 	if (c1 < 0)
 		return;
@@ -430,22 +430,21 @@ void CGrid::SwapItems(int r1, int c1, int r2, int c2)
 		return;
 	if (r2 < 0)
 		return;
-	if (r2 >= n)
+	if (r2 >= m_end - m_begin)
 		return;
 	if (c2 < 0)
 		return;
 	if (c2 >= ColCount(r2))
 		return;
-	if (c1 >= rows[r1].end - rows[r1].begin)
+	if (c1 >= m_begin[r1].end - m_begin[r1].begin)
 		return;
-	if (rows[r1].begin[c1].used)
+	if (m_begin[r1].begin[c1].used)
 		return;
-	if (rows[r2].IsUsed(c2))
+	if (m_begin[r2].IsUsed(c2))
 		return;
-	CBonusList tmp(*rows[r1].At(c1));
-	rows = m_begin;
-	rows[r1].Set(c1, rows[r2].At(c2));
-	rows[r2].Set(c2, &tmp);
+	CBonusList tmp(*m_begin[r1].At(c1));
+	m_begin[r1].Set(c1, m_begin[r2].At(c2));
+	m_begin[r2].Set(c2, &tmp);
 }
 
 // ---------------------------------------------------------------------------
@@ -543,6 +542,75 @@ void __fastcall ResetFrom(SName *p, int idx)
 			if (s != &p->desc)
 				p->desc.Assign(s->begin, s->end);
 			p->icon.Assign(rec + 0x68);
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Text builders (a tooltip text?). The classes are guesses from the call sites.
+
+struct SBuf28 {
+	char b[28];
+	SBuf28() {}
+};
+
+struct SFmtA {
+	char b[28];
+	SFmtA(const void *fmt, void *buf, int n);                   // 0x009d0330
+	void *Conv();                                               // 0x009d0f60
+};
+
+struct SFmtB {
+	char b[28];
+	SFmtB *Init(int a1, int a2, int a3, int a4, int a5, int a6, int a7, const SBuf28 &p, int q);   // 0x009d0370 (a constructor)
+};
+
+struct SFmtSub {
+	char x[20];
+	void *Conv();                                               // 0x009d0e00
+};
+
+struct SFmtC {
+	char pad[8];
+	SFmtSub sub;               // +8
+};
+
+struct SText {
+	void Assign(void *v);                                       // 0x009d03b0
+	SFmtSub *Combine(SFmtSub *z, SFmtB *b);                     // 0x009d0a60
+};
+
+void *Func_009d0910();                                          // 0x009d0910: the default text
+
+// FUNCTION: 0x00c0a450
+void CBonusList::Describe(SText *out, int kind, IHeroLike *hero)
+{
+	SFmtB b;
+	SFmtC z;
+	if (out) {
+		if (kind < 0 || kind >= Func_00acb3a0()) {
+			out->Assign(Func_009d0910());
+		} else {
+			out->Assign(SFmtA(Func_00ada2e0(kind) + 0x70, &b, Count() + 1).Conv());
+			if (hero && hero->GetStat(0x11) >= 4)
+				out->Assign(out->Combine(&z.sub, b.Init(1, 1, 1, 1, 1, 1, 1, SBuf28(), 2))->Conv());
+		}
+	}
+}
+
+// FUNCTION: 0x00c0a630
+void CBonusList::DescribeAt(SText *out, int idx)
+{
+	SFmtB b;
+	SFmtC z;
+	if (out && idx >= 0 && idx < Count()) {
+		int kind = m_vec.begin[idx].kind;
+		if (kind < 0 || kind >= Func_00acb3a0()) {
+			out->Assign(Func_009d0910());
+		} else {
+			out->Assign(SFmtA(Func_00ada2e0(kind) + 0x70, &b, idx + 1).Conv());
+			if (m_flag)
+				out->Assign(out->Combine(&z.sub, b.Init(1, 1, 1, 1, 1, 1, 1, SBuf28(), 2))->Conv());
 		}
 	}
 }
