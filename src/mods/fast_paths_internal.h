@@ -44,7 +44,8 @@ enum Check : WORD {
 	kCheckLiveObject = 64,    // the object pool's slot 2 finds a live object (0x009d19a0's first test)
 	kCheckDanger = 128,       // the danger map's value (NWorld::CDangerPool slot 0, 0x00c27500), in Tile::danger
 	kCheckWorld = 256,        // the world tile's kinds, in Tile::kind8 and Tile::kind10
-	kCheckStepCost = 512      // the step cost on land (0x00ca9a70, kind 0), in Tile::cost and Tile::diagonal
+	kCheckStepCost = 512,     // the step cost on land (0x00ca9a70, kind 0), in Tile::cost and Tile::diagonal
+	kCheckExpansions = 1024   // Tile::expansions counts in this search (experiment max_expansions)
 };
 
 // Remembered answers, one record per tile (x and y below 512, 2 floors; other
@@ -62,7 +63,7 @@ struct Tile {
 	WORD diagonal;      // and diagonal, when the movement left allows it (see StepCost)
 	BYTE kind8;         // the world tile's kind at +8 (2 = water, 5 = blocked)
 	BYTE kind10;        // and its other kind at +0x10
-	WORD unused;
+	WORD expansions;    // land-layer expansions of this tile (experiment max_expansions)
 };
 const DWORD kTileBits = 9;
 const DWORD kTileFloors = 2;
@@ -132,6 +133,11 @@ bool StandsHere(void *pool, DWORD *out, const Node *node);
 void RunExpand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, char flag, DWORD *out);
 // The ported search loop (fast_paths_search.cpp), 0x00c08890.
 void PortedSearch(BYTE *pf, int limit);
+// EXPERIMENT, CHANGES THE AI'S PATHS ([ai] max_expansions, default 0 = off,
+// the game's search): the ported search expands a tile on the land layer at
+// most this many times per search. Not exact; for measuring the owner's
+// "option 2" (a faster search order as a setting).
+extern int g_max_expansions;
 // While a ported search of pf runs, its open list lives in the search: relax
 // pushes there (true), otherwise into the game's vector (false).
 bool PushToActiveSearch(BYTE *pf, const Node &n);

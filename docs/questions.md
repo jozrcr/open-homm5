@@ -13,6 +13,16 @@ Answer: (owner fills in)
 
 ---
 
+## Q4: "Option 2" (faster AI paths that may differ): go on with the re-expansion cap? (2026-10-24, status: open)
+
+Context: you asked for a faster search order as a setting, with the original by default. A first test is in (`[ai] max_expansions=16`, off by default). It halves the remaining AI thinking on your day-50 save (16.7 s to 8.3 s over 4 AI turns; the game alone takes 93 s). Only the AI hero's giant long-range searches change. On that save and on save_9 the AI then made the same moves; on save_10 it took another branch after a few moves (36 moves instead of 41 in 4 turns). Whether it plays worse is not known yet. See "Experiment: a cap on re-expansions" in docs/subsystems/ai-pathfinder.md.
+
+Options:
+1. **(Recommended)** Keep testing it as an off-by-default setting. Next: AI-vs-AI games with and without the cap, to see whether the AI plays worse. Later it becomes an option you can switch in-game.
+2. Drop it and keep only the exact speed-up.
+
+Answer:
+
 ## Q3: May the AI pathfinding speed-up be on by default? (2026-10-24, status: open)
 
 Context: the `fast_paths` mod (and its ported search core) makes the AI's late-game thinking about 5 to 6 times faster (save_11: 93 s of AI thinking over 4 AI turns down to about 16 s) and gives exactly the same result for every search (checked on four of your saves, node by node, over 4 whole AI turns each). A robot LAN co-op game with it on stayed in sync (12 AI turns, 2,539 world checksums equal on both PCs). But we found that the original AI's decisions depend on how fast it runs: it thinks in real-time slices (`aai_step_limit`, `ai_time_limit`) and some of its code reads the clock. So when it thinks faster, it can sometimes take a different (not worse) branch, exactly as the original game does on a faster PC. With the robot's virtual clock, where thinking takes no game time, the original and the mod make the same decisions over whole turns.

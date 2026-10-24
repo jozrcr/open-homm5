@@ -702,6 +702,14 @@ void ApplyFastPathsFromSettings()
 		}
 		hooklog::Write("fast paths: ported search loop %s", g_port_search ? "on" : "off (needs remembered checks and the open list)");
 	}
+	fastpaths::g_max_expansions = GetPrivateProfileIntW(L"ai", L"max_expansions", 0, path);
+	if (fastpaths::g_max_expansions > 0) {
+		if (g_port_search)
+			hooklog::Write("fast paths: EXPERIMENT max_expansions=%d: a tile is expanded at most that often per search "
+			               "(changes the AI's paths)", fastpaths::g_max_expansions);
+		else
+			fastpaths::g_max_expansions = 0;  // only the ported search loop has it
+	}
 	if (Setting(path, L"port_relax", 0)) {
 		g_port_relax = hookpatch::RedirectCalls(kRelaxCalls, sizeof(kRelaxCalls) / sizeof(kRelaxCalls[0]), kRelax,
 		                                        &RelaxHook) != 0;

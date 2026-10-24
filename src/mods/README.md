@@ -77,4 +77,7 @@ port_search=1
 port_expand=1
 fast_ashore=1        ; the fast "go ashore?" check (default 0 while in testing)
 ashore_check=0       ; 1 = also ask the game every time and log any difference (slow, for testing)
+max_expansions=0     ; EXPERIMENT, CHANGES THE AI'S PATHS: expand a tile at most N times per search (0 = off)
 ```
+
+`max_expansions` is not part of the exact speed-up: it is a first test of a faster search that may change the AI's paths (see the experiment in [ai-pathfinder.md](../../docs/subsystems/ai-pathfinder.md)). With 16 on the owner's day-50 save, AI thinking went from 16.7 s to 8.3 s; only the AI hero's giant long-range searches changed. On another save the AI then chose differently after a few moves. Off by default; not for real games until it has been tested much more.

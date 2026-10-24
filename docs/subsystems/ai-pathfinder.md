@@ -129,6 +129,27 @@ AI thinking on save_11, 4 AI turns (85 AI steps), no trace, `--quick-combat --vi
 
 The last two changes (heap entries holding the position, relax copying only on success) gave no measurable gain on their own (runs vary by ±0.2 s). **Tried, slower:** software prefetch of the 8 neighbours' grid nodes, marks and records at the start of an expansion, and of the heap's next level (17.1–17.4 s): the data is mostly in the CPU caches already, and what is left is the search's own work. So this exact approach is close to its floor; the next big gains need either a different search order (a setting, see the owner's "option 2") or less waiting between AI moves (the 400 ms per step, [ai-turn.md](ai-turn.md#what-sets-the-400-ms-rhythm-2026-10-21)).
 
+### Experiment: a cap on re-expansions (2026-10-24, NOT exact, off by default)
+
+The owner's "option 2" is a faster search order that may change the AI's paths, as a setting with the original by default. A first measurement: `[ai] max_expansions=N` (with the ported search loop) expands a land tile at most N times per search; later pops of that tile are skipped. A normal search expands a tile 1–5 times, so the cap only bites in the label-correcting giant searches.
+
+save_11, 4 AI turns, virtual clock; "identical" against the plain game's trace run, `path_report.py`:
+
+| Cap | AI thinking (no trace) | Big searches identical |
+|---|---:|---:|
+| none (exact mod) | 16.7 s | 301 / 301 |
+| 16 | **8.3 s** | 290 / 301 |
+| 4 | 7.6 s | 288 / 301 |
+| 1 | 7.2 s | 0 / 301 |
+
+With a cap of 16, the 11 searches that differ are the AI hero's long-range searches (`0x0086c27c`, and one `0x0086c3e4`, limit 32,000). They drop from 0.4–5.2 million expansions to 150–280 thousand (traced: 36.8 s → 2.0 s). Their results differ: tiles reached within the limit change by up to 20%. **All other searches were identical, in the same order with the same starts**, so in these 4 turns the AI apparently made the same moves.
+
+Other saves, cap 16, traced:
+- save_9: 104 of 107 searches identical, the same 49 AI moves.
+- save_10: the AI took another branch after search #20 (36 AI moves instead of 41 in 4 turns, 76 of 152 searches identical).
+
+So the cap **does change decisions sometimes**, as expected of option 2; whether the AI plays worse, the same or better is not known yet. Next: AI-vs-AI games with and without the cap (the phase 5 test).
+
 Results (2026-10-23). AI thinking is the sum of the `think=` times of the AI steps, measured without the path trace (which costs time itself); "identical" is checked with the trace on, by `path_report.py`:
 
 | | game | mod |

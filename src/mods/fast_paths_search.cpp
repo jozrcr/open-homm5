@@ -235,6 +235,8 @@ BYTE *g_active_pf = nullptr;
 
 }  // namespace
 
+int g_max_expansions = 0;
+
 bool PushToActiveSearch(BYTE *pf, const Node &n)
 {
 	if (!g_active || pf != g_active_pf)
@@ -302,6 +304,19 @@ void PortedSearch(BYTE *pf, int limit)
 			void *pool = reinterpret_cast<void *>(At(pf, 4));
 			if (!(n.d[1] & 8) && pf[0x63] == 0 && !SameTile(At(pf, 0x8c), n.d[0]) && pool && StandsHere(pool, &stands_here, &n))
 				found = 1;
+		}
+		if (g_max_expansions > 0 && !(n.d[1] & 0x40)) {
+			// EXPERIMENT (changes results): see g_max_expansions
+			Tile *t = TileFor(n.d[0]);
+			if (t) {
+				if (!(t->known & kCheckExpansions)) {
+					t->known |= kCheckExpansions;
+					t->expansions = 0;
+				}
+				if (t->expansions >= g_max_expansions)
+					continue;
+				++t->expansions;
+			}
 		}
 		RunExpand(pf, &n, 8, reinterpret_cast<const int *>(kDirections),
 		          static_cast<int>(At(pf, 0x50) - n.d[2]), found, &stands_here);
