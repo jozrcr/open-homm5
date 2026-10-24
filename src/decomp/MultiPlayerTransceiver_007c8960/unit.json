@@ -1,0 +1,31 @@
+{
+  "sources": [
+    "MultiPlayerTransceiver.cpp"
+  ],
+  "flags": [
+    "/nologo",
+    "/c",
+    "/O2",
+    "/G7",
+    "/GR",
+    "/W3"
+  ],
+  "subsystem": "net",
+  "functions": {
+    "007c8a00": "?Slot15@CMultiPlayerTransceiver@@UAE_NXZ",
+    "007c8a10": "?Func_007c8a10@@YAHXZ",
+    "007c8a20": "?Func_007c8a20@@YAHXZ",
+    "007c8a30": "?Func_007c8a30@@YAMXZ",
+    "007c8b00": "?GetTime@CMultiPlayerTransceiver@@UAEHXZ",
+    "007c8b10": "?Slot06@CMultiPlayerTransceiver@@UAE_NPAI@Z",
+    "007c8b30": "?Slot10@CMultiPlayerTransceiver@@UAE_NXZ",
+    "007c8bc0": "?Slot02@CMultiPlayerTransceiver@@UAEXHH@Z",
+    "007c8c10": "?FindPlayer@CMultiPlayerTransceiver@@QAEHH@Z",
+    "007c8c80": "?AllReported@CMultiPlayerTransceiver@@QAE_NPAUSSegment@@@Z",
+    "007c8d10": "?DropPlayer@CMultiPlayerTransceiver@@QAEXH@Z",
+    "007c8dd0": "?Slot05@CMultiPlayerTransceiver@@UAEXMH@Z",
+    "007c8f00": "?Slot13@CMultiPlayerTransceiver@@UAEHXZ",
+    "007c8fd0": "?Slot09@CMultiPlayerTransceiver@@UAE_NH@Z",
+    "007c9050": "?Slot11@CMultiPlayerTransceiver@@UAE_NH@Z"
+  }
+}

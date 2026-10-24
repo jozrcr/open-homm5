@@ -68,3 +68,21 @@
 00415520  ?Assign@SHolder@@QAEXPBX@Z   # same function as SHandle::Assign, on a smart pointer (refcounted pointer + flag)
 00acb3a0  ?Func_00acb3a0@@YAHXZ   # number of records
 00ada2e0  ?Func_00ada2e0@@YIPADH@Z   # fastcall(idx) -> record pointer
+# --- MultiPlayerTransceiver_007c8960 ---
+00fe4d10  ?g_fe4d10@@3HA   # global dword set by the transceiver pacing (game time of the transceiver); read by 0x007c8a10
+00fe4d14  ?g_fe4d14@@3HA   # global dword read by 0x007c8a20
+00f3fa5c  ?g_speed@@3MA   # global float: the speed factor the transceiver pacing computes
+00fe4d18  ?g_mpCheckCrc@@3_NA   # mp_check_crc
+00fe4d19  ?g_mpCheckObjCrc@@3_NA   # mp_check_object_crc
+00fe4d1a  ?g_mpObserver2@@3_NA   # mp_observer_mode_for_player2
+00f3fa60  ?g_asyncSave@@3_NA   # enables async_<player>_<n>.sav at a desync
+00ff540c  ?g_log@@3USLog@@A   # the game's text log object
+00403550  ?EndlManip@@YAXXZ   # log manipulator (end of line), passed as a function pointer
+008c9750  ?Level@SLog@@QAEAAU1@PBH@Z   # log << &level
+008c9630  ?Str@SLog@@QAEAAU1@PBD@Z   # log << "text"
+008c9450  ?Int@SLog@@QAEAAU1@PBH@Z   # log << &int
+008c9190  ?Manip@SLog@@QAEAAU1@P6AXXZ@Z   # log << manipulator
+00b0f580  ?Func_00b0f580@@YIXHPAXH@Z   # __fastcall(a, world, b), ret 4; called by the multiplayer transceiver slot 2
+00465640  ?FMax@@YGMMM@Z   # __stdcall float max(a, b): a < b ? b : a
+00465610  ?FMin@@YGMMM@Z   # __stdcall float min(a, b)
+00475de0  ?Set@SSpeed@@QAEXMH@Z   # thiscall(this = transceiver+0x24, float speed, int)
