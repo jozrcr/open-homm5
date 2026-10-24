@@ -6,6 +6,7 @@
   "functions": {
     "00c070c0": "?Greater@SCost@@QBE_NABU1@@Z",
     "00c07100": "?SetField_dc@CHeroPathfinder@@QAEXH@Z",
+    "00c07860": "??0CHeroPathfinder@@QAE@XZ",
     "00c07a30": "?SetRefA@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
     "00c07a80": "?SetRefB@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
     "00c07ad0": "?SetRefC@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",

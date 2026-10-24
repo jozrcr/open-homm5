@@ -107,12 +107,24 @@ struct SPtrVec {
 
 // The open list is such a vector; Reserve is 0x00c09370.
 struct SOpenList : SPtrVec {
+	SOpenList()
+	{
+		first = 0;
+		last = 0;
+		end = 0;
+		Reserve(10);
+	}
 	void Reserve(int count);
 };
 
 struct SMapInfo {
 	char m_pad[0x1c];
 	SPos m_size;
+};
+
+struct CRefPtr {
+	CRefObjA *p;
+	CRefPtr() : p(0) {}
 };
 
 class CHeroPathfinder {
@@ -126,9 +138,9 @@ public:
 	void SetWeak94(CRefObjA *p);
 
 	SMapInfo *m_map;       // 0x00
-	CRefObjA *m_04;
-	CRefObjA *m_08;
-	CRefObjA *m_0c;
+	CRefPtr m_04;
+	CRefPtr m_08;
+	CRefPtr m_0c;
 	SOpenList m_open;      // 0x10
 	char m_1c[4];
 	CPathSettings m_settings;  // 0x20
@@ -168,8 +180,8 @@ void CHeroPathfinder::SetField_dc(int value)
 // FUNCTION: 0x00c07a30
 void CHeroPathfinder::SetRefA(CRefObjA *p)
 {
-	CRefObjA *old = m_04;
-	m_04 = p;
+	CRefObjA *old = m_04.p;
+	m_04.p = p;
 	if (p)
 		p->AddRef();
 	if (old)
@@ -179,8 +191,8 @@ void CHeroPathfinder::SetRefA(CRefObjA *p)
 // FUNCTION: 0x00c07a80
 void CHeroPathfinder::SetRefB(CRefObjA *p)
 {
-	CRefObjA *old = m_08;
-	m_08 = p;
+	CRefObjA *old = m_08.p;
+	m_08.p = p;
 	if (p)
 		p->AddRef();
 	if (old)
@@ -190,8 +202,8 @@ void CHeroPathfinder::SetRefB(CRefObjA *p)
 // FUNCTION: 0x00c07ad0
 void CHeroPathfinder::SetRefC(CRefObjA *p)
 {
-	CRefObjA *old = m_0c;
-	m_0c = p;
+	CRefObjA *old = m_0c.p;
+	m_0c.p = p;
 	if (p)
 		p->AddRef();
 	if (old)
@@ -349,4 +361,32 @@ CPathSettings::CPathSettings(int mode, int arg) : CPathSettingsBase(arg)
 		m_43 = true;
 		break;
 	}
+}
+
+// FUNCTION: 0x00c07860
+CHeroPathfinder::CHeroPathfinder() : m_map(0), m_settings(0, 0)
+{
+	m_start.top = 0;
+	m_90 = false;
+	m_91 = false;
+	m_94 = 0;
+	m_98.first = 0;
+	m_98.last = 0;
+	m_98.end = 0;
+	m_a4 = 0;
+	m_a8.first = 0;
+	m_a8.last = 0;
+	m_a8.end = 0;
+	m_b4.first = 0;
+	m_b4.last = 0;
+	m_b4.end = 0;
+	m_c0.first = 0;
+	m_c0.last = 0;
+	m_c0.end = 0;
+	m_cc.first = 0;
+	m_cc.last = 0;
+	m_cc.end = 0;
+	m_d9 = false;
+	m_dc = 0;
+	m_d8 = 0xff;
 }
