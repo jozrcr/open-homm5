@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include "log.h"
+#include "../mods/coop_guard.h"
 #include "../mods/fast_paths.h"
 #include "../mods/net_tuning.h"
 
@@ -26,6 +27,7 @@ void InstallAll()
 	InstallAiTrace();
 	mods::ApplyNetTuningFromSettings();
 	mods::ApplyFastPathsFromSettings();
+	mods::ApplyCoopGuardFromSettings();
 }
 
 }  // namespace hooks
