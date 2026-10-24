@@ -1,0 +1,18 @@
+{
+  "sources": [
+    "HeroesFilter_00c07070.cpp"
+  ],
+  "flags": [
+    "/nologo",
+    "/c",
+    "/O2",
+    "/G7",
+    "/GR",
+    "/W3"
+  ],
+  "subsystem": "ai",
+  "functions": {
+    "00c07ba0": "?SetMap@CHeroPathfinder@@QAEXPAVCMapObj@@@Z",
+    "00c08890": "?Run@CHeroPathfinder@@QAEXH@Z"
+  }
+}

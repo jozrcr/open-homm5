@@ -9,3 +9,4 @@
 007c8bc0  2026-10-25  MultiPlayerTransceiver_007c8960: Slot02, world pointer loaded before the other arguments
 007c8dd0  2026-10-25  MultiPlayerTransceiver_007c8960: Slot05, clamp 0..20 shares one store of eax in the exe
 007c9140  2026-10-25  MultiPlayerTransceiver_007c8960: OnChat, same code but tail merged differently
+00c08be0  2026-10-25  HeroesFilter_00c07070: StartSearch, 11 bytes over (extra start position built with mask-or, Cost temp registers)

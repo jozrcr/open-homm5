@@ -90,3 +90,19 @@
 00878fd0  ??2CRegisterWorldCmd@@SAPAXI@Z   # the game's allocator (operator new), cdecl
 00e43dd0  ??_7CRegisterWorldCmd@@6B@   # vftable of NWorld::CRegisterWorldCmd
 00826870  ?Handle@SChatSink@@QAEXPAUSChatData@@@Z   # thiscall(this = transceiver+0xb8 sink, chat data = command+0x0c): receives a chat message
+# --- HeroesFilter_00c07070 (worker W1, 2026-10-25) ---
+00c09260  ?InitNodes@CHeroPathfinder@@QAEXPAU?$vec@U?$Array2D@UNode@@@@@@@Z   # same function as MapRef::InitNodes, called on the pathfinder itself
+00bc7660  ??$CopyRange@U?$Array2D@E@@@@YIPAU?$Array2D@E@@PAU0@00@Z   # CopyRange for Array2D<unsigned char> ranges (vector erase)
+004b24d0  ?Alloc@?$Array2D@E@@QAEXXZ   # Array2D<unsigned char>::Alloc (data + row pointers)
+00c07110  ?InitStartNode@CHeroPathfinder@@QAEXPAUNode@@@Z   # build the start node (same function as the SNode draft in HeroPathfinderSetup), thiscall(node*), ret 4
+00c07f80  ?Expand@CHeroPathfinder@@QAEXPAUNode@@HPAHH_NPAI@Z   # expand a node: (node, 8, direction table, movement left, flag, &none), thiscall, ret 0x18
+00c09d90  ?Relax@CHeroPathfinder@@QAEXPAUNode@@00HUCost@@PAHH@Z   # relax a neighbour: (from, tile node, candidate, int, Cost by value, int*, int), thiscall, ret 0x28
+009d1350  ?Func_009d1350@CHeroPathfinder@@QAE_NPAUNode@@@Z   # check on a popped land node (used when settings+0x48 is set), thiscall(node*), ret 4
+009d22f0  ?Func_009d22f0@CHeroPathfinder@@QAE_NPAUNode@@@Z   # check on a popped land node (node flag bit 0), thiscall(node*), ret 4
+008c9630  ??6SLog@@QAEAAU0@PBD@Z   # debug log: operator<<(const char *), thiscall on the log object
+008c9190  ??6SLog@@QAEAAU0@P6AAAU0@AAU0@@Z@Z   # debug log: operator<<(manipulator function), thiscall
+00ff540c  ?g_log@@3USLog@@A   # the debug log object
+00403550  ?Endl@@YAAAUSLog@@AAU1@@Z   # log manipulator (end of line), passed to operator<<
+010c5889  ?g_dbgPaths@@3_NA   # byte: print the pathfinder grid after a search
+00a47fd0  ?Format@@YAPADPBDZZ   # printf-like formatter returning a text, cdecl
+00f757c8  ?g_dirs@@3PAHA   # table of the 8 step directions passed to the expand step
