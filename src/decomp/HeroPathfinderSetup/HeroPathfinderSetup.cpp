@@ -173,6 +173,21 @@ struct SNodeFlags {
 	unsigned int g24 : 2;      // bits 24..25
 	unsigned int b26 : 1;
 	unsigned int g27 : 5;
+
+	void SetB1(unsigned int v) { b1 = v; }
+	void ClearA() { g3 = 0; }
+	void SetB()
+	{
+		b0 = 0;
+		b2 = 0;
+		b9 = 1;
+		g24 = 0;
+	}
+	void ClearC()
+	{
+		counter = 0;
+		b26 = 0;
+	}
 };
 
 // A search node (64 bytes).
@@ -591,30 +606,28 @@ void CHeroPathfinder::Prepare()
 }
 
 // FUNCTION: 0x00c07110
+// DRAFT, does not match yet (see attempts.txt): same instructions, different order/registers.
 void CHeroPathfinder::InitStartNode(SNode *n)
 {
 	n->pos.x = m_start.x;
 	n->pos.y = m_start.y;
 	n->pos.f = m_start.f;
+	n->flags.SetB1(m_settings.m_24 == 1);
 	n->moved = 0;
-	n->flags.b1 = (m_settings.m_24 == 1);
 	n->cost2.b = 0;
 	n->cost2.a = 0;
-	n->flags.g3 = 0;
+	n->flags.ClearA();
+	n->flags.SetB();
 	n->tie = 0;
 	n->left = m_settings.m_30;
 	*(unsigned int *)&n->prev = 0xffffff;
-	n->flags.b0 = 0;
-	n->flags.b2 = 0;
-	n->flags.b9 = 1;
-	n->flags.g24 = 0;
 	n->cost1.b = 0;
 	n->cost1.a = 0;
-	n->flags.counter = 0;
-	n->flags.b26 = 0;
+	n->flags.ClearC();
 }
 
 // FUNCTION: 0x00c07360
+// DRAFT, does not match yet (see attempts.txt): same structure, different register allocation.
 int CHeroPathfinder::TracePath(SNodeVec *out, const SPos *target, unsigned int limit)
 {
 	if (out->first)
