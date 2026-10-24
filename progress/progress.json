@@ -1,11 +1,11 @@
 {
-  "generated": "2026-10-24T21:04:59Z",
+  "generated": "2026-10-24T21:47:44Z",
   "reference": "H5_Game.exe 3.1 (sha256 94309157dc65498203c1ee0c357a30ae8788184b91d73bcd5eb5c3159aa81375)",
   "totals": {
     "functions": 48609,
     "library": 2049,
     "generated": 16828,
-    "matched": 71,
+    "matched": 106,
     "equivalent": 0
   },
   "subsystems": [
@@ -22,7 +22,7 @@
     {
       "name": "adventure",
       "functions": 3879,
-      "matched": 0
+      "matched": 17
     },
     {
       "name": "combat",
@@ -47,7 +47,7 @@
     {
       "name": "unassigned",
       "functions": 35919,
-      "matched": 71
+      "matched": 89
     }
   ],
   "units": [
@@ -56,6 +56,12 @@
       "subsystem": "",
       "functions": 13,
       "matched": 13
+    },
+    {
+      "name": "HeroesFilter_00c07070",
+      "subsystem": "ai",
+      "functions": 2,
+      "matched": 2
     },
     {
       "name": "HeroPathfinderMisc",
@@ -80,6 +86,18 @@
       "subsystem": "ai",
       "functions": 14,
       "matched": 14
+    },
+    {
+      "name": "MultiPlayerTransceiver_007c8960",
+      "subsystem": "net",
+      "functions": 14,
+      "matched": 14
+    },
+    {
+      "name": "SinglePlayerTransceiver_007c80a0",
+      "subsystem": "adventure",
+      "functions": 19,
+      "matched": 19
     }
   ]
 }
