@@ -148,6 +148,14 @@ function Select-GameBin {
 }
 # ---- end of the shared block ----
 
+# SHA-256 of a file, through .NET: Get-FileHash lives in a module that Windows
+# PowerShell 5.1 sometimes cannot load (for example when started from PowerShell 7).
+function Get-Sha256([string]$Path) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { return [System.BitConverter]::ToString($sha.ComputeHash([System.IO.File]::ReadAllBytes($Path))) }
+    finally { $sha.Dispose() }
+}
+
 # Names of ZeroTier networks that Windows treats as Public. Only looks, changes nothing.
 function Get-PublicZeroTier {
     $names = @()
@@ -211,7 +219,7 @@ try {
             Write-Host "yourself and run this installer again." -ForegroundColor Red
             Wait-AndExit 3
         }
-        $same = (Get-FileHash -LiteralPath $srcDll -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $dstDll -Algorithm SHA256).Hash
+        $same = (Get-Sha256 $srcDll) -eq (Get-Sha256 $dstDll)
         if ($same) { $dllWas = "same" } else { $dllWas = "older" }
     }
 
