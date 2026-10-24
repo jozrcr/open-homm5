@@ -1,9 +1,15 @@
 // The hero pathfinder's setup code: construction, preparing a search, small
-// getters/setters and a few lookups into its grids (0x00c07070...0x00c07b60).
+// getters/setters and a few lookups into its grids (0x00c070c0...0x00c07b60).
 // The original file name is unknown; "HeroPathfinderSetup" is a guess from the
 // role of the functions. All class and member names are guesses too.
 //
 // See docs/subsystems/ai-pathfinder.md for what the pathfinder does.
+//
+// Status (see attempts.txt): the functions listed in unit.json match. Held:
+// 0x00c076d0 and 0x00c07920 are byte-identical to the exe but verify.py cannot
+// judge them (jump table / loop padding). Drafts that do not match yet:
+// 0x00c07110 and 0x00c07360. 0x00c07070 belongs to another class and was
+// not attempted.
 
 #include <string.h>
 
