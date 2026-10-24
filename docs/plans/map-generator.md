@@ -55,9 +55,17 @@ Heroes III players solved this with templates and template editors (HotA's edito
    - each in a few sizes and loot levels.
 
    You test them, and we adjust.
-2. **Step 2, teams on random maps (B), chosen in the lobby** (the owner's choice):
-   - First find how the lobby handles teams, and why it doesn't offer them on random maps. Use the exe, the UI data, and the robot on the test copy.
-   - Then make the DLL allow team choice there, keeping multiplayer rebuilding working on every PC. Every player needs the DLL, checked as the co-op guard does.
+2. **Step 2, teams on random maps (B), chosen in the lobby** (the owner's choice). The research ([../subsystems/rmg.md](../subsystems/rmg.md), "Teams in the lobby") found two things:
+   - Even on normal maps, the lobby doesn't choose teams. Its arrows only move a player to another start slot of the map's fixed teams. So team choice in the lobby is a **new feature**.
+   - The host sends every player's team to the other PCs in the game setup. So it is enough to change the teams **on the host**, and every PC gets the same.
+
+   The plan:
+   1. **A "humans vs AI" switch.** All humans on one team, the computer players on the other. A small hook on the host, just before the game starts.
+   2. **Free team numbers on the lobby's arrows.** Each player picks a team (1, 2, 3...) for random maps; other maps keep the original behaviour.
+   3. Before both, check with the robot on the test copy:
+      - what the arrows do;
+      - that the teams reach the other PC without a desync;
+      - which player gets which start zone of our templates.
 3. **Step 3, the generator's code (C):**
    - Point the decompilation pipeline at the generator instead of the network code.
    - Then add options to the generator screen, such as sliders for loot and neutral zones.
