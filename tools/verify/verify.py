@@ -5,7 +5,8 @@ Usage:
     python tools/verify/verify.py                 # build + verify every unit in src/decomp/
     python tools/verify/verify.py GameTimer       # only these units
     python tools/verify/verify.py --list Unit     # show the functions an obj defines (to fill unit.json)
-    python tools/verify/verify.py --record        # also write progress/matched.txt from the results
+    python tools/verify/verify.py --record        # also write progress/matched.txt and fingerprints.json
+    python tools/verify/verify.py --fingerprints  # check matched functions without the exe (CI)
 
 A unit is a folder src/decomp/<Unit>/ holding the reconstructed source of one
 original translation unit and a unit.json:
@@ -23,9 +24,19 @@ A function MATCHES when:
      with a known address (unit.json files, progress/symbols.txt, DLL imports),
      or data whose bytes match (string literals, constant tables).
 
+Fingerprints (for CI, which may not have the game's exe): --record also writes
+progress/fingerprints.json. For every matched function it holds the exe's size, a
+SHA-256 of the exe bytes with the relocation fields zeroed, and for each
+relocation either the address the exe points to or a SHA-256 of the data there,
+plus the import-table addresses the relocations use. --fingerprints compiles the
+units and checks every recorded function against that file instead of the exe:
+the same three conditions, with hashes and addresses in place of exe bytes.
+
 Rules (CLAUDE.md): never edit this file to make a function pass.
 """
 import csv
+import hashlib
+import json
 import os
 import pathlib
 import struct
@@ -43,6 +54,7 @@ EXE_SHA256 = "94309157dc65498203c1ee0c357a30ae8788184b91d73bcd5eb5c3159aa81375"
 TOOLKIT = pathlib.Path(os.environ.get("VCTOOLKIT2003", r"C:\tools\vctoolkit2003"))
 DECOMP = REPO / "src" / "decomp"
 BUILD = REPO / "build" / "decomp"
+FINGERPRINTS = REPO / "progress" / "fingerprints.json"
 
 # Best known flags for the game's code. Refined as functions match; see docs/toolchain.md.
 # /G7 (tune for Pentium 4) is required: without it 3 of the first 10 functions differ.
@@ -189,11 +201,91 @@ def check_function(obj, sym, body, relocs, addr, exe, sizes, symbols):
     return problems
 
 
+# --- fingerprints (checking without the exe) ----------------------------------------
+class Imports:
+    """Stands in for Exe in resolve(): only the import table, from fingerprints.json."""
+    def __init__(self, imports):
+        self.imports = {name: int(a, 16) for name, a in imports.items()}
+
+
+def masked_hash(data, relocs):
+    """SHA-256 of a function's bytes with every relocation field zeroed."""
+    b = bytearray(data)
+    for r in relocs:
+        b[r.offset:r.offset + 4] = bytes(4)
+    return hashlib.sha256(bytes(b)).hexdigest()
+
+
+def exe_target(r, addr, exe):
+    """Where the exe's relocation field (at addr + r.offset) points."""
+    field = addr + r.offset
+    if r.type == coff.REL_REL32:
+        return field + 4 + struct.unpack("<i", exe.read(field, 4))[0]
+    if r.type == coff.REL_DIR32:
+        return exe.u32(field)
+    if r.type == coff.REL_DIR32NB:
+        return exe.u32(field) + exe.base
+    return None
+
+
+def fingerprint(obj, body, relocs, addr, exe, symbols, used_imports):
+    """The fingerprint of a function that matched, taken from the exe."""
+    fp = {"size": len(body), "hash": masked_hash(exe.read(addr, len(body)), relocs), "relocs": []}
+    for r in relocs:
+        rsym = obj.symbols[r.symbol]
+        addend = struct.unpack_from("<i", body, r.offset)[0]
+        actual = exe_target(r, addr, exe)
+        want = resolve(obj, rsym, symbols, exe)
+        if isinstance(want, tuple):
+            _, sec, base_off = want
+            expect = sec.data[base_off + addend:]
+            data = exe.read(actual, len(expect)) if expect else b""
+            fp["relocs"].append([r.offset, r.type, "data", hashlib.sha256(data).hexdigest(), len(expect)])
+        else:
+            fp["relocs"].append([r.offset, r.type, "addr", "%08x" % actual])
+            if rsym.name.startswith("__imp_"):
+                for name, a in exe.imports.items():
+                    if a == want:
+                        used_imports[name] = "%08x" % a
+    return fp
+
+
+def check_fingerprint(obj, body, relocs, fp, symbols, imports):
+    """check_function(), against a fingerprint instead of the exe."""
+    problems = []
+    if len(body) != fp["size"]:
+        problems.append("size: obj %d bytes, original %d bytes" % (len(body), fp["size"]))
+    if [r.offset for r in relocs] != [x[0] for x in fp["relocs"]]:
+        problems.append("relocations at other places than in the original")
+        return problems
+    if masked_hash(body, relocs) != fp["hash"]:
+        problems.append("bytes differ from the original (fingerprint)")
+    for r, x in zip(relocs, fp["relocs"]):
+        rsym = obj.symbols[r.symbol]
+        addend = struct.unpack_from("<i", body, r.offset)[0]
+        want = resolve(obj, rsym, symbols, imports)
+        if x[2] == "data":
+            if not isinstance(want, tuple):
+                problems.append("reloc at +0x%x to %s: the original points to data" % (r.offset, rsym.name))
+                continue
+            _, sec, base_off = want
+            expect = sec.data[base_off + addend:]
+            if len(expect) != x[4] or hashlib.sha256(expect).hexdigest() != x[3]:
+                problems.append("data for %s does not match the original's" % rsym.name)
+        elif want is None or isinstance(want, tuple):
+            problems.append("reloc at +0x%x to %s: unknown address (original %s)" % (r.offset, rsym.name, x[3]))
+        elif want + addend != int(x[3], 16):
+            problems.append("reloc at +0x%x to %s: original %s, expected %08x" % (
+                r.offset, rsym.name, x[3], want + addend))
+    return problems
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     flags = {a for a in sys.argv[1:] if a.startswith("--")}
+    if "--fingerprints" in flags:
+        return check_fingerprints(args)
     exe = Exe(EXE)
-    import hashlib
     if hashlib.sha256(exe.data).hexdigest() != EXE_SHA256:
         raise SystemExit("ref/H5_Game_31_vanilla.exe is not the reference exe (see docs/reference-binaries.md)")
     sizes = load_sizes()
@@ -202,6 +294,7 @@ def main():
     units = [u for u in all_units if not args or u["name"] in args]
 
     results = []
+    fingerprints, used_imports = {}, {}
     for unit in units:
         objs = compile_unit(unit)
         defined = {}
@@ -227,6 +320,9 @@ def main():
             for p in problems:
                 print("           - " + p)
             results.append((addr, name, unit["name"], not problems))
+            if not problems:
+                fp = fingerprint(obj, body, relocs, addr, exe, symbols, used_imports)
+                fingerprints["%08x" % addr] = dict(fp, name=name, unit=unit["name"])
 
     if results:
         ok = sum(1 for r in results if r[3])
@@ -239,7 +335,48 @@ def main():
             for addr, name, unit, good in sorted(results):
                 if good:
                     f.write("%08x  %s  %s\n" % (addr, unit, name))
+        doc = {"about": "fingerprints of the matched functions, see tools/verify/verify.py",
+               "exe_sha256": EXE_SHA256, "imports": dict(sorted(used_imports.items())),
+               "functions": dict(sorted(fingerprints.items()))}
+        FINGERPRINTS.write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8", newline="\n")
     return 0 if all(r[3] for r in results) else 1
+
+
+def check_fingerprints(names):
+    """CI: every recorded function still matches, checked against fingerprints.json."""
+    doc = json.loads(FINGERPRINTS.read_text(encoding="utf-8"))
+    imports = Imports(doc["imports"])
+    all_units = load_units([])
+    symbols = load_symbol_map(all_units)
+    want = {}
+    for addr_s, fp in doc["functions"].items():
+        want.setdefault(fp["unit"], []).append((int(addr_s, 16), fp))
+    bad = 0
+    for unit in all_units:
+        if unit["name"] not in want or (names and unit["name"] not in names):
+            continue
+        defined = {}
+        for path in compile_unit(unit):
+            obj = coff.CoffObject(path.read_bytes())
+            for sym, body, relocs in obj.functions():
+                defined[sym.name] = (obj, sym, body, relocs)
+        print("== %s" % unit["name"])
+        for addr, fp in sorted(want[unit["name"]], key=lambda t: t[0]):
+            if fp["name"] not in defined:
+                problems = ["not defined in the obj any more"]
+            else:
+                obj, _sym, body, relocs = defined[fp["name"]]
+                problems = check_fingerprint(obj, body, relocs, fp, symbols, imports)
+            print("  %s  %08x %s" % ("MATCH    " if not problems else "REGRESSED", addr, fp["name"]))
+            for p in problems:
+                print("           - " + p)
+            bad += bool(problems)
+    known = {u["name"] for u in all_units}
+    for unit_name in sorted({fp["unit"] for fp in doc["functions"].values()} - known):
+        print("  MISSING UNIT %s" % unit_name)
+        bad += sum(1 for fp in doc["functions"].values() if fp["unit"] == unit_name)
+    print("\n%d of %d recorded functions still match" % (len(doc["functions"]) - bad, len(doc["functions"])))
+    return 0 if not bad else 1
 
 
 if __name__ == "__main__":

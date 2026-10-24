@@ -6,7 +6,8 @@
 python tools/verify/verify.py                 # all units
 python tools/verify/verify.py GameTimer       # one unit
 python tools/verify/verify.py --list GameTimer  # functions the unit's .obj defines, with mangled names
-python tools/verify/verify.py --record        # all units, and rewrite progress/matched.txt
+python tools/verify/verify.py --record        # all units, and rewrite progress/matched.txt and progress/fingerprints.json
+python tools/verify/verify.py --fingerprints  # check every recorded function without the game's exe (what GitHub runs)
 ```
 
 Needs: `ref/H5_Game_31_vanilla.exe` (checked by hash), the compiler in `C:\tools\vctoolkit2003` (or set `VCTOOLKIT2003`), Python 3 with `pefile`. Build output goes to `build/decomp/` (gitignored).
@@ -26,6 +27,20 @@ For each function listed in a unit's `unit.json`:
 
 A wrong address is reported like this:
 `reloc at +0x10 to ?Func00401330@...: exe has 00401330, expected 00401334`.
+
+## Checking without the game's exe (GitHub)
+
+The game's exe can never be uploaded, so GitHub checks against `progress/fingerprints.json` instead. `--record` writes it from the exe. For every matched function, it holds:
+- the original size;
+- a SHA-256 of the original bytes with the relocation fields zeroed;
+- for each relocation, the address the exe points to (or a SHA-256 of the data there);
+- the import-table addresses those relocations use.
+
+`--fingerprints` compiles the units and applies the same three conditions to those values. Hashes and addresses are allowed in the repo (CLAUDE.md).
+
+`.github/workflows/decomp.yml` runs `--fingerprints` on every push and pull request:
+- **The compiler:** it gets the 2003 compiler from archive.org (`tools/toolchain/fetch_vctoolkit2003.py`, checked by SHA-256, cached between runs).
+- **The verifier:** it checks the SHA-256 of `verify.py` and `coff.py`. A change to either fails the build until their hashes in the workflow are updated in the same, reviewed change.
 
 ## Rules (from CLAUDE.md)
 

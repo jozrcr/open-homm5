@@ -1,0 +1,10 @@
+# The order in which the decompilation worker takes the game's code
+# (tools/decomp/next.py). Owner's choice (Q7, 2026-10-24): the code our mods
+# touch first. Each line: low address, high address (exclusive), name.
+# Addresses are in the vanilla 3.1 exe; see the docs for what each area is.
+00c07000 00c0b000 pathfinder              # docs/subsystems/ai-pathfinder.md
+007c8000 007cd000 multiplayer transceiver # docs/subsystems/multiplayer-sync.md
+0047c000 0047f000 network link            # multiplayer-sync.md, "The LAN link"
+00604000 0060a000 AI manager              # docs/subsystems/ai-turn.md
+0086c000 0086f000 player AI turn          # ai-turn.md, "The turn driver"
+008da000 008e6000 hero movement           # multiplayer-sync.md, "What an AI hero move waits for"
