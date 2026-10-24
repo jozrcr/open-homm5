@@ -100,6 +100,1244 @@
    ],
    "name": "?Slot21@CGameTimer@NGameTimer@@UAEXHH@Z",
    "unit": "GameTimer"
+  },
+  "00c070c0": {
+   "size": 60,
+   "hash": "a0d6bbfff7d2384c320c614fe930115a7cc2335da363e3de7783896c05b31613",
+   "relocs": [],
+   "name": "?Greater@SCost@@QBE_NABU1@@Z",
+   "unit": "HeroPathfinderSetup"
+  },
+  "00c07100": {
+   "size": 13,
+   "hash": "4be51d3074333d49f06e4f6314b3f3a87833b5e6d58ecbacc24414f5a9ccb86f",
+   "relocs": [],
+   "name": "?SetField_dc@CHeroPathfinder@@QAEXH@Z",
+   "unit": "HeroPathfinderSetup"
+  },
+  "00c071b0": {
+   "size": 123,
+   "hash": "a9658a6f911dc8f34df57df2d11e4c6f79f60067ec854b34cf5e69f9d539934f",
+   "relocs": [],
+   "name": "?MovesAt@CHeroPathfinder@@QAEIPBUSPos@@@Z",
+   "unit": "HeroPathfinderSetup"
+  },
+  "00c07230": {
+   "size": 41,
+   "hash": "123cd86933975415f5cb715e499c239450729a076399230fec4ba65f3e0dd1d2",
+   "relocs": [
+    [
+     10,
+     20,
+     "addr",
+     "0086e1b0"
+    ],
+    [
+     32,
+     20,
+     "addr",
+     "00c071b0"
+    ]
+   ],
+   "name": "?MovesAtChecked@CHeroPathfinder@@QAEIPBUSPos@@@Z",
+   "unit": "HeroPathfinderSetup"
+  },
+  "00c07260": {
+   "size": 102,
+   "hash": "9158c2bdb699640ba7eb2058e0a5595957449bf889a9d5fa8d33ca10cee2b6ff",
+   "relocs": [
+    [
+     10,
+     20,
+     "addr",
+     "0086e1b0"
+    ],
+    [
+     71,
+     20,
+     "addr",
+     "00c091d0"
+    ]
+   ],
+   "name": "?BoatCounterAt@CHeroPathfinder@@QAEIPBUSPos@@@Z",
+   "unit": "HeroPathfinderSetup"
+  },
+  "00c072d0": {
+   "size": 139,
+   "hash": "4ef6da74c3aec4387ad4785247e59ef61b8421d7925e547ce638f09dbf3c3546",
+   "relocs": [],
+   "name": "?Visitable@CHeroPathfinder@@QAE_NPBUSPos@@@Z",
+   "unit": "HeroPathfinderSetup"
+  },
+  "00c07860": {
+   "size": 189,
+   "hash": "363f1d581873f5410acbbf115d43f3baabdffd68ec85f8a1fccc5082a29ae8d6",
+   "relocs": [
+    [
+     31,
+     20,
+     "addr",
+     "00c09370"
+    ],
+    [
+     41,
+     20,
+     "addr",
+     "00c076d0"
+    ]
+   ],
+   "name": "??0CHeroPathfinder@@QAE@XZ",
+   "unit": "HeroPathfinderSetup"
+  },
+  "00c07a30": {
+   "size": 74,
+   "hash": "5797bc812300c753301fa1091cbac7ec85b2aa17421ba010604737209c5a8305",
+   "relocs": [
+    [
+     67,
+     20,
+     "addr",
+     "008c61d0"
+    ]
+   ],
+   "name": "?SetRefA@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
+   "unit": "HeroPathfinderSetup"
+  },
+  "00c07a80": {
+   "size": 74,
+   "hash": "5f0c04fc25ddc74d61718114de2d5c286904f567dfa862f977fb0ffa721c52d9",
+   "relocs": [
+    [
+     67,
+     20,
+     "addr",
+     "008c61d0"
+    ]
+   ],
+   "name": "?SetRefB@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
+   "unit": "HeroPathfinderSetup"
+  },
+  "00c07ad0": {
+   "size": 74,
+   "hash": "4edfb74a0781553c72b8415fb912e8cd47945077907f128daeb6a4a943d98992",
+   "relocs": [
+    [
+     67,
+     20,
+     "addr",
+     "008c61d0"
+    ]
+   ],
+   "name": "?SetRefC@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
+   "unit": "HeroPathfinderSetup"
+  },
+  "00c07b20": {
+   "size": 64,
+   "hash": "a4d7cebfca217e2f4d357bf1e98c90c7ddadc2a8e032ca77b9ea661cbb3c0604",
+   "relocs": [
+    [
+     26,
+     20,
+     "addr",
+     "00bc5400"
+    ],
+    [
+     43,
+     20,
+     "addr",
+     "00bc5400"
+    ],
+    [
+     56,
+     20,
+     "addr",
+     "008c6150"
+    ]
+   ],
+   "name": "?SetWeak94@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
+   "unit": "HeroPathfinderSetup"
+  },
+  "00c07b60": {
+   "size": 64,
+   "hash": "024fb4dc67b18ce65315101ddcef6162dfdfaa2bca8759045d81bf4a0a14b9fd",
+   "relocs": [
+    [
+     57,
+     20,
+     "addr",
+     "008c6150"
+    ]
+   ],
+   "name": "?SetWeakA4@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
+   "unit": "HeroPathfinderSetup"
+  },
+  "00c08f30": {
+   "size": 149,
+   "hash": "226d3484d4a12354b2a3e5ebb4eb8821d07999c1fb196f167ae095ea3dc6fbcb",
+   "relocs": [
+    [
+     19,
+     20,
+     "addr",
+     "008791f0"
+    ],
+    [
+     102,
+     20,
+     "addr",
+     "008791f0"
+    ]
+   ],
+   "name": "?Alloc@?$Array2D@UNode@@@@QAEXXZ",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c08fd0": {
+   "size": 225,
+   "hash": "589f676f4508dce32f491b5801ac461e39d160360560140646c0d8844bfb3909",
+   "relocs": [],
+   "name": "?NodeLess@@YI_NABUNode@@0@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09110": {
+   "size": 108,
+   "hash": "7b91f458570292bb6df0eedd1d0ddffb1b1009949aeb671a0c52bb10a122ed6d",
+   "relocs": [
+    [
+     31,
+     20,
+     "addr",
+     "00c08f30"
+    ]
+   ],
+   "name": "?Copy@?$Array2D@UNode@@@@QAEXABU1@@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09180": {
+   "size": 66,
+   "hash": "faa178ec62b39933256bc4fc7c212ab28ae8398e0d7e1a04808218ee3f1a44ce",
+   "relocs": [
+    [
+     10,
+     20,
+     "addr",
+     "008791f0"
+    ]
+   ],
+   "name": "?allocate_and_copy@NodeVec@@QAEPAUNode@@HPAU2@0@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c091d0": {
+   "size": 69,
+   "hash": "3fe8e1f3290ad8f0df9bae24be35d1ed9f198f827318a93ec3118bec29be7908",
+   "relocs": [],
+   "name": "?IsMarked1@HeroPathfinder@@QAE_NPBI@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09220": {
+   "size": 54,
+   "hash": "b338fed1c662c4b6cbaaec9c30e896f7064d26e1d7f0a3b31ab2994eb5534cae",
+   "relocs": [],
+   "name": "?NodeAt1@HeroPathfinder@@QAEPAUNode@@PBI@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09260": {
+   "size": 262,
+   "hash": "ba9a2ae75a07b37c5e48145930ac57268107c7ec0a65bfa35fbc87e70fd0da50",
+   "relocs": [],
+   "name": "?InitNodes@MapRef@@QAEXPAU?$vec@U?$Array2D@UNode@@@@@@@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09370": {
+   "size": 107,
+   "hash": "aacb2356aae3c1004ca5254caaba088babf7a22a94d8b59219d2510ac27a220c",
+   "relocs": [
+    [
+     44,
+     20,
+     "addr",
+     "00c09180"
+    ],
+    [
+     54,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     73,
+     20,
+     "addr",
+     "008791f0"
+    ]
+   ],
+   "name": "?reserve@NodeVec@@QAEXH@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c093e0": {
+   "size": 116,
+   "hash": "3759f9f21b5e0cc13de85c85ea1415d746d963425715475fab23e817c4ec06d7",
+   "relocs": [
+    [
+     78,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     94,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     105,
+     20,
+     "addr",
+     "00c09110"
+    ]
+   ],
+   "name": "??4?$Array2D@UNode@@@@QAEAAU0@ABU0@@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09460": {
+   "size": 51,
+   "hash": "20f643632fa0facc8f91823c06241d18f308a656790cebf64f17c99330c105a7",
+   "relocs": [
+    [
+     26,
+     20,
+     "addr",
+     "00c093e0"
+    ]
+   ],
+   "name": "??$CopyBackwardRange@U?$Array2D@UNode@@@@@@YIPAU?$Array2D@UNode@@@@PAU0@00@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c094a0": {
+   "size": 37,
+   "hash": "ffb0f97f7ede9cdb703f01f6f82ff00ae430693e714b98a0611848906081ba87",
+   "relocs": [
+    [
+     20,
+     20,
+     "addr",
+     "00c093e0"
+    ]
+   ],
+   "name": "??$FillRange@U?$Array2D@UNode@@@@@@YIXPAU?$Array2D@UNode@@@@0ABU0@@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c094d0": {
+   "size": 37,
+   "hash": "ffb0f97f7ede9cdb703f01f6f82ff00ae430693e714b98a0611848906081ba87",
+   "relocs": [
+    [
+     20,
+     20,
+     "addr",
+     "004fb110"
+    ]
+   ],
+   "name": "??$FillRange@U?$Array2D@E@@@@YIXPAU?$Array2D@E@@0ABU0@@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09500": {
+   "size": 174,
+   "hash": "b0c82a366775799b63a068777dd86bd41e96590ade0c811ae5db0b2e7ef3a585",
+   "relocs": [
+    [
+     89,
+     20,
+     "addr",
+     "00c08fd0"
+    ]
+   ],
+   "name": "?PushHeap@@YIXPAUNode@@HHU1@UNodeCompare@@@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c095b0": {
+   "size": 211,
+   "hash": "4d481d598e6ddf0693f5c3375813fd7b95d3e33207f45a2aa818a2ca39d86125",
+   "relocs": [
+    [
+     78,
+     20,
+     "addr",
+     "00c08fd0"
+    ],
+    [
+     194,
+     20,
+     "addr",
+     "00c09500"
+    ]
+   ],
+   "name": "?AdjustHeap@@YIXPAUNode@@HHU1@UNodeCompare@@@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09690": {
+   "size": 142,
+   "hash": "12dc3b38fede98a0ee8dc4bab95b696f442f92b7f09fbdc0205b8390b82ba9e1",
+   "relocs": [
+    [
+     107,
+     20,
+     "addr",
+     "00c27d20"
+    ]
+   ],
+   "name": "?Probe@HeroPathfinder@@QAE_NPAIPBI_N@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09720": {
+   "size": 51,
+   "hash": "75e72e4dc3d8abda290ab4b764cb6fa68ef01cd5b4b91e2f7f500a86299327e5",
+   "relocs": [
+    [
+     20,
+     20,
+     "addr",
+     "00c093e0"
+    ]
+   ],
+   "name": "??$CopyRange@U?$Array2D@UNode@@@@@@YIPAU?$Array2D@UNode@@@@PAU0@00@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09760": {
+   "size": 46,
+   "hash": "2e472177d746808dd93c79a3449d4bae5b368dd532e0b509f948de82760c758b",
+   "relocs": [
+    [
+     24,
+     20,
+     "addr",
+     "00c09110"
+    ]
+   ],
+   "name": "??$UninitCopyRange@U?$Array2D@UNode@@@@@@YIPAU?$Array2D@UNode@@@@PAU0@00@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09790": {
+   "size": 46,
+   "hash": "2e472177d746808dd93c79a3449d4bae5b368dd532e0b509f948de82760c758b",
+   "relocs": [
+    [
+     24,
+     20,
+     "addr",
+     "004f8260"
+    ]
+   ],
+   "name": "??$UninitCopyRange@U?$Array2D@E@@@@YIPAU?$Array2D@E@@PAU0@00@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c097c0": {
+   "size": 202,
+   "hash": "093a321b6fcf89f02ff62fccc80b60645ba5ca16311cedb9647637cc63fa1a0e",
+   "relocs": [
+    [
+     47,
+     20,
+     "addr",
+     "008791f0"
+    ],
+    [
+     79,
+     20,
+     "addr",
+     "00c09110"
+    ],
+    [
+     150,
+     20,
+     "addr",
+     "00c09760"
+    ],
+    [
+     163,
+     20,
+     "addr",
+     "00bc7720"
+    ],
+    [
+     172,
+     20,
+     "addr",
+     "00879240"
+    ]
+   ],
+   "name": "?insert_overflow@?$vec@U?$Array2D@UNode@@@@@@QAEXPAU?$Array2D@UNode@@@@H_N@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09890": {
+   "size": 202,
+   "hash": "093a321b6fcf89f02ff62fccc80b60645ba5ca16311cedb9647637cc63fa1a0e",
+   "relocs": [
+    [
+     47,
+     20,
+     "addr",
+     "008791f0"
+    ],
+    [
+     79,
+     20,
+     "addr",
+     "004f8260"
+    ],
+    [
+     150,
+     20,
+     "addr",
+     "00c09790"
+    ],
+    [
+     163,
+     20,
+     "addr",
+     "00bc7720"
+    ],
+    [
+     172,
+     20,
+     "addr",
+     "00879240"
+    ]
+   ],
+   "name": "?insert_overflow@?$vec@U?$Array2D@E@@@@QAEXPAU?$Array2D@E@@H_N@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09960": {
+   "size": 109,
+   "hash": "dbedb4c9977df121682d901461e12c484676c24dff4f54df744f995c1034ade3",
+   "relocs": [
+    [
+     80,
+     20,
+     "addr",
+     "008c6150"
+    ]
+   ],
+   "name": "??4SettingsHead@@QAEAAU0@ABU0@@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c099d0": {
+   "size": 106,
+   "hash": "34c577178ca460a0f956b9f8d78a2e511cb0cf4681684607fe0b6397da533bfa",
+   "relocs": [
+    [
+     47,
+     20,
+     "addr",
+     "005d4c70"
+    ],
+    [
+     96,
+     20,
+     "addr",
+     "00c09500"
+    ]
+   ],
+   "name": "?push@OpenList@@QAEXABUNode@@@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09a40": {
+   "size": 236,
+   "hash": "ed14c0d7c6ae4ad51de2d5893cff32beb6aebf2a15d7efb5f2f15038e71b6fe1",
+   "relocs": [
+    [
+     65,
+     20,
+     "addr",
+     "00c09760"
+    ],
+    [
+     82,
+     20,
+     "addr",
+     "00c09460"
+    ],
+    [
+     115,
+     20,
+     "addr",
+     "00c094a0"
+    ],
+    [
+     138,
+     20,
+     "addr",
+     "00bc7600"
+    ],
+    [
+     161,
+     20,
+     "addr",
+     "00c09760"
+    ],
+    [
+     199,
+     20,
+     "addr",
+     "00c094a0"
+    ],
+    [
+     224,
+     20,
+     "addr",
+     "00c097c0"
+    ]
+   ],
+   "name": "?insert_n@?$vec@U?$Array2D@UNode@@@@@@QAEXPAU?$Array2D@UNode@@@@H@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09b30": {
+   "size": 236,
+   "hash": "ed14c0d7c6ae4ad51de2d5893cff32beb6aebf2a15d7efb5f2f15038e71b6fe1",
+   "relocs": [
+    [
+     65,
+     20,
+     "addr",
+     "00c09790"
+    ],
+    [
+     82,
+     20,
+     "addr",
+     "00bc76a0"
+    ],
+    [
+     115,
+     20,
+     "addr",
+     "00c094d0"
+    ],
+    [
+     138,
+     20,
+     "addr",
+     "00bc7600"
+    ],
+    [
+     161,
+     20,
+     "addr",
+     "00c09790"
+    ],
+    [
+     199,
+     20,
+     "addr",
+     "00c094d0"
+    ],
+    [
+     224,
+     20,
+     "addr",
+     "00c09890"
+    ]
+   ],
+   "name": "?insert_n@?$vec@U?$Array2D@E@@@@QAEXPAU?$Array2D@E@@H@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c09c20": {
+   "size": 363,
+   "hash": "edfeb10386583f18dd8edea9ec59f8bc72e3599ad4a0d6f2ebbbf1fde07256fc",
+   "relocs": [
+    [
+     10,
+     20,
+     "addr",
+     "00c09960"
+    ],
+    [
+     209,
+     20,
+     "addr",
+     "008c6150"
+    ],
+    [
+     263,
+     20,
+     "addr",
+     "008c6150"
+    ]
+   ],
+   "name": "??4Settings@@QAEAAU0@ABU0@@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c0a200": {
+   "size": 20,
+   "hash": "f3a28246e08b941993f8bc9a2218a9ad9a8a478fdb7dfa303a24ed10e2d0424c",
+   "relocs": [],
+   "name": "??0SBonus@@QAE@XZ",
+   "unit": "HeroPathfinderMisc"
+  },
+  "00c0a220": {
+   "size": 78,
+   "hash": "3f71c1d18d1b7f35dc6603a9ac7ebb9119379a293f93f2a5593dc9714d8b8903",
+   "relocs": [],
+   "name": "?Add@SBonus@@QAEAAU1@PBU1@@Z",
+   "unit": "HeroPathfinderMisc"
+  },
+  "00c0a2c0": {
+   "size": 36,
+   "hash": "743660d39227161d37fe4877606a8742cf66641e2f0fde0110c9fd860ba8c49b",
+   "relocs": [],
+   "name": "?GetTotal@CBonusList@@QAEXPAUSBonus@@@Z",
+   "unit": "HeroPathfinderMisc"
+  },
+  "00c0a440": {
+   "size": 9,
+   "hash": "74ce77c84e40d04636982228ea21ce654bfb9a077714be7f45358887c646caa0",
+   "relocs": [],
+   "name": "?Count@CBonusList@@QAEHXZ",
+   "unit": "HeroPathfinderMisc"
+  },
+  "00c0a450": {
+   "size": 209,
+   "hash": "4bd3c07079dc867c398fafcfe03c7f89ebd4778fbb74641baad6fda9173787c7",
+   "relocs": [
+    [
+     33,
+     20,
+     "addr",
+     "00acb3a0"
+    ],
+    [
+     65,
+     20,
+     "addr",
+     "00ada2e0"
+    ],
+    [
+     78,
+     20,
+     "addr",
+     "009d0330"
+    ],
+    [
+     85,
+     20,
+     "addr",
+     "009d0f60"
+    ],
+    [
+     93,
+     20,
+     "addr",
+     "009d03b0"
+    ],
+    [
+     146,
+     20,
+     "addr",
+     "009d0370"
+    ],
+    [
+     159,
+     20,
+     "addr",
+     "009d0a60"
+    ],
+    [
+     166,
+     20,
+     "addr",
+     "009d0e00"
+    ],
+    [
+     174,
+     20,
+     "addr",
+     "009d03b0"
+    ],
+    [
+     188,
+     20,
+     "addr",
+     "009d0910"
+    ],
+    [
+     196,
+     20,
+     "addr",
+     "009d03b0"
+    ]
+   ],
+   "name": "?Describe@CBonusList@@QAEXPAUSText@@HPAVIHeroLike@@@Z",
+   "unit": "HeroPathfinderMisc"
+  },
+  "00c0a530": {
+   "size": 33,
+   "hash": "3fe70902c51bd8499c05a95a9cfc1d4f31b7da69be82cb33ae779b8524b12a28",
+   "relocs": [],
+   "name": "?KindAt@CBonusList@@QAEHH@Z",
+   "unit": "HeroPathfinderMisc"
+  },
+  "00c0a560": {
+   "size": 197,
+   "hash": "e8251f1f60c2951d1d03f0458d563ef595fe359b0b9bb267c4358f9977ea665a",
+   "relocs": [],
+   "name": "?GetBonus@CBonusList@@QAEXPAUSBonus@@H@Z",
+   "unit": "HeroPathfinderMisc"
+  },
+  "00c0a630": {
+   "size": 208,
+   "hash": "dc5394f08be72d277caecd8ced5ddeb2b20d075b9acdd5a84b0dff93cf5e035e",
+   "relocs": [
+    [
+     59,
+     20,
+     "addr",
+     "00acb3a0"
+    ],
+    [
+     79,
+     20,
+     "addr",
+     "00ada2e0"
+    ],
+    [
+     92,
+     20,
+     "addr",
+     "009d0330"
+    ],
+    [
+     99,
+     20,
+     "addr",
+     "009d0f60"
+    ],
+    [
+     107,
+     20,
+     "addr",
+     "009d03b0"
+    ],
+    [
+     143,
+     20,
+     "addr",
+     "009d0370"
+    ],
+    [
+     156,
+     20,
+     "addr",
+     "009d0a60"
+    ],
+    [
+     163,
+     20,
+     "addr",
+     "009d0e00"
+    ],
+    [
+     171,
+     20,
+     "addr",
+     "009d03b0"
+    ],
+    [
+     186,
+     20,
+     "addr",
+     "009d0910"
+    ],
+    [
+     194,
+     20,
+     "addr",
+     "009d03b0"
+    ]
+   ],
+   "name": "?DescribeAt@CBonusList@@QAEXPAUSText@@H@Z",
+   "unit": "HeroPathfinderMisc"
+  },
+  "00c0a700": {
+   "size": 101,
+   "hash": "3e5e8c4ebe840401ccbb229904ad18889a5a11112a013ede734bb5a0263ea0ed",
+   "relocs": [],
+   "name": "?CanAdd@CBonusList@@QAE_NHPAVIHeroLike@@@Z",
+   "unit": "HeroPathfinderMisc"
+  },
+  "00c0a870": {
+   "size": 33,
+   "hash": "c3f69712b5d2e6a18b13f25e57380086f9b2c8f17408fbdd6e21b0669bc44de3",
+   "relocs": [],
+   "name": "??0CBonusList@@QAE@XZ",
+   "unit": "HeroPathfinderMisc"
+  },
+  "00c0a8a0": {
+   "size": 73,
+   "hash": "0effe732257fdbfde6e7fa5b212b10cc8d54c6fca1645c96aa1bef4fc3e781ca",
+   "relocs": [
+    [
+     24,
+     20,
+     "addr",
+     "00879240"
+    ]
+   ],
+   "name": "?Clear@CBonusList@@QAEXXZ",
+   "unit": "HeroPathfinderMisc"
+  },
+  "00c0a8f0": {
+   "size": 182,
+   "hash": "af5b8d3d3a9f321903fcd7fb5556ce2516b85e649c5514e4a226901fe4e9e7f7",
+   "relocs": [
+    [
+     27,
+     20,
+     "addr",
+     "00c0a700"
+    ],
+    [
+     51,
+     20,
+     "addr",
+     "00c0a2f0"
+    ],
+    [
+     75,
+     20,
+     "addr",
+     "00a68e00"
+    ],
+    [
+     156,
+     20,
+     "addr",
+     "00c0a560"
+    ],
+    [
+     169,
+     20,
+     "addr",
+     "00c0a220"
+    ]
+   ],
+   "name": "?Add@CBonusList@@QAEXHPAVIHeroLike@@@Z",
+   "unit": "HeroPathfinderMisc"
+  },
+  "00c0a9b0": {
+   "size": 526,
+   "hash": "738fe385f6b24e1b6aff7e33c160405d7595a3ee97a889b2eab9f132d1d9717a",
+   "relocs": [
+    [
+     59,
+     20,
+     "addr",
+     "00b1c6e0"
+    ],
+    [
+     110,
+     20,
+     "addr",
+     "00b1c6e0"
+    ],
+    [
+     161,
+     20,
+     "addr",
+     "00b1c6e0"
+    ],
+    [
+     212,
+     20,
+     "addr",
+     "00b1c6e0"
+    ],
+    [
+     263,
+     20,
+     "addr",
+     "00b1c6e0"
+    ],
+    [
+     314,
+     20,
+     "addr",
+     "00b1c6e0"
+    ],
+    [
+     365,
+     20,
+     "addr",
+     "00b1c6e0"
+    ],
+    [
+     416,
+     20,
+     "addr",
+     "00b1c6e0"
+    ],
+    [
+     467,
+     20,
+     "addr",
+     "00b1c6e0"
+    ],
+    [
+     519,
+     20,
+     "addr",
+     "00b1c6e0"
+    ]
+   ],
+   "name": "?FillIds@@YIXPAUSIntVec@@@Z",
+   "unit": "HeroPathfinderMisc"
+  },
+  "00c0abc0": {
+   "size": 185,
+   "hash": "8fb1e09791baaa07c57d88a8307a1ab932eee5158bf2d0ae05f5e70b9c3cde35",
+   "relocs": [
+    [
+     74,
+     20,
+     "addr",
+     "00c75330"
+    ],
+    [
+     87,
+     20,
+     "addr",
+     "008c6150"
+    ],
+    [
+     100,
+     20,
+     "addr",
+     "00acb3a0"
+    ],
+    [
+     111,
+     20,
+     "addr",
+     "00ada2e0"
+    ],
+    [
+     121,
+     20,
+     "addr",
+     "004c7430"
+    ],
+    [
+     139,
+     20,
+     "addr",
+     "0040e960"
+    ],
+    [
+     147,
+     20,
+     "addr",
+     "004c7430"
+    ],
+    [
+     165,
+     20,
+     "addr",
+     "0040e960"
+    ],
+    [
+     176,
+     20,
+     "addr",
+     "00415520"
+    ]
+   ],
+   "name": "?ResetFrom@@YIXPAUSName@@H@Z",
+   "unit": "HeroPathfinderMisc2"
+  },
+  "00c0ac80": {
+   "size": 166,
+   "hash": "ffb467774477182a611ba59b40f0dc0c326b081d6f85bf6db381954d67b362ad",
+   "relocs": [
+    [
+     38,
+     20,
+     "addr",
+     "00433d20"
+    ],
+    [
+     53,
+     6,
+     "addr",
+     "010c58fc"
+    ],
+    [
+     61,
+     6,
+     "addr",
+     "010c58fc"
+    ],
+    [
+     69,
+     6,
+     "addr",
+     "010c58e8"
+    ],
+    [
+     75,
+     6,
+     "addr",
+     "010c58ec"
+    ],
+    [
+     80,
+     6,
+     "addr",
+     "00e04530"
+    ],
+    [
+     86,
+     6,
+     "addr",
+     "010c58d8"
+    ],
+    [
+     92,
+     6,
+     "addr",
+     "010c58dc"
+    ],
+    [
+     98,
+     6,
+     "addr",
+     "010c58e0"
+    ],
+    [
+     104,
+     6,
+     "addr",
+     "010c58e4"
+    ],
+    [
+     110,
+     6,
+     "addr",
+     "010c58f0"
+    ],
+    [
+     116,
+     6,
+     "addr",
+     "010c58f4"
+    ],
+    [
+     122,
+     6,
+     "addr",
+     "010c58f8"
+    ],
+    [
+     127,
+     20,
+     "addr",
+     "00d11a46"
+    ],
+    [
+     138,
+     6,
+     "addr",
+     "010c58d8"
+    ],
+    [
+     155,
+     20,
+     "addr",
+     "00c0b780"
+    ]
+   ],
+   "name": "?GetItem@CGrid@@QAEPAVCBonusList@@HH@Z",
+   "unit": "HeroPathfinderMisc2"
+  },
+  "00c0ad30": {
+   "size": 335,
+   "hash": "eab1b81bad8382a9866c8b12f417f2d1e48b0805574989c27eaa24526399de01",
+   "relocs": [
+    [
+     255,
+     20,
+     "addr",
+     "00c0ac80"
+    ],
+    [
+     268,
+     20,
+     "addr",
+     "00c0ac80"
+    ],
+    [
+     276,
+     20,
+     "addr",
+     "006404d0"
+    ]
+   ],
+   "name": "?SameContents@CGrid@@QAE_NPAV1@@Z",
+   "unit": "HeroPathfinderMisc2"
+  },
+  "00c0ae80": {
+   "size": 160,
+   "hash": "17fede219f862740476e7845965bcacda548691aee22b8b87368b7d3507227fb",
+   "relocs": [
+    [
+     27,
+     20,
+     "addr",
+     "00ada320"
+    ],
+    [
+     58,
+     20,
+     "addr",
+     "008c6150"
+    ],
+    [
+     94,
+     20,
+     "addr",
+     "00ae3e90"
+    ],
+    [
+     106,
+     20,
+     "addr",
+     "00415520"
+    ],
+    [
+     117,
+     20,
+     "addr",
+     "00ae3e90"
+    ],
+    [
+     129,
+     20,
+     "addr",
+     "00415520"
+    ],
+    [
+     140,
+     20,
+     "addr",
+     "00ae3e90"
+    ],
+    [
+     152,
+     20,
+     "addr",
+     "00415520"
+    ]
+   ],
+   "name": "?SetupOwner@@YIXPAUSOwner@@PAUSSource@@@Z",
+   "unit": "HeroPathfinderMisc2"
   }
  }
 }
