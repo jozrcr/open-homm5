@@ -1,0 +1,10 @@
+{
+  "sources": [
+    "HeroPathfinderSetup.cpp"
+  ],
+  "subsystem": "ai",
+  "functions": {
+    "00c070c0": "?Greater@SCost@@QBE_NABU1@@Z",
+    "00c07100": "?SetField_dc@CHeroPathfinder@@QAEXH@Z"
+  }
+}
