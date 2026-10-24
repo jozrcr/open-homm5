@@ -1,0 +1,9 @@
+{
+  "sources": [
+    "HeroPathfinderQueue.cpp"
+  ],
+  "subsystem": "ai",
+  "functions": {
+    "00c08fd0": "?NodeLess@@YI_NABUNode@@0@Z"
+  }
+}
