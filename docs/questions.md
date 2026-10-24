@@ -13,7 +13,7 @@ Answer: (owner fills in)
 
 ---
 
-## Q9: A better random map generator: which route, and which maps first? (2026-10-25, status: open)
+## Q9: A better random map generator: which route, and which maps first? (2026-10-25, status: answered)
 
 Context: the owner wants team maps and much more control over random maps (neutral zones, loot, personalization). The plan is [plans/map-generator.md](plans/map-generator.md), with the findings in [subsystems/rmg.md](subsystems/rmg.md). The decompilation is paused after the 2026-10-25 night batch.
 
@@ -23,7 +23,15 @@ Questions:
 3. **Template maker:** is a separate page that writes the template file OK for a start (later inside the game)? **(Recommended.)**
 4. **Teams:** is one setting in `open-homm5.ini` that every player sets the same OK, for example `teams=humans_vs_ai`? Or do they have to be chosen in the lobby?
 
-Answer:
+Answer (2026-10-25):
+1. **A + B now, C later**, as recommended.
+2. **The first maps:**
+   - **2v2v2** with neutral zones, in two variants: no extra towns, and extra towns in the neutral zones;
+   - **2 vs 2**;
+   - **more neutral zones**;
+   - **bigger and richer maps**.
+3. A separate page is fine.
+4. **In the lobby**, like on normal maps. So the first task of step B is to find out how the lobby handles teams on random maps.
 
 ## Q8: May the verifier learn about jump tables and loop alignment? (2026-10-24, status: open)
 

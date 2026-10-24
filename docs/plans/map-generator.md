@@ -1,6 +1,16 @@
 # A better random map generator: plan
 
-Status: **proposal, waiting for the owner's answers (Q9 in [../questions.md](../questions.md)).** Findings behind it: [../subsystems/rmg.md](../subsystems/rmg.md).
+Status: **agreed on 2026-10-25** (Q9 in [../questions.md](../questions.md)). Findings behind it: [../subsystems/rmg.md](../subsystems/rmg.md).
+
+**The owner's choices:**
+- **Route:** A + B now, C later.
+- **First maps:**
+  - 2v2v2 with neutral zones, without and with extra towns in them;
+  - 2 vs 2;
+  - more neutral zones;
+  - bigger and richer maps.
+- **The template maker** can be a separate page.
+- **Teams are chosen in the lobby**, like on normal maps, not in an ini setting. Step 2 starts by finding how the lobby handles teams on random maps, and what it takes to allow them there.
 
 ## What we want
 
@@ -45,14 +55,9 @@ Heroes III players solved this with templates and template editors (HotA's edito
    - each in a few sizes and loot levels.
 
    You test them, and we adjust.
-2. **Step 2, teams on random maps (B):**
-   - First find how to set teams so that multiplayer rebuilding keeps working, using the robot on the test copy.
-   - Then a setting, for example in `open-homm5.ini`:
-     ```ini
-     [rmg]
-     teams=humans_vs_ai
-     ```
-   - The DLL checks that every player agrees, as the co-op guard does.
+2. **Step 2, teams on random maps (B), chosen in the lobby** (the owner's choice):
+   - First find how the lobby handles teams, and why it doesn't offer them on random maps. Use the exe, the UI data, and the robot on the test copy.
+   - Then make the DLL allow team choice there, keeping multiplayer rebuilding working on every PC. Every player needs the DLL, checked as the co-op guard does.
 3. **Step 3, the generator's code (C):**
    - Point the decompilation pipeline at the generator instead of the network code.
    - Then add options to the generator screen, such as sliders for loot and neutral zones.
