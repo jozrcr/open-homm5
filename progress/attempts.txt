@@ -5,3 +5,6 @@
 00c07360  2026-10-24  HeroPathfinderSetup: TracePath, 4 bytes short, registers permuted
 00c0a2f0  2026-10-24  HeroPathfinderMisc: BonusLevel, fmul scheduled after the float-to-int control word
 00c0af20  2026-10-24  HeroPathfinderMisc2: CGrid::SwapItems, register allocation (rows in ebx, this spilled)
+007c8100  2026-10-25  SinglePlayerTransceiver_007c80a0: CSinglePlayerTransceiver destructor, exe has no vptr stores, ours always stores them
+007c82b0  2026-10-25  SinglePlayerTransceiver_007c80a0: CSimpleTempTransceiver destructor, same reason (no vptr stores in the exe)
+007c8490  2026-10-25  SinglePlayerTransceiver_007c80a0: IBinSaver::AddVec, register allocation (ebx=0 constant, test/mov scheduling)

@@ -154,7 +154,9 @@ struct CmdVec {
 		DestroyRange(first, last);
 		if (first)
 			Free(first);
-		end = last = first = 0;
+		first = 0;
+		last = 0;
+		end = 0;
 	}
 	void Resize(int n);  // 0x00706ac0
 };
@@ -300,30 +302,6 @@ void IBinSaver::AddPtrD(CPtrD *pp)
 	}
 }
 
-// FUNCTION: 0x007c8490
-void IBinSaver::AddVec(CmdVec *pv)
-{
-	int n;
-	CmdVec *v;
-	if (IsReading()) {
-		v = pv;
-		v->Reset();
-		if (GetVersion() < 2) {
-			n = CountChunks(1);
-			v->Resize(n);
-		} else {
-			DataChunk(2, &n, 4, 1);
-			v->Resize(n);
-		}
-	} else {
-		v = pv;
-		n = v->last - v->first;
-		DataChunk(2, &n, 4, 1);
-	}
-	for (int i = 0; i < n; ++i)
-		Chunk(this, 1, i + 1, &v->first[i], &pv);
-}
-
 // ---- the transceivers -------------------------------------------------------------------
 // The interface: slot 0 is "send a command from this PC".
 class ITransceiver : public virtual CObjectBase {
@@ -409,11 +387,15 @@ public:
 };
 
 // FUNCTION: 0x007c8100
+// Does NOT match yet (see attempts.txt): the exe's has no vptr stores. It stays in the
+// source because the compiler only emits the deleting destructors (0x007c80c0) when
+// the destructor is defined in the unit.
 CSinglePlayerTransceiver::~CSinglePlayerTransceiver()
 {
 }
 
 // FUNCTION: 0x007c82b0
+// Does NOT match yet (same reason as 0x007c8100); kept for 0x007c8280.
 CSimpleTempTransceiver::~CSimpleTempTransceiver()
 {
 }
