@@ -2,14 +2,16 @@
 #include "SinglePlayerTransceiver.cpp"
 
 // FUNCTION: 0x007c8490
-// Closest version: same instructions as the exe's, but the exe loads the vector pointer
-// and `last` and sets a zero register (xor ebx,ebx) before the `test al,al`, and stores
-// the zeros from that register; this version tests first and uses ebx for &v->last.
+// Closest version (201 bytes, the exe's length; the zero register, the hoisted load of
+// `last` and the stores from the zero register all come out like the exe's). What still
+// differs: the exe loads the vector pointer AFTER the IsReading() call and tests with
+// `test al,al`; this version loads it before the call and tests with `cmp al,bl`.
+// Moving `v = pv` after the call loses the zero register (ebx then holds &v->last).
 void IBinSaver::AddVec(CmdVec *pv)
 {
 	int n;
-	bool reading = IsReading();
 	CmdVec *v = pv;
+	bool reading = IsReading();
 	CCmd **last = v->last;
 	if (reading) {
 		DestroyRange(v->first, last);
