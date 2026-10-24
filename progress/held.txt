@@ -1,0 +1,8 @@
+# Functions whose source is byte-identical to the exe but that the verifier cannot
+# count yet (docs/questions.md, Q8). Kept in the unit's source, left out of
+# unit.json; tools/decomp/next.py does not offer them.
+# address  unit  why it is held
+00c076d0  HeroPathfinderSetup  jump table (??0CPathSettings@@QAE@HH@Z)
+00c07920  HeroPathfinderSetup  loop alignment, 272 bytes vs Ghidra's 266 (?Prepare@CHeroPathfinder@@QAEXXZ)
+00c090c0  HeroPathfinderQueue  loop alignment, 73 bytes vs 70 (?ReverseNodes@@YIXPAUNode@@0@Z)
+00c0a770  HeroPathfinderMisc  loop alignment, 241 bytes vs 238 (?Recalc@CBonusList@@QAE_NH@Z, in drafts.cpp)

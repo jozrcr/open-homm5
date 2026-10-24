@@ -2,3 +2,9 @@
 # (tools/package/make_package.py also sets the endings inside the zip.)
 *.bat text eol=crlf
 *.sh text eol=lf
+
+# Lists that parallel decompilation workers append to: a merge keeps both sides'
+# lines instead of stopping on a conflict (docs/decomp/coordinator.md).
+progress/symbols.txt merge=union
+progress/attempts.txt merge=union
+progress/held.txt merge=union

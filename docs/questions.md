@@ -13,6 +13,33 @@ Answer: (owner fills in)
 
 ---
 
+## Q8: May the verifier learn about jump tables and loop alignment? (2026-10-24, status: open)
+
+Context: in the pilot, 4 functions came out byte-identical to the exe, but the verifier still says "differs". It has two blind spots:
+- **Size:** it takes each function's size from Ghidra, and Ghidra doesn't count the filler bytes a loop jumps over (3 or 6 bytes), so it says "obj 73 bytes, exe 70" for a perfect copy.
+- **Jump tables:** the compiler puts a `switch`'s jump table at the end of the function, and the verifier doesn't understand table entries that point back into the same function (it even crashed on one).
+
+The verifier is protected (CLAUDE.md: never edit `tools/verify/` to make a function pass; CI checks its hash), and the safety check rightly stopped me from changing it together with its hash. So it's your call. The proposed change is in [decomp/proposals/verifier-ends-and-jump-tables.diff](decomp/proposals/verifier-ends-and-jump-tables.diff). It keeps comparing every byte, and changes two rules:
+- **Size:** a function must be at least Ghidra's count **and** end exactly where the exe's function ends (only the linker's `0xCC` filler or the next function after it).
+- **Jump-table entries** must point to the same place inside the function in the exe.
+
+Tested locally, without committing:
+- **The 4 held functions:** all match.
+- **The 67 already matched:** they still match.
+- **Wrong code is still rejected:**
+  - a jump-table entry pointing at the wrong case;
+  - a function cut short by 4 bytes;
+  - a function cut back to Ghidra's 70 bytes;
+  - one changed byte;
+  - a check at the wrong address.
+
+Options:
+1. **(Recommended)** Apply the change. I commit it with the new hash in `.github/workflows/decomp.yml`, in its own PR for you to review and merge. Then the 4 held functions are added. About 1 game function in 18 is affected: by a scan of the exe, 2,359 have loop filler and 383 a jump table, out of 48,609. Without the fix, none of them can ever count as matched.
+2. Fix only the sizes, in the inventory (`tools/inventory/`, not protected), and leave the jump tables for later. Then the 3 loop-alignment functions (and the 2,359 like them) can match without touching the verifier; the 383 functions with a jump table stay held.
+3. Leave it as is: such functions stay held.
+
+Answer:
+
 ## Q7: The continuous decompilation: where, budget, merging, order (2026-10-24, status: answered)
 
 Context: the plan is in [plans/decomp-pipeline.md](plans/decomp-pipeline.md). AI agents decompile the game function by function, each one checked byte-for-byte, in batch PRs, on a schedule.
