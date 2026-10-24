@@ -1,0 +1,13 @@
+{
+  "sources": [
+    "HeroPathfinderMisc2.cpp"
+  ],
+  "flags": ["/nologo", "/c", "/O2", "/G7", "/GR", "/W3"],
+  "subsystem": "",
+  "functions": {
+    "00c0abc0": "?ResetFrom@@YIXPAUSName@@H@Z",
+    "00c0ac80": "?GetItem@CGrid@@QAEPAVCBonusList@@HH@Z",
+    "00c0ad30": "?SameContents@CGrid@@QAE_NPAV1@@Z",
+    "00c0ae80": "?SetupOwner@@YIXPAUSOwner@@PAUSSource@@@Z"
+  }
+}

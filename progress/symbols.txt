@@ -34,3 +34,42 @@
 00bc76a0  ??$CopyBackwardRange@U?$Array2D@E@@@@YIPAU?$Array2D@E@@PAU0@00@Z   # copy_backward for Array2D<unsigned char> ranges (not in this unit)
 00bc7720  ?DestroyRange@@YIXPAU?$Array2D@UNode@@@@0@Z   # destroy a range of Array2D<Node>
 00bc7720  ?DestroyRange@@YIXPAU?$Array2D@E@@0@Z   # same code for Array2D<unsigned char>
+# Known addresses of functions and globals that decompiled code refers to but that
+# are not (yet) reconstructed in a unit.json. The verifier uses this to check that
+# every call/jump/data reference in a matched function points to the right place.
+# Format: address  mangled-name   # comment
+00401330  ?Func00401330@CGameTimer@NGameTimer@@QAEXHH@Z   # called by CGameTimer slot 21
+# --- HeroPathfinderMisc (worker W3) ---
+00879240  ?Free_00879240@@YAXPAX@Z   # free / operator delete (a jmp thunk), cdecl
+0046eae0  ?Func_0046eae0@@YGMM@Z   # float -> float, stdcall (probably a sine)
+00a68e00  ?PushBack@SEntryVec@@QAEXPBUSEntry@@@Z   # vector<{int,int}>::push_back
+00b1c6e0  ?Insert@SIntVec@@QAEXPAHPBHHH@Z   # vector<int>::insert(pos, &val, 1, 1)
+00c0a220  ?Add@SBonus@@QAEAAU1@PBU1@@Z   # SBonus::Add (HeroPathfinderMisc, called by CBonusList::Add)
+00c0a2f0  ?BonusLevel@@YIHHH@Z   # (kind, n) -> level (HeroPathfinderMisc, called by CBonusList::Add and Recalc)
+00433d20  ?ColCount@CGrid@@QBEHH@Z   # CGrid::ColCount(row) const: number of cells in a row, 0 when out of range
+00c0b780  ?At@SRow@@QAEPAVCBonusList@@H@Z   # SRow::At(col): the cell's CBonusList, or a static empty one
+00c0b700  ?IsUsed@SRow@@QBE_NH@Z   # SRow::IsUsed(col): the cell's "used" byte
+00c0bcc0  ?Set@SRow@@QAEXHPBVCBonusList@@@Z   # SRow::Set(col, item): assigns the cell's CBonusList
+00434350  ??0CBonusList@@QAE@ABV0@@Z   # CBonusList copy constructor
+006404d0  ?Equals@CBonusList@@QAE_NPBV1@@Z   # CBonusList::Equals(other)
+00d11a46  _atexit   # CRT atexit
+009d0330  ??0SFmtA@@QAE@PBXPAXH@Z   # text builder A constructor (fmt, buf, n)
+009d0f60  ?Conv@SFmtA@@QAEPAXXZ   # text builder A -> text
+009d0370  ?Init@SFmtB@@QAEPAU1@HHHHHHHABUSBuf28@@H@Z   # text builder B constructor (7 ints, ptr, int)
+009d0e00  ?Conv@SFmtSub@@QAEPAXXZ   # text builder C -> text
+009d03b0  ?Assign@SText@@QAEXPAX@Z   # text assign
+009d0a60  ?Combine@SText@@QAEPAUSFmtSub@@PAU2@PAUSFmtB@@@Z   # text combine (z, b)
+009d0910  ?Func_009d0910@@YAPAXXZ   # the default text
+010c58d8  ?s_empty@?M@??GetItem@CGrid@@QAEPAVCBonusList@@HH@Z@4V3@A   # static empty CBonusList inside CGrid::GetItem (0x24 bytes)
+010c58fc  ?$S1@?M@??GetItem@CGrid@@QAEPAVCBonusList@@HH@Z@4IA   # its init guard flags (bit 0)
+00e04530  _$E2   # atexit destructor stub of that static (HeroPathfinderMisc.cpp, if (begin) free(begin))
+00ada320  ?Func_00ada320@@YIPAUSRefObj@@H@Z   # fastcall(handle) -> refcounted object
+008c6150  ?Func_008c6150@@YIXPAUSRefObj@@@Z   # fastcall(obj): destroys a refcounted object whose count reached 0
+00ae3e90  ?Get@SHolder@@QAEPADXZ   # smart pointer: returns the object it points to
+00415520  ?Assign@SHandle@@QAEXPBX@Z   # assigns a handle from a pointer
+00c75330  ?Func_00c75330@@YIPAUSRefObj@@PAX0@Z   # fastcall(p, p): returns p
+0040e960  ?Assign@SWStr@@QAEXPBG0@Z   # wide string assign(first, last)
+004c7430  ?Resolve@SLocText@@QAEPAUSWStr@@XZ   # localized text -> its wide string
+00415520  ?Assign@SHolder@@QAEXPBX@Z   # same function as SHandle::Assign, on a smart pointer (refcounted pointer + flag)
+00acb3a0  ?Func_00acb3a0@@YAHXZ   # number of records
+00ada2e0  ?Func_00ada2e0@@YIPADH@Z   # fastcall(idx) -> record pointer
