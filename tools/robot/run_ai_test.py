@@ -142,7 +142,8 @@ def prepare(game, args, out, instance="", net_port=None):
         ("trace_crc", int(bool(getattr(args, "trace_crc", False)))),
         ("profile_ai", int(bool(getattr(args, "profile_ai", False)))),
         ("virtual_clock_ms", getattr(args, "virtual_clock", 0) or 0),
-        ("trace_paths", 2 if getattr(args, "trace_paths_all", False) else int(bool(getattr(args, "trace_paths", False)))),
+        ("trace_paths", 3 if getattr(args, "trace_helpers", False) else 2 if getattr(args, "trace_paths_all", False)
+         else int(bool(getattr(args, "trace_paths", False)))),
         ("segment_ms", args.segment_ms),
         ("mp_segment_ms", getattr(args, "mp_segment_ms", 0)),
         # screenshots: the DLL saves the game's own frames there as .bmp (src/hook/robot_screen.cpp)
@@ -355,6 +356,8 @@ def main():
     p.add_argument("--virtual-clock", type=int, nargs="?", const=16, default=0, metavar="MS_PER_FRAME",
                    help="the game sees a clock that advances MS_PER_FRAME (16) per frame, not real time, so runs "
                         "replay the same however fast the code is (src/hook/robot_clock.cpp)")
+    p.add_argument("--trace-helpers", action="store_true",
+                   help="like --trace-paths-all, and time every game helper the fast paths mod calls (slows the AI down)")
     p.add_argument("--trace-paths-all", action="store_true",
                    help="like --trace-paths, with a detail line for every search, also the small ones")
     p.add_argument("--trace-paths", action="store_true",

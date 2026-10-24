@@ -120,7 +120,7 @@ void VirtualClockFrame();
 
 // Pathfinder trace (robot_paths.cpp), when trace_paths=1: per AI step, the path
 // searches by call site, their time, visited nodes and repeats ("paths step" lines).
-void InstallPathTrace(int level);  // 1 = details of big searches, 2 = of every search
+void InstallPathTrace(int level);  // 1 = details of big searches, 2 = of every search, 3 = also time the mod's game helpers
 void PathTraceStep();  // from OnAiStep
 
 // Optional segment trace (robot_trace.cpp), when trace_segments=1.
