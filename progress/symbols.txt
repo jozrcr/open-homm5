@@ -92,7 +92,7 @@
 007c7d40  ??0CSimpleTempTransceiver@@QAE@XZ   # W2: constructor, hidden arg 1 = construct the virtual base too
 00e0a7a0  ??_7CObjectBase@@6B@   # W2: vtable of CObjectBase (the virtual base)
 008790b0  ??3CObjectBase@@SAXPAX@Z   # W2: the delete the deleting destructors call (the real operator delete; 0x00879240 is its thunk)
-007c8100  ??1CSinglePlayerTransceiver@@UAE@XZ   # W2: destructor (not matched yet: our version stores the vptrs, the exe's does not)
-007c82b0  ??1CSimpleTempTransceiver@@UAE@XZ   # W2: destructor (not matched yet, same reason)
+007c8100  ??1CSinglePlayerTransceiver@@UAE@XZ   # W2: destructor (the compiler's implicit one)
+007c82b0  ??1CSimpleTempTransceiver@@UAE@XZ   # W2: destructor (the compiler's implicit one)
 007c8910  ?AddPtrD@IBinSaver@@QAEXPAUCPtrD@@@Z   # W2: IBinSaver member, pointer load/save
 007c8490  ?AddVec@IBinSaver@@QAEXPAUCmdVec@@@Z   # W2: IBinSaver member, vector load/save

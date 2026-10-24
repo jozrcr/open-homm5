@@ -55,6 +55,7 @@ class CRefObj : public CObjectBase {
 // A pointee type whose virtual base is reached through the vbptr (+4): the timer.
 class CTimerObj : public virtual CObjectBase {
 public:
+	virtual void Step();  // the real class (IGameTimer) has 28 slots
 	virtual void Reset();
 	virtual void Slot5();
 };
@@ -316,7 +317,6 @@ public:
 class CSinglePlayerTransceiver : public ITransceiver {
 public:
 	CSinglePlayerTransceiver();  // 0x007c78a0
-	virtual ~CSinglePlayerTransceiver();
 	virtual void Send(CCmd *cmd);
 	virtual void Reset();
 	virtual int operator&(IBinSaver *f);
@@ -349,7 +349,6 @@ void CSinglePlayerTransceiver::Send(CCmd *cmd)
 class CSimpleTempTransceiver : public ITransceiver {
 public:
 	CSimpleTempTransceiver();  // 0x007c7d40
-	virtual ~CSimpleTempTransceiver();
 	virtual void Send(CCmd *cmd);
 	virtual void Reset();
 	virtual int operator&(IBinSaver *f);
@@ -386,17 +385,16 @@ public:
 	char m_60;
 };
 
-// FUNCTION: 0x007c8100
-// Does NOT match yet (see attempts.txt): the exe's has no vptr stores. It stays in the
-// source because the compiler only emits the deleting destructors (0x007c80c0) when
-// the destructor is defined in the unit.
-CSinglePlayerTransceiver::~CSinglePlayerTransceiver()
+// The destructors (0x007c8100, 0x007c82b0) are the compiler's implicit ones: only an implicit
+// destructor comes out without vtable-pointer stores like the exe's. The qualified calls in
+// Reset() make the compiler emit them as functions.
+// The constructors are only here so that the compiler emits the vtables and the deleting
+// destructors; their bodies are NOT reconstructed (0x007c78a0 and 0x007c7d40).
+CSinglePlayerTransceiver::CSinglePlayerTransceiver()
 {
 }
 
-// FUNCTION: 0x007c82b0
-// Does NOT match yet (same reason as 0x007c8100); kept for 0x007c8280.
-CSimpleTempTransceiver::~CSimpleTempTransceiver()
+CSimpleTempTransceiver::CSimpleTempTransceiver()
 {
 }
 

@@ -15,8 +15,10 @@
   "functions": {
     "007c80a0": "?Send@CSinglePlayerTransceiver@@UAEXPAVCCmd@@@Z",
     "007c80c0": "??_GCSinglePlayerTransceiver@@UAEPAXI@Z",
+    "007c8100": "??1CSinglePlayerTransceiver@@UAE@XZ",
     "007c8240": "?Send@CSimpleTempTransceiver@@UAEXPAVCCmd@@@Z",
     "007c8280": "??_GCSimpleTempTransceiver@@UAEPAXI@Z",
+    "007c82b0": "??1CSimpleTempTransceiver@@UAE@XZ",
     "007c8330": "?Reset@CSimpleTempTransceiver@@UAEXXZ",
     "007c8390": "?Reset@CSinglePlayerTransceiver@@UAEXXZ",
     "007c8410": "??ICSimpleTempTransceiver@@UAEHPAVIBinSaver@@@Z",
