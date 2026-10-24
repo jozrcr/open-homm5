@@ -39,23 +39,113 @@ public:
 	void FreeWeak();                  // 0x008c6150
 };
 
+class CRefObjA;
+CRefBase * __fastcall ToBase(CRefObjA *p, CRefObjA *q);  // 0x00bc5400
+
+struct SPos;
+
+// An interface object the pathfinder holds (the object pool, a valuation callback, ...).
+// All have a vtable at +0, then the virtual base's pointer at +4.
 class CRefObjA : public virtual CRefBase {
 public:
-	virtual void Slot0();
+	virtual CRefObjA *Slot0(const SPos *p);
+	virtual void Slot1();
+	virtual void Slot2();
+	virtual bool Slot3(const SPos *p);
+};
+
+// A packed map position (24 bits used).
+struct SPos {
+	unsigned int x : 10;
+	unsigned int y : 10;
+	unsigned int f : 4;  // floor
+	unsigned int top : 8;
+};
+
+// The settings block of a search (0x6c bytes), at pathfinder+0x20.
+extern int g_f79000;  // 0x00f79000
+
+class CPathSettingsBase {
+public:
+	CPathSettingsBase(int arg);  // 0x00ca9c50
+	char m_raw[0x18];
+};
+
+class CPathSettings : public CPathSettingsBase {
+public:
+	CPathSettings(int mode, int arg);
+
+	int m_18;
+	int m_1c;
+	int m_20;
+	int m_24;
+	int m_28;
+	int m_2c;
+	int m_30;
+	char m_34;
+	bool m_35;
+	bool m_36;
+	char m_37[9];
+	bool m_40, m_41, m_42, m_43, m_44, m_45, m_46, m_47, m_48, m_49;
+	char m_4a[2];
+	int m_4c;
+	int m_50;
+	bool m_54, m_55, m_56, m_57, m_58;
+	char m_59[3];
+	float m_5c;
+	bool m_60, m_61, m_62, m_63, m_64, m_65;
+	char m_66[2];
+	int m_68;
+};
+
+// A vector of 64-byte nodes or of 16-byte floor descriptors: {first, last, end}.
+struct SPtrVec {
+	char *first;
+	char *last;
+	char *end;
+};
+
+// The open list is such a vector; Reserve is 0x00c09370.
+struct SOpenList : SPtrVec {
+	void Reserve(int count);
+};
+
+struct SMapInfo {
+	char m_pad[0x1c];
+	SPos m_size;
 };
 
 class CHeroPathfinder {
 public:
+	CHeroPathfinder();
 	void SetField_dc(int value);
 	void SetRefA(CRefObjA *p);
 	void SetRefB(CRefObjA *p);
 	void SetRefC(CRefObjA *p);
+	void SetWeakA4(CRefObjA *p);
+	void SetWeak94(CRefObjA *p);
 
-	char m_pad0[4];
+	SMapInfo *m_map;       // 0x00
 	CRefObjA *m_04;
 	CRefObjA *m_08;
 	CRefObjA *m_0c;
-	char m_pad[0xdc - 0x10];
+	SOpenList m_open;      // 0x10
+	char m_1c[4];
+	CPathSettings m_settings;  // 0x20
+	SPos m_start;          // 0x8c
+	bool m_90;
+	bool m_91;
+	char m_92[2];
+	CRefObjA *m_94;
+	SPtrVec m_98;
+	CRefObjA *m_a4;
+	SPtrVec m_a8;
+	SPtrVec m_b4;
+	SPtrVec m_c0;
+	SPtrVec m_cc;
+	unsigned char m_d8;
+	bool m_d9;
+	char m_da[2];
 	int m_dc;
 };
 
@@ -106,4 +196,157 @@ void CHeroPathfinder::SetRefC(CRefObjA *p)
 		p->AddRef();
 	if (old)
 		old->Release();
+}
+
+// FUNCTION: 0x00c07b60
+void CHeroPathfinder::SetWeakA4(CRefObjA *p)
+{
+	CRefObjA *old = m_a4;
+	m_a4 = p;
+	if (p)
+		p->AddWeak();
+	if (old)
+		old->ReleaseWeak();
+}
+
+// FUNCTION: 0x00c07b20
+void CHeroPathfinder::SetWeak94(CRefObjA *p)
+{
+	CRefObjA *old = m_94;
+	m_94 = p;
+	if (p)
+		ToBase(p, p)->AddWeak();
+	if (old)
+		ToBase(old, old)->ReleaseWeak();
+}
+
+// FUNCTION: 0x00c076d0
+CPathSettings::CPathSettings(int mode, int arg) : CPathSettingsBase(arg)
+{
+	m_18 = 0;
+	m_1c = g_f79000;
+	m_20 = 0;
+	m_24 = 0;
+	m_28 = 0;
+	m_2c = 0;
+	m_30 = 0;
+	m_35 = false;
+	m_36 = false;
+	m_40 = false;
+	m_41 = false;
+	m_42 = false;
+	m_43 = false;
+	m_44 = false;
+	m_45 = false;
+	m_46 = false;
+	m_47 = false;
+	m_48 = true;
+	m_49 = true;
+	m_4c = 0;
+	m_50 = 0;
+	m_54 = false;
+	m_55 = false;
+	m_56 = false;
+	m_57 = false;
+	m_58 = false;
+	m_5c = 1.0f;
+	m_60 = false;
+	m_61 = false;
+	m_62 = false;
+	m_63 = false;
+	m_64 = false;
+	m_65 = true;
+	m_68 = 0;
+	switch (mode) {
+	case 0:
+		m_41 = true;
+		m_46 = true;
+		m_49 = true;
+		m_47 = true;
+		m_45 = true;
+		m_43 = true;
+		break;
+	default:
+		m_44 = true;
+		m_65 = false;
+		m_48 = false;
+		m_63 = true;
+		m_46 = true;
+		m_49 = true;
+		m_47 = true;
+		m_45 = true;
+		m_43 = true;
+		break;
+	case 3:
+		m_58 = true;
+	case 2:
+		m_44 = false;
+		m_65 = false;
+		m_48 = false;
+		m_63 = true;
+		m_46 = true;
+		m_49 = true;
+		m_47 = true;
+		m_45 = true;
+		m_43 = true;
+		break;
+	case 7:
+		m_48 = false;
+		m_65 = false;
+		m_54 = true;
+		m_63 = true;
+		m_45 = true;
+		m_43 = true;
+		break;
+	case 4:
+	case 5:
+		m_43 = false;
+		m_44 = false;
+		m_45 = false;
+		m_46 = false;
+		m_47 = false;
+		m_48 = false;
+		m_49 = false;
+		m_63 = false;
+		m_65 = false;
+		break;
+	case 6:
+		m_54 = false;
+		m_55 = false;
+		m_44 = false;
+		m_58 = true;
+		m_5c = 1.0f;
+		m_62 = false;
+		m_48 = false;
+		m_63 = true;
+		m_46 = true;
+		m_49 = true;
+		m_47 = true;
+		m_45 = true;
+		m_43 = true;
+		break;
+	case 8:
+		m_44 = false;
+		m_46 = false;
+		m_49 = false;
+		m_63 = false;
+		m_65 = false;
+		m_48 = true;
+		m_64 = true;
+		m_47 = true;
+		m_45 = true;
+		m_43 = true;
+		break;
+	case 9:
+		m_44 = false;
+		m_45 = false;
+		m_46 = false;
+		m_49 = false;
+		m_63 = false;
+		m_65 = false;
+		m_47 = true;
+		m_48 = true;
+		m_43 = true;
+		break;
+	}
 }

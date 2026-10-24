@@ -8,6 +8,8 @@
     "00c07100": "?SetField_dc@CHeroPathfinder@@QAEXH@Z",
     "00c07a30": "?SetRefA@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
     "00c07a80": "?SetRefB@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
-    "00c07ad0": "?SetRefC@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z"
+    "00c07ad0": "?SetRefC@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
+    "00c07b20": "?SetWeak94@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
+    "00c07b60": "?SetWeakA4@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z"
   }
 }

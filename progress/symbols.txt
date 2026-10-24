@@ -5,3 +5,7 @@
 00401330  ?Func00401330@CGameTimer@NGameTimer@@QAEXHH@Z   # called by CGameTimer slot 21
 008c61d0  ?Destroy@CRefBase@@QAEXI@Z   # HeroPathfinderSetup (W1): strong count hit zero, arg 0xfffff, thiscall on the virtual base
 008c6150  ?FreeWeak@CRefBase@@QAEXXZ   # HeroPathfinderSetup (W1): weak count hit zero, thiscall on the virtual base
+00c076d0  ??0CPathSettings@@QAE@HH@Z   # HeroPathfinderSetup (W1): search settings ctor(mode, arg); in the cpp, byte-identical, but verify.py cannot judge jump tables (see attempts.txt)
+00ca9c50  ??0CPathSettingsBase@@QAE@H@Z   # HeroPathfinderSetup (W1): base part of the search settings block, ctor(int)
+00f79000  ?g_f79000@@3HA   # HeroPathfinderSetup (W1): global dword copied to settings+0x1c
+00bc5400  ?ToBase@@YIPAVCRefBase@@PAVCRefObjA@@0@Z   # HeroPathfinderSetup (W1): p ? virtual base of p : 0; __fastcall, called with ecx = edx = p
