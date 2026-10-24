@@ -22,6 +22,11 @@ inline DWORD RedirectCall(DWORD site, DWORD original, const void *replacement)
 	return RedirectCalls(&site, 1, original, replacement);
 }
 
+// The same for a pointer to code in a table, such as a vtable slot: the slot
+// must hold `original`, or a hook put over `original` with this function.
+// Returns what it held (to be called in turn), or 0 when it is not as expected.
+DWORD PatchPointer(DWORD slot_address, DWORD original, const void *replacement);
+
 // Point the exe's import table entry for dll!function (by name, or for
 // WSOCK32.dll by number) to replacement. Data, not code: nothing in the game
 // is patched. Returns what the entry pointed to before (to be called in

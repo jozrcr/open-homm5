@@ -58,12 +58,13 @@ Each step ends with something we can test.
    - find how single player finishes AI walks at once;
    - prototype "instant AI walks" as a robot experiment on both copies, and measure it (with world checksums);
    - prove the message-order assumption with a robot test: log when each hello arrives, compared with the sender's segment reports.
-2. **The guard** (1–2 sessions), `src/mods/coop_guard.cpp`: hello, decision, log. Robot tests with two copies, world checksums equal in every case:
+2. **The guard** (1–2 sessions), `src/mods/coop_guard.cpp`: hello, decision, log. **Done 2026-10-24, together with step 3:** all four robot cases behaved as below, with no desync. Robot tests with two copies, world checksums equal in every case:
    - same settings → ON on both;
    - different settings → OFF on both;
    - one copy pretending to have no DLL → OFF on both.
 3. **Shorter segments behind the guard** (about 1 session). Today's experiment changes the length from the very start. A switch at segment 50 needs the game-time formula to stay continuous, so the two places that compute it get a hook. Robot: 20+ AI turns, checksums.
-4. **Instant AI walks behind the guard** (1–2 sessions, depends on step 1).
+   **Done 2026-10-24:** the two formula sites call `SegmentTime()`. Robot LAN game, 8 AI turns: per AI move 0.53 s (0.65 s before), hero moves 0.58 s (0.84 s), town swaps 0.34 s (0.42 s), 743 checksums equal.
+4. ~~**Instant AI walks behind the guard**~~: not needed, the game already does it (step 1).
 5. **Real games:** you and your friend (Windows + Linux), then 3 players on GameRanger.
 
 ## Risks

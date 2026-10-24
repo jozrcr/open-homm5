@@ -89,6 +89,10 @@ def write_mod_settings(game, args, instance):
     # [ai] = the fast pathfinding mod (src/mods/fast_paths.cpp), on by default
     lines += ["[ai]", "fast_paths=%d" % (1 if getattr(args, "fast_paths", "on") == "on" else 0)]
     lines += getattr(args, "ai_setting", None) or []  # e.g. port_relax=1
+    # [coop] = the co-op timing guard (src/mods/coop_guard.cpp), on by default
+    coop = getattr(args, "coop_setting", None) or []  # e.g. fast_segments=0
+    if coop:
+        lines += ["[coop]"] + coop
     mod_settings_file(game, instance).write_text("\n".join(lines) + "\n", encoding="ascii")
 
 

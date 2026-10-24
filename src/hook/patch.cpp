@@ -80,6 +80,21 @@ DWORD RedirectCalls(const DWORD *sites, int count, DWORD original, const void *r
 	return previous;
 }
 
+DWORD PatchPointer(DWORD slot_address, DWORD original, const void *replacement)
+{
+	DWORD *slot = reinterpret_cast<DWORD *>(slot_address);
+	const DWORD previous = *slot;
+	if (g_count >= kMaxRecords || (previous != original && !HookedOver(slot_address, original, previous)))
+		return 0;
+	DWORD old;
+	if (!VirtualProtect(slot, sizeof(DWORD), PAGE_READWRITE, &old))
+		return 0;
+	*slot = reinterpret_cast<DWORD>(replacement);
+	VirtualProtect(slot, sizeof(DWORD), old, &old);
+	g_records[g_count++] = {slot_address, original, reinterpret_cast<DWORD>(replacement)};
+	return previous;
+}
+
 // Replace one entry of the exe's import address table (the table of function
 // pointers the loader filled in). Data, not code: nothing in the game is patched.
 void *PatchImport(const char *dll, const char *function, void *replacement)

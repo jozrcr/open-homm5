@@ -122,17 +122,20 @@ void SafeDescribeMp(void *self, char *out, size_t size)
 	}
 }
 
+MpSendFn g_mp_send_next = nullptr;
+MpOwnStepFn g_mp_own_step_next = nullptr;  // the game's own step, or a mod's hook over it
+
 void __fastcall MpSendHook(void *self, void *edx, void *command)
 {
 	char state[256];
 	SafeDescribeMp(self, state, sizeof(state));
 	hooklog::Write("mp-send cmd=%08lx %s", command ? *static_cast<DWORD *>(command) : 0, state);
-	reinterpret_cast<MpSendFn>(kMpSend)(self, edx, command);
+	g_mp_send_next(self, edx, command);
 }
 
 void __fastcall MpOwnStepHook(void *self, void *edx)
 {
-	reinterpret_cast<MpOwnStepFn>(kMpOwnStep)(self, edx);
+	g_mp_own_step_next(self, edx);
 	char state[256];
 	SafeDescribeMp(self, state, sizeof(state));
 	hooklog::Write("mp-step %s", state);
@@ -169,18 +172,37 @@ void LogHello(void *self, int player, DWORD payload)
 	               seen, seen <= sent_after ? "in order" : "OUT OF ORDER");
 }
 
-void __fastcall CrcHook(void *self, void *edx, int player, const BYTE *cmd)
+// What was at the two call sites before the trace: the game's handler, or a
+// mod's hook over it (src/mods/coop_guard.cpp reads hellos there).
+CrcFn g_crc_own_next = nullptr;
+CrcFn g_crc_received_next = nullptr;
+
+// Logs a checksum ("crc" line); a message with check number -1 is a hello
+// (no "crc" line, so that lan_report.py does not compare it).
+void LogCheck(void *self, int player, const BYTE *cmd)
 {
-	if (cmd && *reinterpret_cast<const LONG *>(cmd + 0x0c) == -1) {
+	if (!cmd)
+		return;
+	if (*reinterpret_cast<const LONG *>(cmd + 0x0c) == -1) {
 		const DWORD payload = *reinterpret_cast<const DWORD *>(cmd + 0x10);
 		if ((payload & 0xff000000) == kHelloMagic)
 			LogHello(self, player, payload);
-		return;  // not a checksum: the game would only ignore it
+		return;
 	}
-	if (cmd)
-		hooklog::Write("crc player=%d check=%ld crc=%08lx", player, *reinterpret_cast<const LONG *>(cmd + 0x0c),
-		               *reinterpret_cast<const DWORD *>(cmd + 0x10));
-	reinterpret_cast<CrcFn>(kCrcHandler)(self, edx, player, cmd);
+	hooklog::Write("crc player=%d check=%ld crc=%08lx", player, *reinterpret_cast<const LONG *>(cmd + 0x0c),
+	               *reinterpret_cast<const DWORD *>(cmd + 0x10));
+}
+
+void __fastcall CrcOwnHook(void *self, void *edx, int player, const BYTE *cmd)
+{
+	LogCheck(self, player, cmd);
+	g_crc_own_next(self, edx, player, cmd);
+}
+
+void __fastcall CrcReceivedHook(void *self, void *edx, int player, const BYTE *cmd)
+{
+	LogCheck(self, player, cmd);
+	g_crc_received_next(self, edx, player, cmd);
 }
 
 // Send a world-checksum message (NWorld::CCrcTestCmd, 0x2c bytes, vtable
@@ -210,9 +232,11 @@ void SendCheckMessage(void *transceiver, LONG check, DWORD value)
 
 // This PC's own step (multiplayer transceiver slot 4): after every 10th
 // report, the first 30 times, a hello with the number of reports sent.
+MpOwnStepFn g_hello_own_step_next = nullptr;
+
 void __fastcall HelloOwnStepHook(void *self, void *edx)
 {
-	reinterpret_cast<MpOwnStepFn>(kMpOwnStep)(self, edx);
+	g_hello_own_step_next(self, edx);
 	static int sent = 0;
 	const int me = static_cast<int>(Read(self, 0x54));
 	const int players = static_cast<int>((Read(self, 0x40) - Read(self, 0x3c)) / 4);
@@ -226,21 +250,6 @@ void __fastcall HelloOwnStepHook(void *self, void *edx)
 	hooklog::Write("hello sent after own report %lu", reported);
 }
 
-// Redirect a "call rel32" to replacement if it still calls `expected`.
-bool PatchCall(DWORD call, DWORD expected, void *replacement)
-{
-	BYTE *p = reinterpret_cast<BYTE *>(call);
-	if (p[0] != 0xE8 || call + 5 + *reinterpret_cast<LONG *>(p + 1) != expected)
-		return false;
-	DWORD old;
-	if (!VirtualProtect(p + 1, 4, PAGE_EXECUTE_READWRITE, &old))
-		return false;
-	*reinterpret_cast<LONG *>(p + 1) = static_cast<LONG>(reinterpret_cast<DWORD>(replacement) - (call + 5));
-	VirtualProtect(p + 1, 4, old, &old);
-	FlushInstructionCache(GetCurrentProcess(), p, 5);
-	return true;
-}
-
 }  // namespace
 
 void InstallCrcTrace()
@@ -249,8 +258,9 @@ void InstallCrcTrace()
 	if (done || !IsHookable(DetectGameBuild()))
 		return;
 	done = true;
-	const bool a = PatchCall(kCrcCallOwn, kCrcHandler, reinterpret_cast<void *>(&CrcHook));
-	const bool b = PatchCall(kCrcCallReceived, kCrcHandler, reinterpret_cast<void *>(&CrcHook));
+	g_crc_own_next = reinterpret_cast<CrcFn>(hookpatch::RedirectCall(kCrcCallOwn, kCrcHandler, &CrcOwnHook));
+	g_crc_received_next = reinterpret_cast<CrcFn>(hookpatch::RedirectCall(kCrcCallReceived, kCrcHandler, &CrcReceivedHook));
+	const bool a = g_crc_own_next != nullptr, b = g_crc_received_next != nullptr;
 	hooklog::Write("robot: world checksum trace %s", a && b ? "installed" : "FAILED (code not as expected)");
 }
 
@@ -319,7 +329,9 @@ void InstallHelloExperiment()
 	if (done || !IsHookable(DetectGameBuild()))
 		return;
 	done = true;
-	const bool a = Patch(kMpTransceiverVftable + 4 * 4, kMpOwnStep, reinterpret_cast<void *>(&HelloOwnStepHook));
+	g_hello_own_step_next = reinterpret_cast<MpOwnStepFn>(
+		hookpatch::PatchPointer(kMpTransceiverVftable + 4 * 4, kMpOwnStep, &HelloOwnStepHook));
+	const bool a = g_hello_own_step_next != nullptr;
 	hooklog::Write("robot: EXPERIMENT hellos %s", a ? "installed" : "FAILED (vftable not as expected; trace_mp is on?)");
 }
 
@@ -329,8 +341,10 @@ void InstallMpTrace()
 	if (done || !IsHookable(DetectGameBuild()))
 		return;
 	done = true;
-	const bool a = Patch(kMpTransceiverVftable + 0 * 4, kMpSend, reinterpret_cast<void *>(&MpSendHook));
-	const bool b = Patch(kMpTransceiverVftable + 4 * 4, kMpOwnStep, reinterpret_cast<void *>(&MpOwnStepHook));
+	g_mp_send_next = reinterpret_cast<MpSendFn>(hookpatch::PatchPointer(kMpTransceiverVftable + 0 * 4, kMpSend, &MpSendHook));
+	g_mp_own_step_next = reinterpret_cast<MpOwnStepFn>(
+		hookpatch::PatchPointer(kMpTransceiverVftable + 4 * 4, kMpOwnStep, &MpOwnStepHook));
+	const bool a = g_mp_send_next != nullptr, b = g_mp_own_step_next != nullptr;
 	hooklog::Write("robot: multiplayer segment trace %s", a && b ? "installed" : "FAILED (vftable not as expected)");
 }
 

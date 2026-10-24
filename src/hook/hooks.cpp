@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include "log.h"
+#include "../mods/coop_guard.h"
 #include "../mods/fast_paths.h"
 #include "../mods/lan_discovery.h"
 #include "../mods/net_tuning.h"
@@ -28,6 +29,7 @@ void InstallAll()
 	mods::ApplyNetTuningFromSettings();
 	mods::ApplyFastPathsFromSettings();
 	mods::ApplyLanDiscoveryFromSettings();
+	mods::ApplyCoopGuardFromSettings();
 }
 
 }  // namespace hooks
