@@ -102,6 +102,7 @@ const Cost kNoCost = {0, 0, 0};
 
 void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, char flag, DWORD *out)
 {
+	NotePathfinder(pf);
 	const DWORD *from_tile = WorldTile(pf, node->d[0]);  // esp+0x24
 	DWORD no_extra = 0;                                   // esp+0x20, the "extra" some relax calls get
 	Node c;                                               // esp+0x40, the candidate
@@ -118,7 +119,7 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 		c.d[1] = (c.d[1] & ~0x40u) | 0x4000200;
 		Node *from = GridNode(pf, 0xa8, node->d[5]);  // 0x0059e980(pf, &node->d[5])
 		Node *grid = GridNode(pf, 0xa8, c.d[0]);
-		const DWORD visitable = Visitable(pf, c.d);  // 0x00c08076
+		const DWORD visitable = Remembered(TileFor(c.d[0]), kCheckVisitable, pf, c.d);  // 0x00c08076
 		Relax(pf, from, grid, &c, 0, CostAt(*from, 8), &no_extra, visitable);  // 0x00c080aa
 	}
 
@@ -151,6 +152,7 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 
 		// 0x00c081db
 		const DWORD *tile = WorldTile(pf, c.d[0]);  // esp+0x18
+		Tile *memo = TileFor(c.d[0]);                // remembered answers for this tile
 		c.d[1] |= 0x200;
 		bool stop = false;           // esp+0x10: no ordinary move to this tile
 		bool cannot_enter = false;   // esp+0x11 (reused for the ships pool's answer below)
@@ -187,18 +189,18 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 		}
 
 		// 0x00c082d3
-		can_enter = CanEnter(pf, c.d);
+		can_enter = Remembered(memo, kCheckCanEnter, pf, c.d);
 		if (!can_enter) {
 			c.d[1] &= ~0x200u;
 			cannot_enter = true;
 		}
 		if (!(node->d[1] & 2)) {
 			// 0x00c082f7
-			if ((Byte(pf, 0x76) || Byte(pf, 0x77)) && !CanEnterDry(pf, c.d))  // 0x00c0830a
+			if ((Byte(pf, 0x76) || Byte(pf, 0x77)) && !Remembered(memo, kCheckCanEnterDry, pf, c.d))  // 0x00c0830a
 				c.d[1] &= ~0x200u;
 			if ((c.d[1] & 8) && tile[2] == 2)  // 0x0041fec0(*pf, &c) is the same tile
 				c.d[1] &= ~0x200u;
-			if (CanEnterDry(pf, c.d)) {  // 0x00c08349
+			if (Remembered(memo, kCheckCanEnterDry, pf, c.d)) {  // 0x00c08349
 				if (Byte(pf, 0x76))
 					c.d[1] &= ~8u;
 				if (Byte(pf, 0x77))
@@ -248,13 +250,16 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 		}
 
 		// 0x00c084dc: something to visit here
-		if (Visitable(pf, c.d) && !Measure(kHelper9d1700, [&] { return kCheck9d1700(pf, nullptr, &c, node); }))  // 0x00c084e3, 0x00c084f4
+		if (Remembered(memo, kCheckVisitable, pf, c.d) &&
+		    !Measure(kHelper9d1700, [&] { return kCheck9d1700(pf, nullptr, &c, node); }))  // 0x00c084e3, 0x00c084f4
 			goto clear_200;
 		if (cannot_enter)
 			goto after_clear;
 		if (stop)
 			goto check_dry;
-		if (Measure(kHelper9d19a0, [&] { return kCheck9d19a0(pf, nullptr, &c, 0); }))  // 0x00c08514
+		// 0x00c08514; without a live object on the tile 0x009d19a0 only returns false
+		if (Remembered(memo, kCheckLiveObject, pf, c.d) &&
+		    Measure(kHelper9d19a0, [&] { return kCheck9d19a0(pf, nullptr, &c, 0); }))
 			goto clear_200;
 		goto check_dry;
 
@@ -290,7 +295,7 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 				continue;
 			{
 				void *ships = reinterpret_cast<void *>(At(pf, 0xa4));
-				const bool visitable = Visitable(pf, c.d);  // 0x00c085bc
+				const bool visitable = Remembered(memo, kCheckVisitable, pf, c.d);  // 0x00c085bc
 				if (!visitable && !(node->d[1] & 4) && Byte(pf, 0x55))
 					cannot_enter = Measure(kHelperShips, [&] { return reinterpret_cast<ShipsValueFn>(VirtualAt(ships, 3))(ships, nullptr, &c); }) != 0;
 				else
@@ -364,7 +369,7 @@ void Expand(BYTE *pf, Node *node, int count, const int *dirs, int remaining, cha
 		if (!go)
 			continue;
 		{
-			const DWORD visitable = Visitable(pf, c.d);  // 0x00c087be
+			const DWORD visitable = Remembered(memo, kCheckVisitable, pf, c.d);  // 0x00c087be
 			Relax(pf, node, grid, &c, static_cast<int>(cost), CostAt(c, 8), &c.d[6], visitable);  // 0x00c0885b
 		}
 	}

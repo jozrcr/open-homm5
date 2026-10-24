@@ -101,7 +101,7 @@ void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms)
 		if (++battle_polls > kStuckInBattleAfter) {
 			hooklog::Write("robot: stuck: a battle or a box has waited for %ld checks, closing the game", battle_polls);
 			hooklog::Close();
-			ExitProcess(4);
+			TerminateProcess(GetCurrentProcess(), 4);  // no game shutdown code: it can crash mid-turn
 		}
 		return;
 	}
@@ -115,7 +115,7 @@ void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms)
 		               "closing the game",
 		               kStuckAfter);
 		hooklog::Close();
-		ExitProcess(4);
+		TerminateProcess(GetCurrentProcess(), 4);  // no game shutdown code: it can crash mid-turn
 	}
 	++g_end_turns;
 	const bool ok = CallEndTurn(controller);

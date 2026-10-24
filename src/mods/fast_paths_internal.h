@@ -31,6 +31,75 @@ inline DWORD &At(BYTE *pf, DWORD offset)
 	return *reinterpret_cast<DWORD *>(pf + offset);
 }
 
+// --- remembered answers per tile (fast_paths.cpp) -------------------------------
+
+// One bit per check in a tile's record.
+enum Check : WORD {
+	kCheckGoAshore = 1,
+	kCheckGoAshoreFlag = 2,
+	kCheckCanEnter = 4,       // 0x009d1410
+	kCheckCanEnterDry = 8,    // 0x009d1510
+	kCheckVisitable = 16,     // 0x00c072d0
+	kCheckStandsHere = 32,    // the object pool's slot 1 (search loop)
+	kCheckLiveObject = 64,    // the object pool's slot 2 finds a live object (0x009d19a0's first test)
+	kCheckDanger = 128        // the danger map's value (NWorld::CDangerPool slot 0, 0x00c27500), in Tile::danger
+};
+
+// Remembered answers, one record per tile (x and y below 512, 2 floors; other
+// positions are not remembered). A record belongs to the current search when
+// its generation is g_generation, so a new search needs no clearing.
+// Neighbouring tiles sit next to each other, which keeps the lookups in the
+// CPU cache.
+struct Tile {
+	DWORD generation;
+	WORD known;         // checks answered in this search
+	WORD value;         // their answers
+	DWORD stands_here;  // what the object pool wrote when something stands here
+	int danger;         // the danger map's value at this tile
+};
+const DWORD kTileBits = 9;
+const DWORD kTileFloors = 2;
+const DWORD kTiles = kTileFloors << (2 * kTileBits);
+extern Tile *g_tiles;  // nullptr when remember_checks=0
+extern DWORD g_generation;
+extern bool g_count_hits;  // robot statistics
+
+// The record of the tile at `position` for this search, or nullptr (then every
+// check goes to the game).
+inline Tile *TileFor(DWORD position)
+{
+	const DWORD x = position & 0x3ff, y = (position >> 10) & 0x3ff, floor = position >> 20;
+	if (!g_tiles || x >> kTileBits || y >> kTileBits || floor >= kTileFloors)
+		return nullptr;
+	Tile *t = &g_tiles[(floor << (2 * kTileBits)) | (y << kTileBits) | x];
+	if (t->generation != g_generation) {
+		t->generation = g_generation;
+		t->known = 0;
+		t->value = 0;
+	}
+	return t;
+}
+
+// Asks the game (and remembers the answer in t): kCheckCanEnter,
+// kCheckCanEnterDry, kCheckVisitable or kCheckLiveObject.
+bool CheckMiss(WORD check, BYTE *pf, const DWORD *node, Tile *t);
+void CountHit(WORD check);
+
+// A remembered check for the tile record t (from TileFor(node[0])).
+inline bool Remembered(Tile *t, WORD check, BYTE *pf, const DWORD *node)
+{
+	if (t && (t->known & check)) {
+		if (g_count_hits)
+			CountHit(check);
+		return (t->value & check) != 0;
+	}
+	return CheckMiss(check, pf, node, t);
+}
+
+// The ported expansion calls this once per node: a different pathfinder than
+// the last one starts a new generation of remembered answers.
+void NotePathfinder(BYTE *pf);
+
 // Remembered checks (fast_paths.cpp). Each behaves exactly like the game's
 // function of the same purpose; the answer may come from memory.
 bool GoAshore(void *world, void *player, const DWORD *node, char flag);  // 0x008649f0

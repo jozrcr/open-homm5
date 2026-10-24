@@ -131,32 +131,20 @@ typedef bool(__fastcall *NodeCheckFn)(void *pathfinder, void *edx, const DWORD *
 
 // --- remembered checks --------------------------------------------------------
 
-// One bit per check in a tile's record.
-enum Check : WORD {
-	kCheckGoAshore = 1,
-	kCheckGoAshoreFlag = 2,
-	kCheckCanEnter = 4,
-	kCheckCanEnterDry = 8,
-	kCheckVisitable = 16,
-	kCheckStandsHere = 32  // the object pool's "something stands here" (search loop)
-};
-
-// Remembered answers, one record per tile (x and y below 512, 2 floors; other
-// positions are not remembered). A record belongs to the current search when
-// its generation is g_generation, so a new search needs no clearing.
-// Neighbouring tiles sit next to each other, which keeps the lookups in the
-// CPU cache.
-struct Tile {
-	DWORD generation;
-	WORD known;  // checks answered in this search
-	WORD value;  // their answers
-	DWORD stands_here;  // what the object pool wrote when something stands here
-};
-const DWORD kTileBits = 9;
-const DWORD kTileFloors = 2;
-const DWORD kTiles = kTileFloors << (2 * kTileBits);
-Tile *g_tiles = nullptr;
-DWORD g_generation = 1;
+// (the record types and the inline lookup are in fast_paths_internal.h)
+using fastpaths::Tile;
+using fastpaths::g_tiles;
+using fastpaths::g_generation;
+using fastpaths::kTileBits;
+using fastpaths::kTileFloors;
+using fastpaths::kTiles;
+using fastpaths::kCheckGoAshore;
+using fastpaths::kCheckGoAshoreFlag;
+using fastpaths::kCheckCanEnter;
+using fastpaths::kCheckCanEnterDry;
+using fastpaths::kCheckVisitable;
+using fastpaths::kCheckStandsHere;
+using fastpaths::kCheckLiveObject;
 const void *g_world = nullptr;
 const void *g_player = nullptr;
 const void *g_pathfinder = nullptr;
@@ -261,20 +249,9 @@ void __fastcall SearchHook(void *self, void *edx, int limit)
 	NewSearch();
 }
 
-// The record of the tile at `position` for this search, or nullptr for a
-// position outside the table (then the caller just runs the check).
 Tile *TileAt(DWORD position)
 {
-	const DWORD x = position & 0x3ff, y = (position >> 10) & 0x3ff, floor = position >> 20;
-	if (x >> kTileBits || y >> kTileBits || floor >= kTileFloors)
-		return nullptr;
-	Tile *t = &g_tiles[(floor << (2 * kTileBits)) | (y << kTileBits) | x];
-	if (t->generation != g_generation) {
-		t->generation = g_generation;
-		t->known = 0;
-		t->value = 0;
-	}
-	return t;
+	return fastpaths::TileFor(position);
 }
 
 // The remembered answer of `check` at `position`, or -1.
@@ -517,6 +494,67 @@ bool Setting(const wchar_t *path, const wchar_t *key, int fallback)
 
 namespace fastpaths {
 
+Tile *g_tiles = nullptr;
+DWORD g_generation = 1;
+bool g_count_hits = false;
+
+void CountHit(WORD check)
+{
+	unsigned long bit = 0;
+	_BitScanForward(&bit, check);
+	++g_hits;
+	++g_check_hits[bit & 7];
+}
+
+// The object pool's slot 2 (0x0045d6b0 for NWorld::CMobileObjectsPool) finds a
+// live object at node->position: what 0x009d19a0 tests first. Without one,
+// 0x009d19a0 (called with flag 0, as the expansion does) returns false and
+// changes nothing; "live" is the virtual base's bit 31 at +8 being clear.
+bool LiveObjectAt(BYTE *pf, const DWORD *node)
+{
+	typedef void *(__fastcall * PoolAtFn)(void *pool, void *edx, const DWORD *node);
+	void *pool = reinterpret_cast<void *>(At(pf, 4));
+	if (!pool)
+		return false;
+	const BYTE *object = static_cast<const BYTE *>((*reinterpret_cast<PoolAtFn *const *>(pool))[2](pool, nullptr, node));
+	if (!object)
+		return false;
+	const int base = *reinterpret_cast<const int *>(*reinterpret_cast<const DWORD *>(object + 4) + 4);
+	return !(object[base + 0xb] & 0x80);
+}
+
+bool CheckMiss(WORD check, BYTE *pf, const DWORD *node, Tile *t)
+{
+	unsigned long bit = 0;
+	_BitScanForward(&bit, check);
+	++g_misses;
+	++g_check_misses[bit & 7];
+	bool value = false;
+	switch (check) {
+	case kCheckCanEnter:
+		value = Timed(static_cast<int>(bit), [&] { return reinterpret_cast<NodeCheckFn>(kCanEnter)(pf, nullptr, node); });
+		break;
+	case kCheckCanEnterDry:
+		value = Timed(static_cast<int>(bit), [&] { return reinterpret_cast<NodeCheckFn>(kCanEnterDry)(pf, nullptr, node); });
+		break;
+	case kCheckVisitable:
+		value = Timed(static_cast<int>(bit), [&] { return reinterpret_cast<NodeCheckFn>(kVisitable)(pf, nullptr, node); });
+		break;
+	case kCheckLiveObject:
+		value = Timed(static_cast<int>(bit), [&] { return LiveObjectAt(pf, node); });
+		break;
+	}
+	return Store(t, check, value);
+}
+
+void NotePathfinder(BYTE *pf)
+{
+	if (pf != g_pathfinder) {
+		g_pathfinder = pf;
+		NewSearch();
+	}
+}
+
 bool GoAshore(void *world, void *player, const DWORD *node, char flag)
 {
 	return g_go_ashore ? GoAshoreHook(world, player, node, flag)
@@ -662,10 +700,10 @@ void FastPathsOnAiStep(bool thinking)
 
 void FastPathsCheckStats(char *out, size_t size)
 {
-	static const char *const names[] = {"ashore", "ashore1", "enter", "dry", "visit", "stands"};
+	static const char *const names[] = {"ashore", "ashore1", "enter", "dry", "visit", "stands", "object"};
 	size_t used = 0;
 	out[0] = 0;
-	for (int i = 0; i < 6 && used + 40 < size; ++i)
+	for (int i = 0; i < 7 && used + 40 < size; ++i)
 		used += static_cast<size_t>(_snprintf_s(out + used, size - used, _TRUNCATE, "%s%s=%lld/%lld", i ? " " : "",
 		                                        names[i], g_check_misses[i], g_check_hits[i] + g_check_misses[i]));
 	LARGE_INTEGER frequency;
@@ -673,7 +711,7 @@ void FastPathsCheckStats(char *out, size_t size)
 	if (used + 40 < size)
 		used += static_cast<size_t>(_snprintf_s(out + used, size - used, _TRUNCATE, " ashore_ms=%.0f",
 		                                        g_ashore_miss_ticks * 1e3 / frequency.QuadPart));
-	for (int i = 2; i < 6 && used + 30 < size; ++i)
+	for (int i = 2; i < 7 && used + 30 < size; ++i)
 		used += static_cast<size_t>(_snprintf_s(out + used, size - used, _TRUNCATE, " %s_ms=%.0f", names[i],
 		                                        g_miss_ticks[i] * 1e3 / frequency.QuadPart));
 }
@@ -711,6 +749,7 @@ void FastPathsHelperStats(char *out, size_t size)
 
 void FastPathsMeasure(bool on)
 {
+	fastpaths::g_count_hits = true;  // the robot's path trace is on
 	g_measure = on;
 }
 

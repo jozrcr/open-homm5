@@ -640,7 +640,8 @@ DWORD WINAPI Watchdog(LPVOID)
 	}
 	hooklog::Write("robot: time limit of %lu s reached after %ld AI turns, closing the game", g_quit_after_seconds, g_turns);
 	hooklog::Close();
-	ExitProcess(2);
+	TerminateProcess(GetCurrentProcess(), 2);  // no game shutdown code: it can crash mid-turn
+	return 0;
 }
 
 // Message boxes would wait for a click nobody makes: log them, and answer plain
@@ -853,7 +854,7 @@ void OnAiTurnStart(void *ai)
 	if (g_quit_after_turns && turns > g_quit_after_turns) {
 		hooklog::Write("robot: %ld AI turns done, closing the game", g_quit_after_turns);
 		hooklog::Close();
-		ExitProcess(0);
+		TerminateProcess(GetCurrentProcess(), 0);  // no game shutdown code: it can crash mid-turn
 	}
 }
 

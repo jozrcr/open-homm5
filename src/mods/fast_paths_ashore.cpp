@@ -137,7 +137,7 @@ struct FloorTables {
 	void **zone;       // 0x00ceab70: first living object
 };
 FloorTables g_tables[kFloors];
-DWORD g_generation = 1;
+DWORD g_table_generation = 1;
 bool g_self_check = false;
 long g_differences = 0;
 LONGLONG g_checked = 0;
@@ -164,7 +164,7 @@ void SetFirst(void **table, DWORD position, DWORD floor, void *object)
 void Build(FloorTables &t, void *world, DWORD floor)
 {
 	t.world = world;
-	t.generation = g_generation;
+	t.generation = g_table_generation;
 	memset(t.standing, 0, kCells * sizeof(void *));
 	memset(t.active, 0, kCells * sizeof(void *));
 	memset(t.zone, 0, kCells * sizeof(void *));
@@ -252,7 +252,7 @@ FloorTables *TablesFor(void *world, DWORD floor)
 	FloorTables &t = g_tables[floor];
 	if (!t.standing)
 		return nullptr;
-	if (t.world != world || t.generation != g_generation)
+	if (t.world != world || t.generation != g_table_generation)
 		Build(t, world, floor);
 	return &t;
 }
@@ -314,7 +314,7 @@ bool FastGoAshoreInit()
 
 void FastGoAshoreInvalidate()
 {
-	++g_generation;
+	++g_table_generation;
 }
 
 bool FastGoAshore(void *world, void *player, const DWORD *node, char flag)

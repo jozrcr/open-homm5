@@ -84,9 +84,30 @@ void PutCost(Node &n, int first_dword, const Cost &c)
 	n.d[first_dword + 3] = static_cast<DWORD>(static_cast<unsigned __int64>(c.b) >> 32);
 }
 
+const DWORD kDangerPoolVftable = 0x00e8ab0c;  // NWorld::CDangerPool
+
 int Valuation(void *object, const Node *node)
 {
 	return (*reinterpret_cast<ValuationFn *const *>(object))[0](object, nullptr, node);
+}
+
+// The valuation of a node's tile. For NWorld::CDangerPool, slot 0 (0x00c27500)
+// reads only node->position (a bounds check, then a value from its grid,
+// which does not change during a search), so the answer is remembered per
+// tile; other valuation objects are always asked.
+int TileValuation(void *object, const Node *node)
+{
+	if (*static_cast<const DWORD *>(object) != kDangerPoolVftable)
+		return Valuation(object, node);
+	Tile *t = TileFor(node->d[0]);
+	if (t && (t->known & kCheckDanger))
+		return t->danger;
+	const int value = Valuation(object, node);
+	if (t) {
+		t->known |= kCheckDanger;
+		t->danger = value;
+	}
+	return value;
 }
 
 }  // namespace
@@ -138,9 +159,9 @@ void PortedRelax(BYTE *pf, Node *from, Node *grid, Node *candidate, int step, Co
 		Cost gain = {};  // what the valuation adds (0x00c09f46: zero unless there is a gain)
 		void *valuation = reinterpret_cast<void *>(At(pf, 0x0c));
 		if (valuation) {
-			const int value = Measure(kHelperValuation, [&] { return Valuation(valuation, &n); });
+			const int value = Measure(kHelperValuation, [&] { return TileValuation(valuation, &n); });
 			if (value > 0) {
-				if (pf[0x80] == 0 && Measure(kHelperValuation, [&] { return Valuation(valuation, from); }) <= 0 && (n.d[1] & 0x800000))
+				if (pf[0x80] == 0 && Measure(kHelperValuation, [&] { return TileValuation(valuation, from); }) <= 0 && (n.d[1] & 0x800000))
 					return;
 				gain.a = -1;
 				gain.b = -static_cast<__int64>(value);
