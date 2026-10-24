@@ -3,4 +3,4 @@
 // Bump it for every release; the release tag must be v<this>.
 #pragma once
 
-#define OPEN_HOMM5_VERSION "0.1.0"
+#define OPEN_HOMM5_VERSION "0.1.1"

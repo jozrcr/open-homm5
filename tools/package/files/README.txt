@@ -2,6 +2,8 @@ open-homm5 @VERSION@ - a small add-on for Heroes of Might and Magic V (Tribes of
 
 What it is: one file, dinput8.dll, that the game loads at start-up. It makes AI turns in co-op games much faster. It adds files to the game's bin folder and never changes the game's own files.
 
+You need: the Steam game with MMH5.5 already installed (MMH55_Utility_64.exe in the game's bin folder). This add-on does not install MMH5.5.
+
 Install on Windows: extract this zip (right-click it, "Extract All"), then double-click install.bat. It finds your Steam copy of the game and tells you what it did.
 Install on Linux (Steam / Proton): extract the zip, open a terminal in the folder, and run: bash install.sh. At the end it gives you one line to paste into the game's Steam launch options.
 
