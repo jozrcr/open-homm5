@@ -22,4 +22,10 @@ inline DWORD RedirectCall(DWORD site, DWORD original, const void *replacement)
 	return RedirectCalls(&site, 1, original, replacement);
 }
 
+// Point the exe's import table entry for dll!function (by name, or for
+// WSOCK32.dll by number) to replacement. Data, not code: nothing in the game
+// is patched. Returns what the entry pointed to before (to be called in
+// turn), or nullptr if the exe does not import it. Stacks like the above.
+void *PatchImport(const char *dll, const char *function, void *replacement);
+
 }  // namespace hookpatch

@@ -39,6 +39,30 @@ batched_segments=0
 
 The DLL's log (`open-homm5.log`) says what it changed, for example `net tuning: links may send every 10 ms (game: 50)`.
 
+## LAN games over VPNs (`lan_discovery.cpp`, on by default)
+
+**What it fixes:** over a virtual network such as ZeroTier (for a friend on Linux, or without GameRanger), the host's game never shows up in the LAN list.
+
+The game finds hosted games by broadcasting a small "any games here?" message about once a second. Windows and Linux send that broadcast out of the main network card only, so it never reaches a VPN. The mod also sends it into **every network adapter**, the VPN's included. For VPNs that carry no broadcasts at all (Tailscale, for example), list the host's address in `lan_peers`; the mod then also asks the host directly. The game's own packets are not changed.
+
+The log says where the messages go, and where games were found and joined:
+
+```
+lan: game queries also go to 192.168.1.255 (Ethernet 3), 10.21.174.255 (ZeroTier One [...])
+lan: game found at 10.21.174.28:8889 (826 bytes)
+lan: join request to 10.21.174.28:8888
+```
+
+**Settings** (`open-homm5.ini`):
+
+```ini
+[net]
+lan_all_adapters=1   ; 0 = only where the game itself sends (the original)
+lan_peers=           ; e.g. 10.21.174.28 (comma-separated): also ask these hosts directly
+```
+
+Every player who looks for games needs it (the host only answers). On a Windows host the VPN's network must be marked **Private**, or the game's firewall rule blocks it.
+
 ## Fast AI pathfinding (`fast_paths*.cpp`, in testing, off by default)
 
 **What it fixes:** long AI thinking late in a game on big maps (several seconds per AI move).
