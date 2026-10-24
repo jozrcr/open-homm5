@@ -1,4 +1,4 @@
-// Functions 0x00c0a200 .. 0x00c0af20 of the vanilla 3.1 exe.
+// Part 1 of the code at 0x00c0a200 .. 0x00c0a9b0 of the vanilla 3.1 exe.
 //
 // The unit name "HeroPathfinderMisc" is a guess made by the task list: these
 // functions sit right after the hero pathfinder's relax function (0x00c09d90),
@@ -8,21 +8,19 @@
 //   * CBonusList (0x24 bytes): a short list of {kind, level} entries (kind 1..10)
 //     plus the summed per-kind bonus of all entries (SBonus, at +0xc). Looks like
 //     a hero's chosen "specialisations": at most 3 entries, limited by a hero value.
-//   * CGrid: a grid (vector of rows, 16 bytes each) of cells (40 bytes each:
-//     a "used" byte and a CBonusList), with helpers that read, compare and swap cells.
-//   * a few small helpers for text (tooltips), reference-counted handles and
-//     vectors of ints.
+//   * SBonus: the ten per-kind byte counters; text builders for a tooltip; a
+//     vector of ints filled with 1..10.
 //
-// Compiler: Visual C++ 2003 (13.10.3077), /O2 /G7 /GR, but WITHOUT /GX (see unit.json
-// "flags"): the original CGrid::SwapItems (0x00c0af20) has a local object with a
-// destructor and no exception-handling frame, and nothing in this unit shows one.
+// Two translation units: this unit (0x00c0a200..0x00c0a9b0) was compiled WITH /Ow
+// (assume no aliasing inside a function); the code from 0x00c0abc0 on (unit
+// HeroPathfinderMisc2) was compiled WITHOUT it. Evidence: SBonus::Add, GetTotal and
+// Recalc only match with /Ow, ResetFrom and SetupOwner only without it. The flags are
+// in unit.json; neither unit shows /GX (no exception-handling frames).
+//
 // Free functions use __fastcall (the game seems to be built with /Gr).
 //
 // Matching notes (what the compiler taught us here):
-//   * A "const" member function (CGrid::ColCount) lets the compiler keep member loads
-//     across calls to it.
-//   * "do { if (bad) break; ... return x; } while (0); <fallback>" lays the blocks out
-//     like the original GetItem; plain if/else puts the return first.
+//   * A "const" member function lets the compiler keep member loads across calls to it.
 //   * Stack slots go to locals in the order their address is first used in the code, so
 //     the order of temporaries and arguments in an expression matters (Describe).
 //   * A constructor-style call on a temporary (SFmtA(...).Conv()) reuses EAX, a named
@@ -123,6 +121,29 @@ public:
 };
 
 int __fastcall BonusLevel(int kind, int n);         // 0x00c0a2f0
+
+// FUNCTION: 0x00c0a220
+SBonus &SBonus::Add(const SBonus *o)
+{
+	b[0] += o->b[0];
+	b[1] += o->b[1];
+	b[2] += o->b[2];
+	b[3] += o->b[3];
+	b[4] += o->b[4];
+	b[5] += o->b[5];
+	b[6] += o->b[6];
+	b[7] += o->b[7];
+	b[8] += o->b[8];
+	b[9] += o->b[9];
+	return *this;
+}
+
+// FUNCTION: 0x00c0a2c0
+void CBonusList::GetTotal(SBonus *out)
+{
+	if (out)
+		*out = m_total;
+}
 
 // FUNCTION: 0x00c0a870
 CBonusList::CBonusList()
@@ -232,13 +253,12 @@ struct SIntVec {
 	void Insert(int *pos, const int *val, int n, int flag);     // 0x00b1c6e0
 	void PushBack(const int &v)
 	{
-		int *last = end;
-		if (last != cap) {
-			if (last)
-				*last = v;
-			end = last + 1;
+		if (end != cap) {
+			if (end)
+				*end = v;
+			end++;
 		} else
-			Insert(last, &v, 1, 1);
+			Insert(end, &v, 1, 1);
 	}
 };
 
@@ -260,193 +280,10 @@ void __fastcall FillIds(SIntVec *v)
 }
 
 // ---------------------------------------------------------------------------
-// CGrid: a grid of CBonusList cells. Rows are 16 bytes (a vector of cells),
-// cells are 40 bytes: a "used" byte and the CBonusList at +4.
-
-struct SCell {
-	char used;                 // +0
-	CBonusList item;           // +4
-};
-
-struct SRow {
-	SCell *begin;              // +0
-	SCell *end;                // +4
-	SCell *cap;                // +8
-	int pad;                   // +0xc
-
-	CBonusList *At(int col);                        // 0x00c0b780 (not decompiled)
-	bool IsUsed(int col) const;                         // 0x00c0b700 (not decompiled)
-	void Set(int col, const CBonusList *item);      // 0x00c0bcc0 (not decompiled)
-};
-
-class CGrid {
-public:
-	SRow *m_begin;             // +0
-	SRow *m_end;               // +4
-	SRow *m_cap;               // +8
-
-	int ColCount(int row) const;                        // 0x00433d20 (not decompiled)
-	CBonusList *GetItem(int row, int col);          // 0x00c0ac80
-	bool SameContents(CGrid *other);                // 0x00c0ad30
-	void SwapItems(int r1, int c1, int r2, int c2); // 0x00c0af20
-};
-
-// FUNCTION: 0x00c0ac80
-CBonusList *CGrid::GetItem(int row, int col)
-{
-	do {
-		if (row < 0)
-			break;
-		if (row >= m_end - m_begin)
-			break;
-		if (col < 0)
-			break;
-		if (col >= ColCount(row))
-			break;
-		return m_begin[row].At(col);
-	} while (0);
-	static CBonusList s_empty;
-	return &s_empty;
-}
-
-// 0x00433d20 (not in this unit's list; written here so that the compiler can see it)
-int CGrid::ColCount(int row) const
-{
-	if (row >= 0 && row < m_end - m_begin)
-		return m_begin[row].end - m_begin[row].begin;
-	return 0;
-}
-
-// FUNCTION: 0x00c0ad30
-bool CGrid::SameContents(CGrid *other)
-{
-	if (m_end - m_begin != other->m_end - other->m_begin)
-		return false;
-	int n = m_end - m_begin;
-	int i = 0;
-	while (i < n) {
-		int a = other->ColCount(i);
-		int b = ColCount(i);
-		if (a != b)
-			return false;
-		i++;
-	}
-	int r = 0;
-	while (r < m_end - m_begin) {
-		int c = 0;
-		while (c < ColCount(r)) {
-			CBonusList *a = other->GetItem(r, c);
-			CBonusList *b = GetItem(r, c);
-			if (!a->Equals(b))
-				return false;
-			c++;
-		}
-		r++;
-	}
-	return true;
-}
-
-// ---------------------------------------------------------------------------
-// Reference-counted things (refcount at +8) and the two helpers that change it.
-
-struct SRefObj {
-	int a;
-	int b;
-	int refs;                  // +8
-};
-
-SRefObj * __fastcall Func_00c75330(void *p, void *q);   // 0x00c75330: returns p
-void __fastcall Func_008c6150(SRefObj *o);              // 0x008c6150: destroys o
-SRefObj * __fastcall Func_00ada320(int handle);         // 0x00ada320: handle -> object
-
-// A smart pointer to an SRefObj with a flag byte; Get() is at 0x00ae3e90.
-struct SHolder {
-	SRefObj *ptr;              // +0
-	char flag;                 // +4
-	char *Get();               // 0x00ae3e90
-	void Assign(const void *src);                       // 0x00415520
-
-	// Drops the object (decrements its count, destroys it at 0) and clears the flag.
-	void Reset()
-	{
-		SRefObj *old = ptr;
-		ptr = 0;
-		if (old) {
-			SRefObj *r = Func_00c75330(old, old);
-			if (--r->refs == 0)
-				Func_008c6150(r);
-		}
-		flag = 0;
-	}
-};
-
-struct SHandle {
-	int a;
-	int b;
-	void Assign(const void *src);                       // 0x00415520
-};
-
-// A source record: a vector of 8-byte entries at +0 (begin, end), a handle at +0x1c.
-struct SSource {
-	char *begin;               // +0
-	char *end;                 // +4
-	int pad[5];
-	int handle;                // +0x1c
-};
-
-// A wide string (begin, end, capacity) and a localized text that resolves to one.
-struct SWStr {
-	unsigned short *begin;
-	unsigned short *end;
-	unsigned short *cap;
-	void Assign(const unsigned short *first, const unsigned short *last);     // 0x0040e960
-
-	void Clear()
-	{
-		if (begin != end) {
-			*begin = 0;
-			end = begin;
-		}
-	}
-};
-
-struct SLocText {
-	int x[6];
-	SWStr *Resolve();                                           // 0x004c7430
-};
-
-// A name, a description and an icon (a refcounted pointer with a flag).
-struct SName {
-	SWStr name;                // +0
-	SWStr desc;                // +0xc
-	SHolder icon;              // +0x18 (flag at +0x1c)
-};
+// Text builders (a tooltip text?). The classes are guesses from the call sites.
 
 int Func_00acb3a0();                                    // 0x00acb3a0: number of records
 char * __fastcall Func_00ada2e0(int idx);               // 0x00ada2e0: record idx
-
-// FUNCTION: 0x00c0abc0
-void __fastcall ResetFrom(SName *p, int idx)
-{
-	if (p) {
-		p->name.Clear();
-		p->desc.Clear();
-		p->icon.Reset();
-		if (idx >= 0 && idx < Func_00acb3a0()) {
-			char *rec = Func_00ada2e0(idx);
-			SWStr *s = ((SLocText *)(rec + 0x44))->Resolve();
-			if (s != &p->name)
-				p->name.Assign(s->begin, s->end);
-			s = ((SLocText *)(rec + 0x5c))->Resolve();
-			if (s != &p->desc)
-				p->desc.Assign(s->begin, s->end);
-			p->icon.Assign(rec + 0x68);
-		}
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Text builders (a tooltip text?). The classes are guesses from the call sites.
 
 struct SBuf28 {
 	char b[28];
@@ -515,39 +352,3 @@ void CBonusList::DescribeAt(SText *out, int idx)
 }
 
 // Something that holds a count, a handle and a SHolder (0x10 bytes + flag).
-struct SOwner {
-	int count;                 // +0
-	SHandle h;                 // +4
-	SHolder holder;            // +0xc
-};
-
-// FUNCTION: 0x00c0ae80
-void __fastcall SetupOwner(SOwner *p, SSource *q)
-{
-	if (p && q) {
-		SRefObj *obj = Func_00ada320(q->handle);
-		SRefObj *old = p->holder.ptr;
-		SHolder *hp = &p->holder;
-		hp->ptr = obj;
-		if (obj)
-			obj->refs++;
-		if (old) {
-			if (--old->refs == 0)
-				Func_008c6150(old);
-		}
-		hp->flag = 0;
-		int n = (q->end - q->begin) >> 3;
-		p->count = n;
-		switch (n) {
-		case 1:
-			p->h.Assign(hp->Get() + 0x5c);
-			break;
-		case 2:
-			p->h.Assign(hp->Get() + 0x64);
-			break;
-		case 3:
-			p->h.Assign(hp->Get() + 0x6c);
-			break;
-		}
-	}
-}

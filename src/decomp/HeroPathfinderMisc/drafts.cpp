@@ -42,8 +42,7 @@ int __fastcall BonusLevel(int kind, int n)
 		double t = log(n * 10.0) / log(600.0);
 		t = t * t * t;
 		t = (t < 1.0) ? t : 1.0;
-		float s = Func_0046eae0((float)(t * 1.5707964f));
-		return (int)(s * 85.0);
+		return (int)(Func_0046eae0((float)(t * 1.5707964f)) * 85.0);
 	}
 	case 7:
 		return n / 10 + 1;

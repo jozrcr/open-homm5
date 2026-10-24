@@ -2,10 +2,12 @@
   "sources": [
     "HeroPathfinderMisc.cpp"
   ],
-  "flags": ["/nologo", "/c", "/O2", "/G7", "/GR", "/W3"],
+  "flags": ["/nologo", "/c", "/O2", "/G7", "/Ow", "/GR", "/W3"],
   "subsystem": "",
   "functions": {
     "00c0a200": "??0SBonus@@QAE@XZ",
+    "00c0a220": "?Add@SBonus@@QAEAAU1@PBU1@@Z",
+    "00c0a2c0": "?GetTotal@CBonusList@@QAEXPAUSBonus@@@Z",
     "00c0a440": "?Count@CBonusList@@QAEHXZ",
     "00c0a450": "?Describe@CBonusList@@QAEXPAUSText@@HPAVIHeroLike@@@Z",
     "00c0a530": "?KindAt@CBonusList@@QAEHH@Z",
@@ -15,10 +17,6 @@
     "00c0a870": "??0CBonusList@@QAE@XZ",
     "00c0a8a0": "?Clear@CBonusList@@QAEXXZ",
     "00c0a8f0": "?Add@CBonusList@@QAEXHPAVIHeroLike@@@Z",
-    "00c0a9b0": "?FillIds@@YIXPAUSIntVec@@@Z",
-    "00c0abc0": "?ResetFrom@@YIXPAUSName@@H@Z",
-    "00c0ac80": "?GetItem@CGrid@@QAEPAVCBonusList@@HH@Z",
-    "00c0ad30": "?SameContents@CGrid@@QAE_NPAV1@@Z",
-    "00c0ae80": "?SetupOwner@@YIXPAUSOwner@@PAUSSource@@@Z"
+    "00c0a9b0": "?FillIds@@YIXPAUSIntVec@@@Z"
   }
 }
