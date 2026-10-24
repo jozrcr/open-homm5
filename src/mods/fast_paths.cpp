@@ -44,8 +44,10 @@
 // also runs the ported open list against the game's code on random nodes and
 // keeps the game's if anything differs.
 //
-// Settings: open-homm5.ini [ai] fast_paths=1 (default 0 until it is checked on
-// more saves); remember_checks and fast_queue (default 1) turn the parts off.
+// Settings: open-homm5.ini [ai] fast_paths (default 1, on: the owner agreed on
+// 2026-10-24, Q3 in docs/questions.md; 0 = the game's own pathfinding). Each
+// part has its own switch, all default 1: remember_checks, fast_queue,
+// fast_ashore, port_expand, port_search, port_relax.
 #include "fast_paths.h"
 
 #include <windows.h>
@@ -644,7 +646,7 @@ void ApplyFastPathsFromSettings()
 {
 	wchar_t path[MAX_PATH];
 	hooklog::PathNextToExe(L"open-homm5", L".ini", path, MAX_PATH);
-	if (!Setting(path, L"fast_paths", 0)) {
+	if (!Setting(path, L"fast_paths", 1)) {
 		hooklog::Write("fast paths: off");
 		return;
 	}
@@ -661,7 +663,7 @@ void ApplyFastPathsFromSettings()
 			g_go_ashore = reinterpret_cast<GoAshoreFn>(hookpatch::RedirectCall(kGoAshoreCall, kGoAshore, &GoAshoreHook));
 			for (AshoreMemory &m : g_ashore_memories)
 				m.tiles = static_cast<AshoreTile *>(VirtualAlloc(nullptr, kTiles * sizeof(AshoreTile), MEM_COMMIT, PAGE_READWRITE));
-			if (g_go_ashore && Setting(path, L"fast_ashore", 0)) {
+			if (g_go_ashore && Setting(path, L"fast_ashore", 1)) {
 				g_fast_ashore = fastpaths::FastGoAshoreInit();
 				hooklog::Write("fast paths: fast go-ashore check %s", g_fast_ashore ? "on" : "off (no memory)");
 			}
@@ -684,14 +686,13 @@ void ApplyFastPathsFromSettings()
 		hooklog::Write("fast paths: faster open list: push %s, pop %s", push ? "on" : "NOT as expected",
 		               adjust ? "on" : "NOT as expected");
 	}
-	// Ported pathfinder functions (fast_paths_*.cpp), off by default while they
-	// are being checked against the game's. The ported search loop needs the
-	// search hooks (remembered checks on) and the ported open list.
-	if (Setting(path, L"port_expand", 0)) {
+	// Ported pathfinder functions (fast_paths_*.cpp). The ported search loop
+	// needs the search hooks (remembered checks on) and the ported open list.
+	if (Setting(path, L"port_expand", 1)) {
 		g_port_expand = hookpatch::RedirectCall(kExpandCall, kExpand, &ExpandSiteHook) != 0;
 		hooklog::Write("fast paths: ported expansion %s", g_port_expand ? "on" : "NOT as expected");
 	}
-	if (Setting(path, L"port_search", 0)) {
+	if (Setting(path, L"port_search", 1)) {
 		g_port_search = g_search && Setting(path, L"fast_queue", 1) && QueueMatchesGame();
 		if (g_port_search) {
 			g_queue_push = reinterpret_cast<QueuePushFn>(hookpatch::RedirectCall(kQueuePushInRelax, kQueuePush, &QueuePushHook));
@@ -710,7 +711,7 @@ void ApplyFastPathsFromSettings()
 		else
 			fastpaths::g_max_expansions = 0;  // only the ported search loop has it
 	}
-	if (Setting(path, L"port_relax", 0)) {
+	if (Setting(path, L"port_relax", 1)) {
 		g_port_relax = hookpatch::RedirectCalls(kRelaxCalls, sizeof(kRelaxCalls) / sizeof(kRelaxCalls[0]), kRelax,
 		                                        &RelaxHook) != 0;
 		hooklog::Write("fast paths: ported relax %s", g_port_relax ? "on" : "NOT as expected");
