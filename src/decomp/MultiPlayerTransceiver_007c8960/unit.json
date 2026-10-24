@@ -26,6 +26,7 @@
     "007c8dd0": "?Slot05@CMultiPlayerTransceiver@@UAEXMH@Z",
     "007c8f00": "?Slot13@CMultiPlayerTransceiver@@UAEHXZ",
     "007c8fd0": "?Slot09@CMultiPlayerTransceiver@@UAE_NH@Z",
-    "007c9050": "?Slot11@CMultiPlayerTransceiver@@UAE_NH@Z"
+    "007c9050": "?Slot11@CMultiPlayerTransceiver@@UAE_NH@Z",
+    "007c90e0": "?Slot01@CMultiPlayerTransceiver@@UAEXHPAUSRef@@H@Z"
   }
 }

@@ -87,6 +87,37 @@ struct SRef {
 	int count;  // 0x08
 };
 
+// The base of the world commands: a vtable and two zeroed words.
+class CCmdBase {
+public:
+	virtual void S0();
+	virtual void S1();
+	virtual void S2();
+	virtual void S3();
+	virtual void S4();
+	virtual void S5();
+	virtual void S6();
+	virtual void S7();
+
+	int f04;
+	int f08;
+
+	CCmdBase() : f04(0), f08(0) {}
+};
+
+// NWorld::CRegisterWorldCmd (vftable 0x00e43dd0, 8 slots): a command that registers a world.
+class CRegisterWorldCmd : public CCmdBase {
+public:
+	SRef *m_ref;  // 0x0c
+
+	CRegisterWorldCmd(SRef *r) : m_ref(r)
+	{
+		if (r)
+			r->count++;
+	}
+	static void *operator new(unsigned size);  // 0x00878fd0, the game's allocator
+};
+
 // The sub-object at transceiver+0x08.
 struct SSub08 {
 	char pad[0x18];
@@ -129,7 +160,7 @@ float Func_007c8a30();
 
 class CMultiPlayerTransceiver {
 public:
-	virtual void Slot00();
+	virtual void Slot00(CRegisterWorldCmd *cmd);
 	virtual void Slot01(int a, SRef *obj, int c);
 	virtual void Slot02(int a, int b);
 	virtual void Slot03();
@@ -337,6 +368,13 @@ bool CMultiPlayerTransceiver::Slot09(int id)
 		}
 	}
 	return false;
+}
+
+// FUNCTION: 0x007c90e0
+void CMultiPlayerTransceiver::Slot01(int a, SRef *obj, int c)
+{
+	if (!m_sub08.Check(obj))
+		Slot00(new CRegisterWorldCmd(obj));
 }
 
 // FUNCTION: 0x007c9050
