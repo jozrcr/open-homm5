@@ -7,3 +7,4 @@
 00879240  ??_V@YAXPAX@Z   # operator delete[] (thunk to 008790b0)
 008c6150  ?Free@Counted@@QAEXXZ   # called when a reference count drops to 0 (ECX = the virtual base of the counted object)
 00c27d20  ?CheckObjectForPlayer@@YIHPAUOwner@@PAUObj@@PAUPlayer@@@Z   # __fastcall(owner, object, player), ret 4
+005d4c70  ?insert_overflow@OpenList@@QAEXPAUNode@@ABU2@H_N@Z   # vector<Node>::_M_insert_overflow(pos, x, 1, true), thiscall, ret 0x10; called by the open list push

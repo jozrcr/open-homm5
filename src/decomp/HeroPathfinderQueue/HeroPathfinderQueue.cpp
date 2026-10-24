@@ -232,7 +232,44 @@ struct Owner {
 // Not decompiled yet: 0x00c27d20, __fastcall(owner, object, player), ret 4.
 int __fastcall CheckObjectForPlayer(Owner *owner, Obj *obj, Player *player);
 
-struct Empty {};  // the open list's comparator object (1 byte)
+// The open list's comparator: takes the nodes by value (the compiler copies them to
+// the stack before calling the node order).
+struct NodeCompare {
+	bool operator()(const Node a, const Node b) const { return NodeLess(a, b); }
+};
+
+// FUNCTION: 0x00c09500
+// _Push_heap: move the hole up while the parent is "less" than val, then put val in.
+void __fastcall PushHeap(Node *first, int hole, int top, Node val, NodeCompare comp)
+{
+	int parent = (hole - 1) / 2;
+	while (hole > top && comp(*(first + parent), val)) {
+		*(first + hole) = *(first + parent);
+		hole = parent;
+		parent = (hole - 1) / 2;
+	}
+	*(first + hole) = val;
+}
+
+// FUNCTION: 0x00c095b0
+// _Adjust_heap: move the hole down along the larger child to the bottom, then push val up.
+void __fastcall AdjustHeap(Node *first, int hole, int bottom, Node val, NodeCompare comp)
+{
+	int top = hole;
+	int idx = 2 * hole + 2;
+	while (idx < bottom) {
+		if (comp(*(first + idx), *(first + (idx - 1))))
+			--idx;
+		*(first + hole) = *(first + idx);
+		hole = idx;
+		idx = 2 * (idx + 1);
+	}
+	if (idx == bottom) {
+		*(first + hole) = *(first + (idx - 1));
+		hole = idx - 1;
+	}
+	PushHeap(first, hole, top, val, comp);
+}
 
 // The open list: a priority queue of nodes at pf+0x10: {start, finish,
 // end_of_storage} followed by the comparator.
@@ -240,12 +277,34 @@ struct OpenList {
 	Node *start;
 	Node *finish;
 	Node *end_of_storage;
-	Empty comp;
+	NodeCompare comp;
 
 	// Not decompiled yet: 0x005d4c70, vector<Node>::_M_insert_overflow(pos, x, 1 element, at end), ret 0x10.
 	void insert_overflow(Node *pos, const Node &x, int n, bool atend);
 	void push(const Node &x);
 };
+
+inline void PushHeapAux(Node *first, Node *last, NodeCompare comp)
+{
+	PushHeap(first, int(last - first) - 1, 0, Node(*(last - 1)), comp);
+}
+
+inline void push_heap(Node *first, Node *last, NodeCompare comp)
+{
+	PushHeapAux(first, last, comp);
+}
+
+// FUNCTION: 0x00c099d0
+// priority_queue::push: append, then push_heap.
+void OpenList::push(const Node &x)
+{
+	if (finish != end_of_storage) {
+		new (finish) Node(x);
+		++finish;
+	} else
+		insert_overflow(finish, x, 1, true);
+	push_heap(start, finish, comp);
+}
 
 class HeroPathfinder {
 public:
