@@ -14,6 +14,7 @@
   "functions": {
     "00c08f30": "?Alloc@?$Array2D@UNode@@@@QAEXXZ",
     "00c08fd0": "?NodeLess@@YI_NABUNode@@0@Z",
+    "00c090c0": "?ReverseNodes@@YIXPAUNode@@0@Z",
     "00c09110": "?Copy@?$Array2D@UNode@@@@QAEXABU1@@Z",
     "00c09180": "?allocate_and_copy@NodeVec@@QAEPAUNode@@HPAU2@0@Z",
     "00c091d0": "?IsMarked1@HeroPathfinder@@QAE_NPBI@Z",

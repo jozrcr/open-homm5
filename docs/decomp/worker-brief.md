@@ -36,7 +36,7 @@ Put them in a new unit folder `src/decomp/{UNIT}/` with a `.cpp`, a `unit.json` 
 3. Add it to `unit.json`; `python tools/verify/verify.py --list {UNIT}` shows the mangled names.
 4. Run `python tools/verify/verify.py {UNIT}`. Iterate on the C++ only: up to about 8 compiles per function, more only when you are clearly getting closer.
 5. **Matched:** `git commit` the unit with a one-line message.
-6. **Held:** the bytes are identical but the verifier reports only a size difference caused by loop-alignment bytes or a switch's jump table (see "Known verifier gaps" in the notes). Take it out of `unit.json`, keep the code, add a line to `progress/held.txt` (`<address>  {UNIT}  <why>`), commit.
+6. **Held (rare):** you checked that the bytes are identical, but the verifier still says otherwise because of a gap in the verifier itself. Take it out of `unit.json`, keep the code, add a line to `progress/held.txt` (`<address>  {UNIT}  <why>`), commit, and describe the gap in your report. Loop alignment and jump tables are not gaps any more (see the notes).
 7. **Not matched:** take it out of `unit.json`, keep the draft in `drafts.cpp` (not in `sources`). Write the details in the unit's `attempts.txt`, and add one line to `progress/attempts.txt`: `<address>  {DATE}  {UNIT}: <reason in a few words>`. Commit, and move on.
 
 ## Never

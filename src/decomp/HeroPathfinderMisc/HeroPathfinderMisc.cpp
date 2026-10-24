@@ -145,6 +145,28 @@ void CBonusList::GetTotal(SBonus *out)
 		*out = m_total;
 }
 
+// FUNCTION: 0x00c0a770
+bool CBonusList::Recalc(int level)
+{
+	bool changed = false;
+	for (int i = 0; i < Count(); i++) {
+		int v = BonusLevel(m_vec.begin[i].kind, level);
+		if (v > m_vec.begin[i].level) {
+			changed = true;
+			m_vec.begin[i].level = v;
+		}
+	}
+	if (!changed)
+		return false;
+	m_total = SBonus();
+	for (int i = 0; i < Count(); i++) {
+		SBonus tmp;
+		GetBonus(&tmp, i);
+		m_total.Add(&tmp);
+	}
+	return true;
+}
+
 // FUNCTION: 0x00c0a870
 CBonusList::CBonusList()
 {

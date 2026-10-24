@@ -36,11 +36,12 @@ Statement order matters more than anything. Small things that changed the bytes:
 - Free functions and templates in that code are `__fastcall` (write it explicitly; don't use `/Gr`). `operator new`/`delete` stay cdecl.
 - Growth: new capacity = `old_size + max(old_size, n)`.
 
-## Known verifier gaps (see docs/questions.md, Q8)
+## Sizes, loop alignment and jump tables (verifier fix, Q8)
 
-- **Loop alignment:** Ghidra's size in `progress/inventory.csv` leaves out the alignment bytes a loop jumps over (`eb 03 8d 49 00`, `eb 06 8d 9b 00 00 00 00`). A byte-identical function is then reported as "size: obj N, exe N-3".
-- **Jump tables:** the compiler puts a `switch`'s table at the end of the function, so the obj function is longer than Ghidra's size, and the table entries point inside the function itself.
-- Until the verifier is fixed, such functions are **held**: kept in the source, left out of `unit.json`, explained in the unit's `attempts.txt` with "HELD". They are not failures.
+- **Loop alignment:** Ghidra's size in `progress/inventory.csv` leaves out the alignment bytes a loop jumps over (`eb 03 8d 49 00`, `eb 06 8d 9b 00 00 00 00`).
+- **Jump tables:** the compiler puts a `switch`'s table at the end of the function, and the table entries point inside the function itself.
+- Since Q8, the verifier treats Ghidra's size as a lower bound. It checks instead that the function ends where the exe's does (only `0xCC` padding follows), and that jump-table entries point to the same place in the exe. A size message now means a real difference.
+- **Held** functions (`progress/held.txt`) are for any new verifier gap found later: identical bytes that the verifier can't confirm yet. Keep them in the source, out of `unit.json`; they are not failures.
 
 ## Working practice
 

@@ -169,6 +169,92 @@
    "name": "?Visitable@CHeroPathfinder@@QAE_NPBUSPos@@@Z",
    "unit": "HeroPathfinderSetup"
   },
+  "00c076d0": {
+   "size": 392,
+   "hash": "1de561bc5c90856e954e1263ed45445066a35144729e7f0b3478e6ed7e9147b3",
+   "relocs": [
+    [
+     9,
+     20,
+     "addr",
+     "00ca9c50"
+    ],
+    [
+     27,
+     6,
+     "addr",
+     "00f79000"
+    ],
+    [
+     145,
+     6,
+     "addr",
+     "00c07830"
+    ],
+    [
+     352,
+     6,
+     "addr",
+     "00c07765"
+    ],
+    [
+     356,
+     6,
+     "addr",
+     "00c0780e"
+    ],
+    [
+     360,
+     6,
+     "addr",
+     "00c07770"
+    ],
+    [
+     364,
+     6,
+     "addr",
+     "00c0776d"
+    ],
+    [
+     368,
+     6,
+     "addr",
+     "00c07790"
+    ],
+    [
+     372,
+     6,
+     "addr",
+     "00c07790"
+    ],
+    [
+     376,
+     6,
+     "addr",
+     "00c077b1"
+    ],
+    [
+     380,
+     6,
+     "addr",
+     "00c07778"
+    ],
+    [
+     384,
+     6,
+     "addr",
+     "00c077c9"
+    ],
+    [
+     388,
+     6,
+     "addr",
+     "00c077ed"
+    ]
+   ],
+   "name": "??0CPathSettings@@QAE@HH@Z",
+   "unit": "HeroPathfinderSetup"
+  },
   "00c07860": {
    "size": 189,
    "hash": "363f1d581873f5410acbbf115d43f3baabdffd68ec85f8a1fccc5082a29ae8d6",
@@ -187,6 +273,26 @@
     ]
    ],
    "name": "??0CHeroPathfinder@@QAE@XZ",
+   "unit": "HeroPathfinderSetup"
+  },
+  "00c07920": {
+   "size": 272,
+   "hash": "67d83d10c6d6c5ab9c99cfa1b65738a91965cce404fd19c34a8c97b2dfaf2ca7",
+   "relocs": [
+    [
+     242,
+     20,
+     "addr",
+     "00879240"
+    ],
+    [
+     261,
+     20,
+     "addr",
+     "00c09370"
+    ]
+   ],
+   "name": "?Prepare@CHeroPathfinder@@QAEXXZ",
    "unit": "HeroPathfinderSetup"
   },
   "00c07a30": {
@@ -296,6 +402,13 @@
    "hash": "589f676f4508dce32f491b5801ac461e39d160360560140646c0d8844bfb3909",
    "relocs": [],
    "name": "?NodeLess@@YI_NABUNode@@0@Z",
+   "unit": "HeroPathfinderQueue"
+  },
+  "00c090c0": {
+   "size": 73,
+   "hash": "86924e6937e793db659bfdb4662f2afdbb8ea2ea007d08b22841fe91073f1e9a",
+   "relocs": [],
+   "name": "?ReverseNodes@@YIXPAUNode@@0@Z",
    "unit": "HeroPathfinderQueue"
   },
   "00c09110": {
@@ -962,6 +1075,26 @@
    "hash": "3e5e8c4ebe840401ccbb229904ad18889a5a11112a013ede734bb5a0263ea0ed",
    "relocs": [],
    "name": "?CanAdd@CBonusList@@QAE_NHPAVIHeroLike@@@Z",
+   "unit": "HeroPathfinderMisc"
+  },
+  "00c0a770": {
+   "size": 241,
+   "hash": "d80c50d58ad0e38ee885c532a2cd61d9d2438b2bda366b4cead44026c1222fb9",
+   "relocs": [
+    [
+     38,
+     20,
+     "addr",
+     "00c0a2f0"
+    ],
+    [
+     151,
+     20,
+     "addr",
+     "00c0a560"
+    ]
+   ],
+   "name": "?Recalc@CBonusList@@QAE_NH@Z",
    "unit": "HeroPathfinderMisc"
   },
   "00c0a870": {
