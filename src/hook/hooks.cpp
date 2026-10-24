@@ -7,6 +7,7 @@
 #include "../mods/coop_guard.h"
 #include "../mods/fast_paths.h"
 #include "../mods/lan_discovery.h"
+#include "../mods/lockstep.h"
 #include "../mods/net_tuning.h"
 #include "../mods/original_music.h"
 
@@ -51,6 +52,7 @@ void InstallAll()
 	mods::ApplyFastPathsFromSettings();
 	mods::ApplyLanDiscoveryFromSettings();
 	mods::ApplyCoopGuardFromSettings();
+	mods::ApplyLockstepFromSettings();
 	mods::ApplyOriginalMusicFromSettings();
 }
 

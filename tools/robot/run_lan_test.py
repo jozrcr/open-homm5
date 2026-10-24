@@ -49,7 +49,7 @@ def instance_args(args, name, steps):
         shot_every=args.shot_every, step=steps, net_log=True, relay_ports=others, trace_mp=args.trace_mp, trace_crc=True,
         net_log_packets=args.net_log_packets, net_tuning=args.net_tuning,
         net_keepalive_ms=args.net_keepalive_ms, net_send_interval_ms=args.net_send_interval_ms,
-        net_batched_segments=args.net_batched_segments, mp_segment_ms=args.mp_segment_ms,
+        net_batched_segments=args.net_batched_segments, net_setting=args.net_setting, mp_segment_ms=args.mp_segment_ms,
         ai_walk_speed_scale=args.ai_walk_speed_scale, walk_step_ms=args.walk_step_ms,
         trace_ai_busy=args.trace_ai_busy, ai_busy_ignore_end=args.ai_busy_ignore_end, trace_hello=args.trace_hello,
         trace_moves=args.trace_moves,
@@ -102,6 +102,8 @@ def main():
     p.add_argument("--net-send-interval-ms", type=int, help="mod setting: links may send every N ms (mod default 10)")
     p.add_argument("--net-batched-segments", type=int,
                    help="mod setting: idle PCs batch up to N segment reports (mod default 0)")
+    p.add_argument("--net-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="extra [net] setting for both copies, e.g. drain_reports=0 or view_delay_ms=200 (lockstep mod)")
     p.add_argument("--no-crc", dest="crc", action="store_false",
                    help="leave the game's world checksums off (mp_check_crc; on by default for the desync check)")
     p.add_argument("--fast-paths", choices=["on", "off"], default="on",
