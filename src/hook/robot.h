@@ -143,5 +143,8 @@ void SetAiWalkSpeedScale(int scale);
 // Experiment: the hero movement update's 200 ms step (walk_step_ms=N); in
 // multiplayer every copy must use the same N.
 void SetWalkStepLength(DWORD ms);
+// Trace: each change of the AI manager's "player busy" check (trace_ai_busy=1);
+// experiment ai_busy_ignore_end=1: movement end times no longer count.
+void InstallAiBusyTrace(bool ignore_end);
 
 }  // namespace robot

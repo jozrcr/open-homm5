@@ -362,6 +362,67 @@ void SetWalkStepLength(DWORD ms)
 	hooklog::Write("robot: EXPERIMENT hero walk steps of %lu ms (game: 200)", ms);
 }
 
+// Trace (robot mode only, trace_ai_busy=1): the AI manager 0x006082f0 calls
+// the current player's AI only when world->slot 0xa4(transceiver->slot 8(),
+// player) is false (0x0060868e: call dword ptr [ebx+0xa4], thiscall, two
+// arguments: the player is pushed before the transceiver call, ret 8). Logs
+// each change of that answer ("ai-busy"), to see what an AI hero move waits
+// for in co-op. The 6-byte indirect call becomes nop + call.
+//
+// 0x0098e1c0 (the world's slot 0xa4): busy if the player's slot 0x8c gives a
+// live object, or if one of the player's movers (lists at world+0x118 for
+// player type 2, else world+0x5c) says "moving" (slot 0xc) or has an end time
+// (slot 0x10) at or after the given time; arg = the transceiver's game time.
+// EXPERIMENT (ai_busy_ignore_end=1): ask with time 0xffffffff, so that an end
+// time in the future no longer counts. Only the host runs the AI, so this
+// only changes when the host's AI thinks next.
+namespace {
+const DWORD kAiBusyCall = 0x0060868e;
+bool g_ai_busy_ignore_end = false;
+typedef bool(__fastcall *AiBusyFn)(void *world, void *edx, DWORD arg, void *player);
+
+bool __fastcall AiBusyHook(void *world, void *edx, DWORD arg, void *player)
+{
+	const AiBusyFn fn = (*reinterpret_cast<AiBusyFn *const *>(world))[0xa4 / 4];
+	static bool first = true;
+	if (first) {
+		first = false;
+		hooklog::Write("ai-busy first call: world %p, slot 0xa4 %p, arg %08lx, player %p", world,
+		               reinterpret_cast<void *>(fn), arg, player);
+	}
+	const bool busy = fn(world, edx, g_ai_busy_ignore_end ? 0xffffffffu : arg, player);
+	static int last = -1;
+	if (static_cast<int>(busy) != last) {
+		last = busy;
+		hooklog::Write("ai-busy %d arg=%08lx", busy ? 1 : 0, arg);
+	}
+	return busy;
+}
+}  // namespace
+
+void InstallAiBusyTrace(bool ignore_end)
+{
+	g_ai_busy_ignore_end = ignore_end;
+	static bool done = false;
+	if (done || !IsHookable(DetectGameBuild()))
+		return;
+	done = true;
+	BYTE *p = reinterpret_cast<BYTE *>(kAiBusyCall);
+	const BYTE expected[] = {0xff, 0x93, 0xa4, 0x00, 0x00, 0x00};
+	if (memcmp(p, expected, sizeof(expected)) != 0) {
+		hooklog::Write("robot: AI busy trace FAILED (code not as expected)");
+		return;
+	}
+	DWORD old;
+	VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old);
+	p[0] = 0x90;  // nop, then call rel32: returns to the next instruction (0x00608694)
+	p[1] = 0xe8;
+	*reinterpret_cast<LONG *>(p + 2) = static_cast<LONG>(reinterpret_cast<DWORD>(&AiBusyHook) - (kAiBusyCall + 6));
+	VirtualProtect(p, 6, old, &old);
+	FlushInstructionCache(GetCurrentProcess(), p, 6);
+	hooklog::Write("robot: AI busy trace installed%s", ignore_end ? "; EXPERIMENT: movement end times ignored" : "");
+}
+
 void InstallSegmentTrace()
 {
 	static bool done = false;

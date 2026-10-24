@@ -129,7 +129,15 @@ Network detail seen on one PC: the game binds UDP 8889 (`net_lan_match_maker_por
 
 Robot LAN game on A1M4 (link tuning on, `mp_check_crc` on), 8 AI turns: the wait before the AI's next step, after a hero move (`CSetHeroAITargetCmd` + `CSetWalkPathCmd` + `CStartMoveHeroCmd`), falls into **two tight groups: ~620 ms and ~860 ms, i.e. 3 or 4 segments** of 200 ms. It does not spread with the path length. A town swap waits 2 segments, as every move does in single player. So in co-op a hero move costs 1–2 segments more, ~350–400 ms of game time (with 50 ms segments, ~9 segments in all).
 
-The AI manager (`0x006082f0`) calls the turn driver only when `world->slot 0xa4(transceiver->slot 8(player))` is false: probably "this player still has something running". What keeps it true after a hero move in co-op is still to be found.
+The AI manager (`0x006082f0`) calls the turn driver only when the busy check `world->slot 0xa4(time, player)` is false (`0x0098e1c0`, called at `0x0060868e`; `time` = the transceiver's game time from its slot 8, the player pushed before that call; `ret 8`). It is true if:
+- the player's slot `0x8c` gives a live object; or
+- one of the player's movers (the list at world `+0x118` for player type 2, else `+0x5c`) says "moving" (slot `0xc`) or has an end time (slot `0x10`) at or after `time`.
+
+The robot's `--trace-ai-busy` logs each change of its answer:
+- **co-op:** after each AI hero move it turns true ~400 ms later and false again ~220–690 ms after that, and the AI moves at once;
+- **single player:** it never turns true; AI hero walks are done within the segment.
+
+`--ai-busy-ignore-end` (host only: asks with time `0xffffffff`, so end times no longer count) changed nothing: the "moving" flag stays on for as long. So **in co-op an AI hero move waits for the hero to really finish walking in game time**.
 
 Ruled out, robot experiments (both copies patched the same way; world checksums equal in all runs):
 
@@ -140,6 +148,8 @@ Ruled out, robot experiments (both copies patched the same way; world checksums 
 | `--walk-step-ms 50` / `100` | the four 200 ms constants of the movement update `0x008dffd0` (`0x008dfffc`, `0x008e01ad`, `0x008e023c`, `0x008e039d`) | 857 / 856 ms |
 
 So the walk speed only sets the animation, and those 200s are not the wait either.
+
+**So the remaining co-op wait needs every PC to agree.** It is the AI hero walks, simulated in game time (single player finishes them at once), plus the lockstep's 2-segment minimum (a town swap: ~420 ms).
 
 **Any co-op timing change needs a guard.** Shorter segments and faster AI walks both change game time, which runs in lockstep on every PC. So all PCs must use the same value, and a PC without our DLL must keep everyone on the original timing. Only the host runs the AI, but that does not help here.
 

@@ -149,6 +149,8 @@ def prepare(game, args, out, instance="", net_port=None):
         ("mp_segment_ms", getattr(args, "mp_segment_ms", 0)),
         ("ai_walk_speed_scale", getattr(args, "ai_walk_speed_scale", 0)),
         ("walk_step_ms", getattr(args, "walk_step_ms", 0)),
+        ("trace_ai_busy", int(bool(getattr(args, "trace_ai_busy", False)))),
+        ("ai_busy_ignore_end", int(bool(getattr(args, "ai_busy_ignore_end", False)))),
         # screenshots: the DLL saves the game's own frames there as .bmp (src/hook/robot_screen.cpp)
         ("screenshot_dir", out),
         ("screenshot_every_seconds", args.shot_every),
@@ -362,6 +364,8 @@ def main():
                    help="the fast pathfinding mod (src/mods/fast_paths.cpp); compare with --trace-paths runs")
     p.add_argument("--ai-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="extra [ai] setting for the mods, e.g. port_relax=1 (repeatable)")
+    p.add_argument("--trace-ai-busy", action="store_true",
+                   help="log each change of the AI manager's 'player busy' check (robot_trace.cpp)")
     p.add_argument("--quick-combat", action="store_true",
                    help="battles resolve by themselves (adventure_quick_combat = 1): the robot's human player "
                         "is not stuck in the tactics phase or the battle when the AI attacks it")
