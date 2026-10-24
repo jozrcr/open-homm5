@@ -14,6 +14,8 @@
 //   command=advmap /Maps/Multiplayer/A1M4/map.xdb#xpointer(/AdvMapDesc) 0 1 1
 //   command_delay_seconds=8
 //   end_turn_every_seconds=5      (ends the passive human's turns, see robot_endturn.cpp)
+//   stuck_exit=1                  (close the game when the human player is stuck; 0 for a LAN
+//                                  client, which never sees an AI step)
 //   press_enter_every_seconds=0   (robot keyboard; not read by the game in the background yet)
 //   step=12|menu|multi lan        (script steps: console, menu, ui or shot; see robot.cpp)
 //   screenshot_dir=C:\Games\H5_test\robot_frames
@@ -41,7 +43,7 @@ bool PressKey(int dik_code);
 // Robot human player (robot_endturn.cpp): ends the passive human's turns.
 void OnAiStep();               // from the AI trace, every AI step
 void InstallEndTurnHelper();   // from the main loop, once the build is known
-void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms);
+void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms, bool stuck_exit);
 
 // The game's narrow string as passed to button-command handlers: {begin, end,
 // capacity} of chars (the handlers only read it).

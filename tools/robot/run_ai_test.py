@@ -134,6 +134,7 @@ def prepare(game, args, out, instance="", net_port=None):
         ("command", command),
         ("command_delay_seconds", args.command_delay),
         ("end_turn_every_seconds", args.end_turn_every),
+        ("stuck_exit", int(getattr(args, "stuck_exit", True))),
         ("press_enter_every_seconds", args.press_enter_every),
         ("repeat_command", args.repeat_command or ""),
         ("repeat_every_seconds", args.repeat_every),

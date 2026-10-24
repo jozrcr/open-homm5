@@ -39,6 +39,7 @@ Step g_steps[kMaxSteps];
 int g_step_count = 0;
 int g_next_step = 0;
 DWORD g_end_turn_ms = 0;     // 0 = never
+bool g_stuck_exit = true;    // close the game when its human player is stuck (robot_endturn.cpp)
 bool g_trace_segments = false;
 bool g_trace_mp = false;
 bool g_trace_crc = false;
@@ -390,7 +391,7 @@ BOOL WINAPI RobotPeekMessageA(LPMSG msg, HWND hwnd, UINT min, UINT max, UINT rem
 	if (g_mp_segment_ms)
 		SetMpSegmentLength(g_mp_segment_ms);
 	if (g_command_done)
-		MaybeEndHumanTurn(g_end_turn_ms, 3000);
+		MaybeEndHumanTurn(g_end_turn_ms, 3000, g_stuck_exit);
 	// Screenshots now and then.
 	if (g_shot_ms) {
 		const DWORD now = GetTickCount();
@@ -724,6 +725,8 @@ bool ReadConfig(const wchar_t *path)
 			g_virtual_clock_ms = static_cast<DWORD>(atol(value));
 		else if (strcmp(line, "end_turn_every_seconds") == 0)
 			g_end_turn_ms = static_cast<DWORD>(atol(value)) * 1000;
+		else if (strcmp(line, "stuck_exit") == 0)
+			g_stuck_exit = atol(value) != 0;
 		else if (strcmp(line, "press_enter_every_seconds") == 0)
 			g_press_enter_ms = static_cast<DWORD>(atol(value)) * 1000;
 		else if (strcmp(line, "repeat_command") == 0)

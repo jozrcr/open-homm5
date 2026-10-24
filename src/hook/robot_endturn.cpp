@@ -83,7 +83,7 @@ void InstallEndTurnHelper()
 	}
 }
 
-void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms)
+void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms, bool stuck_exit)
 {
 	void *controller = g_controller;
 	if (!controller || !every_ms)
@@ -98,7 +98,7 @@ void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms)
 	// human player's hero: not the time to end the turn
 	static long battle_polls = 0;
 	if (AutoCloseScreens()) {
-		if (++battle_polls > kStuckInBattleAfter) {
+		if (++battle_polls > kStuckInBattleAfter && stuck_exit) {
 			hooklog::Write("robot: stuck: a battle or a box has waited for %ld checks, closing the game", battle_polls);
 			hooklog::Close();
 			TerminateProcess(GetCurrentProcess(), 4);  // no game shutdown code: it can crash mid-turn
@@ -106,7 +106,7 @@ void MaybeEndHumanTurn(DWORD every_ms, DWORD ai_idle_ms)
 		return;
 	}
 	battle_polls = 0;
-	if (++g_end_turns_since_ai > kStuckAfter) {
+	if (++g_end_turns_since_ai > kStuckAfter && stuck_exit) {
 		// The human's turn does not end and no AI plays: a battle (tactics
 		// phase) or a box (the retreat box) waits for the robot's human player,
 		// which cannot answer it. Waiting for the time limit would only waste

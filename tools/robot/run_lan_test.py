@@ -39,14 +39,21 @@ def instance_args(args, name, steps):
     others = ",".join(str(d) for n, (_g, d) in PORTS.items() if n != name)
     return argparse.Namespace(
         map=args.map, difficulty="1", no_map=True, command=None,
-        setvar=["lan_last_login = Robot-%s" % name, "net_lan_match_maker_port = %d" % discovery] + args.setvar,
+        # mp_check_crc: without it the game computes no world checksums at all
+        # (0x007c9be0), and the desync check below has nothing to compare
+        setvar=["lan_last_login = Robot-%s" % name, "net_lan_match_maker_port = %d" % discovery] +
+               (["mp_check_crc = 1"] if args.crc else []) + args.setvar,
         turns=args.turns, seconds=args.seconds, command_delay=8,
         end_turn_every=args.end_turn_every, press_enter_every=0,
         repeat_command=None, repeat_every=0, trace_segments=False, segment_ms=0,
         shot_every=args.shot_every, step=steps, net_log=True, relay_ports=others, trace_mp=args.trace_mp, trace_crc=True,
         net_log_packets=args.net_log_packets, net_tuning=args.net_tuning,
         net_keepalive_ms=args.net_keepalive_ms, net_send_interval_ms=args.net_send_interval_ms,
-        net_batched_segments=args.net_batched_segments, mp_segment_ms=args.mp_segment_ms)
+        net_batched_segments=args.net_batched_segments, mp_segment_ms=args.mp_segment_ms,
+        fast_paths=args.fast_paths, ai_setting=args.ai_setting,
+        # the client never runs the AI (the host does), so "no AI step for 4
+        # turn ends" means nothing there
+        stuck_exit=name == "host")
 
 
 def main():
@@ -71,6 +78,12 @@ def main():
     p.add_argument("--net-send-interval-ms", type=int, help="mod setting: links may send every N ms (mod default 10)")
     p.add_argument("--net-batched-segments", type=int,
                    help="mod setting: idle PCs batch up to N segment reports (mod default 0)")
+    p.add_argument("--no-crc", dest="crc", action="store_false",
+                   help="leave the game's world checksums off (mp_check_crc; on by default for the desync check)")
+    p.add_argument("--fast-paths", choices=["on", "off"], default="off",
+                   help="the fast pathfinding mod (src/mods/fast_paths.cpp) on both copies")
+    p.add_argument("--ai-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="extra [ai] setting for both copies, e.g. port_relax=1 (repeatable)")
     p.add_argument("--quick-combat-state", type=int, default=0,
                    help="state of the setup screen's quick combat checkbox (0 = on, so battles resolve by "
                         "themselves; -1 = leave it)")
