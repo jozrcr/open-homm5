@@ -13,7 +13,7 @@ Answer: (owner fills in)
 
 ---
 
-## Q6: Easy install and easy joining: order, GitHub builds, firewall (2026-10-24, status: open)
+## Q6: Easy install and easy joining: order, GitHub builds, firewall (2026-10-24, status: answered)
 
 Context: the plan is in [plans/install-and-join.md](plans/install-and-join.md):
 - a zip with one install script for Windows and one for Linux;
@@ -25,7 +25,10 @@ Options:
 2. GitHub builds the package for each version tag, and you publish each release. **Recommended: yes.**
 3. Firewall: the install script only explains how to make the ZeroTier network Private (recommended), or it offers to add a firewall rule (needs admin; Windows asks you).
 
-Answer:
+Answer (2026-10-24):
+1. The order is fine (done: LAN over VPNs in PR #12, the package in PR #13).
+2. Yes, GitHub builds. They are free for public repositories; the owner's Actions limit is for private ones. Added to PR #13: `.github/workflows/package.yml`.
+3. The firewall: the script only explains.
 
 ## Q5: Faster co-op AI moves behind a "same settings" guard: defaults, and go ahead? (2026-10-24, status: answered)
 
