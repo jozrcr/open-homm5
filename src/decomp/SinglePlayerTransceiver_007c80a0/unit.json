@@ -19,12 +19,16 @@
     "007c8280": "??_GCSimpleTempTransceiver@@UAEPAXI@Z",
     "007c8330": "?Reset@CSimpleTempTransceiver@@UAEXXZ",
     "007c8390": "?Reset@CSinglePlayerTransceiver@@UAEXXZ",
+    "007c8410": "??ICSimpleTempTransceiver@@UAEHPAVIBinSaver@@@Z",
+    "007c8570": "??ICReplayTransceiver@@UAEHPAVIBinSaver@@@Z",
     "007c8600": "??$Chunk@USubA@@PAVIBinSaver@@@@YAXPAVIBinSaver@@HHPAUSubA@@PAPAV0@@Z",
     "007c8630": "??ISubA@@QAEHPAVIBinSaver@@@Z",
     "007c8670": "??$Chunk@USubB@@PAVIBinSaver@@@@YAXPAVIBinSaver@@HHPAUSubB@@PAPAV0@@Z",
     "007c86a0": "??ISubB@@QAEHPAVIBinSaver@@@Z",
     "007c8720": "??$Chunk@UCPtrC@@PAVIBinSaver@@@@YAXPAVIBinSaver@@HHPAUCPtrC@@PAPAV0@@Z",
     "007c8750": "?AddPtrC@IBinSaver@@QAEXPAUCPtrC@@@Z",
-    "007c88e0": "??$Chunk@UCPtrD@@PAVIBinSaver@@@@YAXPAVIBinSaver@@HHPAUCPtrD@@PAPAV0@@Z"
+    "007c87c0": "??ICSinglePlayerTransceiver@@UAEHPAVIBinSaver@@@Z",
+    "007c88e0": "??$Chunk@UCPtrD@@PAVIBinSaver@@@@YAXPAVIBinSaver@@HHPAUCPtrD@@PAPAV0@@Z",
+    "007c8910": "?AddPtrD@IBinSaver@@QAEXPAUCPtrD@@@Z"
   }
 }

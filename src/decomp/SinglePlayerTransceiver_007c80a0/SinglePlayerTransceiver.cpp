@@ -154,9 +154,7 @@ struct CmdVec {
 		DestroyRange(first, last);
 		if (first)
 			Free(first);
-		first = 0;
-		last = 0;
-		end = 0;
+		end = last = first = 0;
 	}
 	void Resize(int n);  // 0x00706ac0
 };
@@ -290,7 +288,8 @@ void IBinSaver::AddPtrC(CPtrC *pp)
 void IBinSaver::AddPtrD(CPtrD *pp)
 {
 	if (IsReading()) {
-		CChatLogic *v = CastD(LoadObject(), 0, 0);
+		CObjectBase *o = LoadObject();
+		CChatLogic *v = CastD(o, 0, 0);
 		CChatLogic *old = pp->p;
 		pp->p = v;
 		if (v)
@@ -302,10 +301,12 @@ void IBinSaver::AddPtrD(CPtrD *pp)
 }
 
 // FUNCTION: 0x007c8490
-void IBinSaver::AddVec(CmdVec *v)
+void IBinSaver::AddVec(CmdVec *pv)
 {
 	int n;
+	CmdVec *v;
 	if (IsReading()) {
+		v = pv;
 		v->Reset();
 		if (GetVersion() < 2) {
 			n = CountChunks(1);
@@ -315,11 +316,12 @@ void IBinSaver::AddVec(CmdVec *v)
 			v->Resize(n);
 		}
 	} else {
+		v = pv;
 		n = v->last - v->first;
 		DataChunk(2, &n, 4, 1);
 	}
 	for (int i = 0; i < n; ++i)
-		Chunk(this, 1, i + 1, &v->first[i], &v);
+		Chunk(this, 1, i + 1, &v->first[i], &pv);
 }
 
 // ---- the transceivers -------------------------------------------------------------------
@@ -392,6 +394,7 @@ void CSimpleTempTransceiver::Send(CCmd *cmd)
 
 class CReplayTransceiver : public ITransceiver {
 public:
+	virtual ~CReplayTransceiver();
 	virtual int operator&(IBinSaver *f);
 	virtual void Reset();
 	virtual void Slot5();
@@ -438,10 +441,11 @@ void CSimpleTempTransceiver::Reset()
 }
 
 // FUNCTION: 0x007c8410
-int CSimpleTempTransceiver::operator&(IBinSaver *f)
+int CSimpleTempTransceiver::operator&(IBinSaver *pf)
 {
-	Chunk(f, 2, 1, &m_08, &f);
-	Chunk(f, 3, 1, &m_0c, &f);
+	IBinSaver *f = pf;
+	Chunk(f, 2, 1, &m_08, &pf);
+	Chunk(f, 3, 1, &m_0c, &pf);
 	f->DataChunk(4, &m_14, 4, 1);
 	if (f->StartChunk(5, 1)) {
 		f->AddVec(&m_18);
@@ -452,30 +456,32 @@ int CSimpleTempTransceiver::operator&(IBinSaver *f)
 }
 
 // FUNCTION: 0x007c8570
-int CReplayTransceiver::operator&(IBinSaver *f)
+int CReplayTransceiver::operator&(IBinSaver *pf)
 {
-	Chunk(f, 2, 1, &m_08, &f);
-	Chunk(f, 3, 1, &m_0c, &f);
+	IBinSaver *f = pf;
+	Chunk(f, 2, 1, &m_08, &pf);
+	Chunk(f, 3, 1, &m_0c, &pf);
 	f->DataChunk(4, &m_14, 4, 1);
 	f->DataChunk(5, &m_18, 4, 1);
-	Chunk(f, 6, 1, &m_1c, &f);
+	Chunk(f, 6, 1, &m_1c, &pf);
 	f->DataChunk(7, &m_60, 1, 1);
 	return 0;
 }
 
 // FUNCTION: 0x007c87c0
-int CSinglePlayerTransceiver::operator&(IBinSaver *f)
+int CSinglePlayerTransceiver::operator&(IBinSaver *pf)
 {
-	Chunk(f, 2, 1, &m_08, &f);
-	Chunk(f, 3, 1, &m_0c, &f);
+	IBinSaver *f = pf;
+	Chunk(f, 2, 1, &m_08, &pf);
+	Chunk(f, 3, 1, &m_0c, &pf);
 	f->DataChunk(4, &m_14, 4, 1);
 	f->DataChunk(6, &m_18, 4, 1);
-	Chunk(f, 7, 1, &m_1c, &f);
-	Chunk(f, 8, 1, &m_60, &f);
-	Chunk(f, 9, 1, &m_64, &f);
-	Chunk(f, 10, 1, &m_68, &f);
+	Chunk(f, 7, 1, &m_1c, &pf);
+	Chunk(f, 8, 1, &m_60, &pf);
+	Chunk(f, 9, 1, &m_64, &pf);
+	Chunk(f, 10, 1, &m_68, &pf);
 	f->DataChunk(11, &m_6c, 4, 1);
-	Chunk(f, 12, 1, &m_70, &f);
+	Chunk(f, 12, 1, &m_70, &pf);
 	if (f->StartChunk(13, 1)) {
 		f->AddBuf(&m_74);
 		f->FinishChunk();
