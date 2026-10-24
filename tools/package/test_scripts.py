@@ -3,7 +3,7 @@
 
     python tools/package/test_scripts.py [--bash PATH] [--work-dir DIR] [--keep]
 
-It builds the zip with make_package.py (version "test"), unzips it, makes a fake
+It builds the zip with make_package.py (version "0.0.0-test"), unzips it, makes a fake
 Steam folder and fake game folders (empty files named like the game's exes), and
 runs the scripts from the unzipped package. It never touches a real game folder.
 
@@ -379,13 +379,13 @@ def main():
     work = args.work_dir or Path(tempfile.mkdtemp(prefix="open-homm5-test-"))
     work.mkdir(parents=True, exist_ok=True)
     out_dir = work / "out"
-    r = subprocess.run([sys.executable, str(REPO / "tools" / "package" / "make_package.py"), "--version", "test",
+    r = subprocess.run([sys.executable, str(REPO / "tools" / "package" / "make_package.py"), "--version", "0.0.0-test",
                         "--out-dir", str(out_dir)])
     if r.returncode != 0:
         sys.exit("make_package.py failed")
-    with zipfile.ZipFile(out_dir / "open-homm5-test.zip") as z:
+    with zipfile.ZipFile(out_dir / "open-homm5-0.0.0-test.zip") as z:
         z.extractall(work / "package")
-    pkg = work / "package" / "open-homm5-test"  # the zip's one top folder
+    pkg = work / "package" / "open-homm5-0.0.0-test"  # the zip's one top folder
 
     if os.name == "nt":
         windows_tests(pkg, work / "win")

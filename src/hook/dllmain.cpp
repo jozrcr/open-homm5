@@ -13,6 +13,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "robot.h"
+#include "version.h"
 
 namespace {
 
@@ -104,7 +105,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID)
 	if (reason == DLL_PROCESS_ATTACH) {
 		DisableThreadLibraryCalls(inst);
 		hooklog::Open(inst);
-		hooklog::Write("open-homm5 hook DLL loaded (built " __DATE__ " " __TIME__ ")");
+		hooklog::Write("open-homm5 hook DLL " OPEN_HOMM5_VERSION " loaded (built " __DATE__ " " __TIME__ ")");
 		robot::Init();  // before the game reads its profile
 	}
 	else if (reason == DLL_PROCESS_DETACH) {

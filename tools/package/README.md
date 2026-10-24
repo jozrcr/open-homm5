@@ -69,3 +69,13 @@ The zip is then a download on the run's page (Actions tab).
 
 **On a version tag** (`git tag v0.1.0`, then `git push origin v0.1.0`), it does the same with that version and creates a **draft** release with the zip attached. The owner edits the notes and publishes it; the workflow never publishes anything itself.
 
+## Making a release
+
+1. Set the version in `src/hook/version.h` (`OPEN_HOMM5_VERSION`). The DLL writes it on the first line of `open-homm5.log`, and the package takes it from there.
+2. Write the release notes in `docs/releases/<version>.md`, in plain words for players.
+3. Merge to `main`.
+4. Tag that commit `v<version>` and push the tag (`git tag v0.1.0`, then `git push origin v0.1.0`). GitHub then builds and tests everything, and creates a **draft** release with the zip and the notes.
+5. The owner reads the draft on the repo's Releases page and publishes it.
+
+`make_package.py` refuses a release version that is not the one in `version.h`, and a DLL built from another version. Test builds use a version with a `-`, like `0.1.0-test2`.
+

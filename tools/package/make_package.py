@@ -5,8 +5,8 @@ The zip holds the hook DLL (build/hook/dinput8.dll), the settings template, the
 install and uninstall scripts for Windows and Linux, and a short README.txt.
 The scripts and templates live in tools/package/files/.
 
-    python tools/package/make_package.py                    # version 0.1.0-dev
-    python tools/package/make_package.py --version 0.1.0
+    python tools/package/make_package.py                    # the version in src/hook/version.h
+    python tools/package/make_package.py --version 0.1.0-test2   # a test build (with a '-')
     python tools/package/make_package.py --rebuild          # build the DLL first
 
 If build/hook/dinput8.dll is missing it is built with src/hook/build.ps1 (Windows
@@ -30,6 +30,15 @@ OUT_DIR = REPO / "build" / "package"
 # The install scripts tell our dinput8.dll from somebody else's by this text,
 # which the DLL carries in its log message (src/hook/dllmain.cpp).
 MARKER = b"open-homm5 hook DLL"
+VERSION_H = REPO / "src" / "hook" / "version.h"
+
+
+def source_version():
+    """The version in src/hook/version.h (OPEN_HOMM5_VERSION), which the DLL logs."""
+    m = re.search(r'#define OPEN_HOMM5_VERSION "([^"]+)"', VERSION_H.read_text(encoding="utf-8"))
+    if not m:
+        fail(f"no OPEN_HOMM5_VERSION in {VERSION_H}")
+    return m.group(1)
 
 # Order in the zip. (name, source file in tools/package/files/ or None for the DLL)
 CONTENTS = [
@@ -102,6 +111,9 @@ def file_bytes(name, source, dll_path, version):
         if MARKER not in data:
             fail(f"{dll_path} does not contain the text '{MARKER.decode()}', "
                  "which the install scripts use to recognise our DLL")
+        logged = MARKER + b" " + source_version().encode() + b" loaded"
+        if logged not in data:
+            fail(f"{dll_path} is not version {source_version()} (src/hook/version.h): rebuild it (--rebuild)")
         return data
     text = read_template(source)
     if name == "README.txt":
@@ -121,12 +133,17 @@ def zip_time():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--version", default="0.1.0-dev", help="version in the file name and README.txt (default 0.1.0-dev)")
+    ap.add_argument("--version", help="version in the file name and README.txt (default: src/hook/version.h). "
+                                      "A release version (no '-') must be the one in version.h")
     ap.add_argument("--dll", type=Path, default=DEFAULT_DLL, help="the DLL to pack (default build/hook/dinput8.dll)")
     ap.add_argument("--rebuild", action="store_true", help="build the DLL first, even if there is one")
     ap.add_argument("--out-dir", type=Path, default=OUT_DIR, help="where the zip goes (default build/package)")
     args = ap.parse_args()
 
+    if args.version is None:
+        args.version = source_version()
+    if "-" not in args.version and args.version != source_version():
+        fail(f"release {args.version}, but src/hook/version.h says {source_version()}: change one of them")
     if not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z._+-]*", args.version):
         fail("the version may only hold letters, digits and . _ + -")
     check_shared_blocks()
