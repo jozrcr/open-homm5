@@ -309,25 +309,8 @@ public:
 	bool InBounds(const SPos *p);                    // 0x0086e1b0
 	bool InBoundsInline(const SPos *p)               // the same, inlined by the compiler in Run
 	{
-		if (p->f >= (unsigned)m_a8.size())
-			return false;
-		Array2D<Node> *a = &m_a8.start[p->f];
-		if (p->x >= (unsigned)a->width)
-			return false;
-		if (p->y >= (unsigned)a->height)
-			return false;
-		return true;
-	}
-	bool InBoundsNest(const SPos *p)
-	{
-		if (p->f < (unsigned)m_a8.size()) {
-			Array2D<Node> &a = m_a8[p->f];
-			if (p->x < (unsigned)a.width) {
-				bool r = p->y < (unsigned)a.height;
-				return r;
-			}
-		}
-		return false;
+		return p->f < (unsigned)m_a8.size() && p->x < (unsigned)m_a8.start[p->f].width &&
+		       p->y < (unsigned)m_a8.start[p->f].height;
 	}
 	void InitStartNode(Node *n);                     // 0x00c07110
 	void Expand(Node *n, int count, int *dirs, int left, bool flag, unsigned *none);  // 0x00c07f80
@@ -407,4 +390,61 @@ void CHeroPathfinder::SetMap(CMapObj *map)
 	InitNodes(&m_b4);
 	m_d8 = 0xff;
 	Prepare();
+}
+
+// FUNCTION: 0x00c08890
+// The search loop: pop the best node, skip it when the next one is the same tile, run the
+// checks, expand it; stop at the target or when the open list is empty.
+void CHeroPathfinder::Run(int limit)
+{
+	m_settings.i20 = limit;
+	Node cur;
+	unsigned none = 0xffffff;
+	bool hit;
+	while (m_open.c.size() > 0) {
+		cur = m_open.c.start[0];
+		m_open.pop();
+		Node *tile;
+		if (cur.flags.b6)
+			tile = &m_b4.start[cur.pos.f].rows[cur.pos.y][cur.pos.x];
+		else
+			tile = &m_a8.start[cur.pos.f].rows[cur.pos.y][cur.pos.x];
+		cur = *tile;
+		if (m_open.c.size() > 0) {
+			Node next = m_open.c.start[0];
+			if (next.pos.x == cur.pos.x && next.pos.y == cur.pos.y && next.pos.f == cur.pos.f &&
+			    next.flags.b9 == cur.flags.b9 && next.flags.b6 == cur.flags.b6)
+				continue;
+		}
+		hit = false;
+		if (!cur.flags.b6) {
+			cur.flags.b7 = 0;
+			cur.flags.b8 = 0;
+			if (m_settings.b48) {
+				if (!Func_009d1350(&cur))
+					continue;
+			}
+			if (cur.flags.b0) {
+				if (!Func_009d22f0(&cur))
+					continue;
+			}
+			if (cur.flags.b1) {
+				if (m_map->floors[cur.pos.f].rows[cur.pos.y][cur.pos.x].kind != 2)
+					continue;
+			}
+			if (!cur.flags.b3 && !m_settings.b43) {
+				if ((m_start.x != cur.pos.x || m_start.y != cur.pos.y || m_start.f != cur.pos.f) && m_pool) {
+					if (m_pool->Probe(&none, &cur.posw))
+						hit = true;
+				}
+			}
+		}
+		Expand(&cur, 8, g_dirs, m_settings.i30 - cur.moved, hit, &none);
+		if (!cur.flags.b6) {
+			if (InBoundsInline(&m_settings.target) && !Differs(&m_settings.target, &cur.pos))
+				break;
+		}
+	}
+	if (m_open.c.size() == 0)
+		m_90 = true;
 }

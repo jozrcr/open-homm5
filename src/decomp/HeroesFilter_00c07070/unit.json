@@ -12,6 +12,7 @@
   ],
   "subsystem": "ai",
   "functions": {
-    "00c07ba0": "?SetMap@CHeroPathfinder@@QAEXPAVCMapObj@@@Z"
+    "00c07ba0": "?SetMap@CHeroPathfinder@@QAEXPAVCMapObj@@@Z",
+    "00c08890": "?Run@CHeroPathfinder@@QAEXH@Z"
   }
 }

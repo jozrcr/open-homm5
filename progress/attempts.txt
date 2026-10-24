@@ -5,5 +5,4 @@
 00c07360  2026-10-24  HeroPathfinderSetup: TracePath, 4 bytes short, registers permuted
 00c0a2f0  2026-10-24  HeroPathfinderMisc: BonusLevel, fmul scheduled after the float-to-int control word
 00c0af20  2026-10-24  HeroPathfinderMisc2: CGrid::SwapItems, register allocation (rows in ebx, this spilled)
-00c08890  2026-10-25  HeroesFilter_00c07070: Run, all but one spot equal (inlined bounds check loads the grid start into a register first)
 00c08be0  2026-10-25  HeroesFilter_00c07070: StartSearch, 11 bytes over (extra start position built with mask-or, Cost temp registers)
