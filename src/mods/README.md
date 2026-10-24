@@ -39,7 +39,7 @@ batched_segments=0
 
 The DLL's log (`open-homm5.log`) says what it changed, for example `net tuning: links may send every 10 ms (game: 50)`.
 
-## Fast AI pathfinding (`fast_paths*.cpp`, in testing, off by default)
+## Fast AI pathfinding (`fast_paths*.cpp`, on by default)
 
 **What it fixes:** long AI thinking late in a game on big maps (several seconds per AI move).
 
@@ -69,13 +69,13 @@ One subtlety: the original AI thinks in real-time slices, so how fast it runs ca
 
 ```ini
 [ai]
-fast_paths=1         ; 0 (default for now) = the game's own pathfinding
-remember_checks=1    ; the parts, one by one (default 1)
+fast_paths=1         ; 0 = the game's own pathfinding (default 1 since 2026-10-24)
+remember_checks=1    ; the parts, one by one (all default 1)
 fast_queue=1
-port_relax=1         ; the ported search core (default 0 while in testing)
+port_relax=1         ; the ported search core
 port_search=1
 port_expand=1
-fast_ashore=1        ; the fast "go ashore?" check (default 0 while in testing)
+fast_ashore=1        ; the fast "go ashore?" check
 ashore_check=0       ; 1 = also ask the game every time and log any difference (slow, for testing)
 max_expansions=0     ; EXPERIMENT, CHANGES THE AI'S PATHS: expand a tile at most N times per search (0 = off)
 ```

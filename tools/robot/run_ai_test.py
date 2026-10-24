@@ -86,8 +86,8 @@ def write_mod_settings(game, args, instance):
         value = getattr(args, attr, None)
         if value is not None:
             lines.append("%s=%d" % (key, value))
-    # [ai] = the fast pathfinding mod (src/mods/fast_paths.cpp), off by default
-    lines += ["[ai]", "fast_paths=%d" % (1 if getattr(args, "fast_paths", "off") == "on" else 0)]
+    # [ai] = the fast pathfinding mod (src/mods/fast_paths.cpp), on by default
+    lines += ["[ai]", "fast_paths=%d" % (1 if getattr(args, "fast_paths", "on") == "on" else 0)]
     lines += getattr(args, "ai_setting", None) or []  # e.g. port_relax=1
     mod_settings_file(game, instance).write_text("\n".join(lines) + "\n", encoding="ascii")
 
@@ -347,8 +347,9 @@ def main():
     p.add_argument("--profile-ai", action="store_true",
                    help="sample where the AI spends its thinking time (ai-profile.txt, profile_report.py)")
     p.add_argument("--dll", help="hook DLL to install (default build/hook/dinput8.dll), e.g. a frozen copy for batch runs")
-    p.add_argument("--fast-paths", choices=["on", "off"], default="off",
-                   help="the fast pathfinding mod (src/mods/fast_paths.cpp); compare with --trace-paths runs")
+    p.add_argument("--fast-paths", choices=["on", "off"], default="on",
+                   help="the fast pathfinding mod (src/mods/fast_paths.cpp; on by default, like for players); "
+                        "off = the game's own pathfinding")
     p.add_argument("--ai-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="extra [ai] setting for the mods, e.g. port_relax=1 (repeatable)")
     p.add_argument("--quick-combat", action="store_true",
