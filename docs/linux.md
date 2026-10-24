@@ -38,6 +38,8 @@ Both PCs must run exactly the same game files: the same MMH5.5 version and the s
 3. Copy everything **inside** its `Heroes of Might and Magic 5 Tribes of the East` folder into the folder Steam opened. Choose **Replace** / **Overwrite all**.
 4. Check that the `bin` folder now holds `MMH55_Utility_64.exe` and `dinput8.dll`.
 
+To install or update **only our DLL** later (a new open-homm5 version), use the package instead: extract `open-homm5-<version>.zip` and run `bash install.sh` in its folder. It finds the game, copies `dinput8.dll` into `bin`, and prints the launch option of step 3.
+
 From now on, never click **Verify integrity of game files** in Steam: it would undo MMH5.5. If Steam ever updates the game, copy the host's files again.
 
 ### 3. Set the launch options
