@@ -80,9 +80,37 @@ for (var i = 0; i < 400; i++) {
     teams: teams, perTeam: perTeam, teamZones: rnd(3), borderZones: rnd(3), centreZones: rnd(3),
     borderTowns: rnd(2) === 1, teamTowns: rnd(2) === 1, allyLink: rnd(2) ? "weak" : "open",
     startMines: rnd(2) ? "all" : "woodore", loot: loots[rnd(loots.length)], guards: guards[rnd(guards.length)],
+    lootByDistance: { "0": rnd(2) ? loots[rnd(loots.length)] : "", "2": loots[rnd(loots.length)] },
+    guardsByDistance: { "1": rnd(2) ? guards[rnd(guards.length)] : "", "3": guards[rnd(guards.length)] },
     underground: rnd(2) === 1
   }, "random " + i + " (" + teams + "x" + perTeam + ")");
 }
+
+// Loot and guards by distance from the bases.
+(function () {
+  var base = { teams: 3, perTeam: 2, teamZones: 1, borderZones: 3, centreZones: 1 };
+  var plain = TM.makeTemplate(base);
+  var tiered = TM.makeTemplate(Object.assign({}, base, {
+    lootByDistance: { "1": "poor", "3": "veryrich" }, guardsByDistance: { "2": "strong" } }));
+  var dist = tiered.graph.distance;
+  check(dist.indexOf(0) === 0 && Math.max.apply(null, dist) >= 2, "tiers: distances computed");
+  var expect = { "1": TM.LOOT.poor.value, "3": TM.LOOT.veryrich.value };
+  tiered.template.Zones.forEach(function (z, i) {
+    var p = plain.template.Zones[i].TreasureBlocksTotalValue, t = z.TreasureBlocksTotalValue;
+    var k = String(Math.min(dist[i], 3)), f = expect[k];
+    if (f) check(Math.abs(t - Math.round(p * f / 1000) * 1000) <= 1000, "tiers: zone " + (i + 1) + " loot follows distance " + k);
+    else check(t === p, "tiers: zone " + (i + 1) + " (distance " + k + ") keeps the overall loot");
+  });
+  tiered.template.Connections.forEach(function (c, i) {
+    var d = Math.min(Math.max(dist[c.SourceZoneIndex - 1], dist[c.DestZoneIndex - 1]), 3);
+    var p = plain.template.Connections[i].GuardStrenght;
+    if (c.kind === "ally" || d !== 2) check(c.GuardStrenght === p, "tiers: path " + i + " keeps its guard");
+    else check(c.GuardStrenght === Math.max(1, Math.round(p * TM.GUARDS.strong.scale)), "tiers: path " + i + " into distance 2 is strong");
+  });
+  check(/-Tiers$/.test(tiered.name) && !/Tiers/.test(plain.name), "tiers: the name says so");
+  var counts = tiered.stats.byDistance;
+  check(counts[0] === 6 && counts.reduce(function (a, b) { return a + b; }, 0) === tiered.stats.zones, "tiers: zone counts by distance");
+})();
 
 // Too many players is refused.
 var refused = false;

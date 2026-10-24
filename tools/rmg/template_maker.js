@@ -97,6 +97,11 @@
     startMines: "all",   // "all" six resources, or "woodore" only
     loot: "normal",
     guards: "normal",
+    // Loot and guards by distance from the bases: keys 0 (start zones), 1 (next
+    // to a base), 2 (two steps away), 3 (three or more); a missing key uses
+    // `loot` / `guards`. A path's guard follows the farther of its two zones.
+    lootByDistance: {},
+    guardsByDistance: {},
     size: "auto",        // a SIZES key, or "auto": the best fit
     underground: true,
     name: ""             // empty: built from the choices
@@ -177,9 +182,24 @@
     return { zones: zones, links: links };
   }
 
-  function zoneFields(kind, index, o, dwellingTier) {
+  // Steps from each zone to the nearest start zone (0 for start zones).
+  function distances(g) {
+    var adj = g.zones.map(function () { return []; });
+    g.links.forEach(function (l) { adj[l[0]].push(l[1]); adj[l[1]].push(l[0]); });
+    var dist = g.zones.map(function (z) { return z.kind === "start" ? 0 : Infinity; });
+    var todo = [];
+    dist.forEach(function (d, i) { if (d === 0) todo.push(i); });
+    while (todo.length) {
+      var a = todo.shift();
+      adj[a].forEach(function (b) { if (dist[b] > dist[a] + 1) { dist[b] = dist[a] + 1; todo.push(b); } });
+    }
+    return dist;
+  }
+  function tierOf(d) { return String(Math.min(d, 3)); }
+
+  function zoneFields(kind, index, o, dwellingTier, lootKey) {
     var r = clone(RECIPES[kind]);
-    var loot = LOOT[o.loot];
+    var loot = LOOT[lootKey];
     r.Index = index;
     r.Setting = "RACE_RANDOM_TYPE";
     r.CanBeWater = false;
@@ -200,10 +220,10 @@
     return r;
   }
 
-  function guardValue(kind, o) {
+  function guardValue(kind, o, guardKey) {
     if (kind === "ally" && o.allyLink === "open") return 0;
     var g = GUARD[kind];
-    return kind === "ally" ? g : Math.max(1, Math.round(g * GUARDS[o.guards].scale));
+    return kind === "ally" ? g : Math.max(1, Math.round(g * GUARDS[guardKey].scale));
   }
 
   function chooseSize(o, zoneCount) {
@@ -224,7 +244,7 @@
 
   // The template's XML, laid out like the game's own files (UTF-8 with BOM).
   function toXml(t) {
-    var out = ["﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>", "<RMGTemplate>",
+    var out = ["\ufeff<?xml version=\"1.0\" encoding=\"UTF-8\"?>", "<RMGTemplate>",
       "  <Editor name=\"open-homm5 template maker\" version=\"1\" />",
       "  <NameFileRef href=\"\" />", "  <DescriptionFileRef href=\"\" />",
       "  <Name>" + xmlValue(t.Name) + "</Name>", "  <Zones>"];
@@ -274,8 +294,15 @@
     if (players > 8) throw new Error("the game allows at most 8 players (" + players + " asked)");
     if (!LOOT[o.loot]) throw new Error("unknown loot level " + o.loot);
     if (!GUARDS[o.guards]) throw new Error("unknown guard level " + o.guards);
+    var lootBy = o.lootByDistance || {}, guardsBy = o.guardsByDistance || {};
+    Object.keys(lootBy).forEach(function (k) { if (lootBy[k] && !LOOT[lootBy[k]]) throw new Error("unknown loot level " + lootBy[k]); });
+    Object.keys(guardsBy).forEach(function (k) { if (guardsBy[k] && !GUARDS[guardsBy[k]]) throw new Error("unknown guard level " + guardsBy[k]); });
+    function lootAt(d) { return lootBy[tierOf(d)] || o.loot; }
+    function guardsAt(d) { return guardsBy[tierOf(d)] || o.guards; }
 
     var g = graph(o);
+    var dist = distances(g);
+    g.distance = dist;
     var size = chooseSize(o, g.zones.length);
     var mapArea = area(size, o.underground);
     var perZone = Math.round(mapArea / g.zones.length);
@@ -286,20 +313,25 @@
 
     var tier = 0;
     var zones = g.zones.map(function (z, i) {
-      return zoneFields(z.kind, i + 1, o, z.kind === "border" ? tier++ : 0);
+      return zoneFields(z.kind, i + 1, o, z.kind === "border" ? tier++ : 0, lootAt(dist[i]));
     });
     var richest = Math.max.apply(null, zones.map(function (z) { return z.TreasureBlocksTotalValue; }));
     if (richest > MAX_SHIPPED_VALUE)
       warnings.push("Some zones hold more treasure (" + richest + ") than any shipped template (" +
         MAX_SHIPPED_VALUE + "); not tested in the game yet.");
     var connections = g.links.map(function (l) {
-      var guard = guardValue(l[2], o);
+      var guard = guardValue(l[2], o, guardsAt(Math.max(dist[l[0]], dist[l[1]])));
       return { SourceZoneIndex: l[0] + 1, DestZoneIndex: l[1] + 1, GuardStrenght: guard, Guarded: guard > 0, kind: l[2] };
     });
 
+    var tiered = ["0", "1", "2", "3"].some(function (k) {
+      return (lootBy[k] && lootBy[k] !== o.loot) || (guardsBy[k] && guardsBy[k] !== o.guards);
+    });
     var thousands = mapArea / 1000;
     var name = o.name || ["OH", layoutName(o), size.key + (o.underground ? "u" : ""), LOOT[o.loot].label.replace(" ", ""),
-      (o.borderTowns || o.teamTowns) ? "Towns" : null].filter(Boolean).join("-");
+      (o.borderTowns || o.teamTowns) ? "Towns" : null, tiered ? "Tiers" : null].filter(Boolean).join("-");
+    var byDistance = [0, 0, 0, 0];
+    dist.forEach(function (d) { byDistance[Math.min(d, 3)]++; });
     var template = {
       Name: name, Zones: zones, Connections: connections,
       MinPlayers: 2, MaxPlayers: players,
@@ -317,7 +349,8 @@
         players: players, zones: zones.length, size: size.name + " (" + size.side + "x" + size.side +
           (o.underground ? ", with underground" : "") + ")",
         tilesPerZone: perZone, connections: connections.length,
-        neutralZones: zones.length - players
+        neutralZones: zones.length - players,
+        byDistance: byDistance   // zone counts at 0, 1, 2 and 3+ steps from a base
       }
     };
   }

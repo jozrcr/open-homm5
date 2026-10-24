@@ -91,6 +91,13 @@
   .status { color: var(--muted); font-size: 0.92rem; }
   ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; max-width: 65ch; }
   details summary { cursor: pointer; color: var(--muted); }
+  #tiers summary { color: var(--accent); font-weight: 700; }
+  .tiers { display: grid; gap: 14px; margin-top: 10px; }
+  .tier { display: grid; gap: 8px; border-left: 3px solid var(--line); padding-left: 12px; }
+  .tier-name { font-weight: 700; }
+  .tier-name small { color: var(--muted); font-weight: 400; }
+  .tier .row { grid-template-columns: 4.5em minmax(0, 1fr); }
+  .tier .seg { justify-self: start; }
   pre { margin: 8px 0 0; max-height: 280px; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 0.8rem; }
   .note { color: var(--muted); font-size: 0.92rem; max-width: 65ch; margin: 0; }
   @media (prefers-reduced-motion: no-preference) { .map line, .map circle { transition: opacity 0.2s; } }
@@ -130,6 +137,23 @@
         <legend><h2>Loot and guards</h2></legend>
         <div class="row"><label>Loot</label><span class="seg" data-key="loot" data-options="poor:Poor,normal:Normal,rich:Rich,veryrich:Very rich"></span></div>
         <div class="row"><label>Guards on paths</label><span class="seg" data-key="guards" data-options="weak:Weak,normal:Normal,strong:Strong"></span></div>
+        <details id="tiers">
+          <summary>By distance from the bases</summary>
+          <div class="tiers">
+            <p class="note">Distance counts the zones crossed from the nearest start zone. "Same" uses the overall level above. A path's guard follows the zone it leads into.</p>
+            <div class="tier"><span class="tier-name">Start zones</span>
+              <div class="row"><label>Loot</label><span class="seg" data-key="lootByDistance.0" data-options=":Same,poor:Poor,normal:Normal,rich:Rich,veryrich:Very rich"></span></div></div>
+            <div class="tier"><span class="tier-name">Next to a base <small id="tier1count"></small></span>
+              <div class="row"><label>Loot</label><span class="seg" data-key="lootByDistance.1" data-options=":Same,poor:Poor,normal:Normal,rich:Rich,veryrich:Very rich"></span></div>
+              <div class="row"><label>Guards</label><span class="seg" data-key="guardsByDistance.1" data-options=":Same,weak:Weak,normal:Normal,strong:Strong"></span></div></div>
+            <div class="tier"><span class="tier-name">Two steps away <small id="tier2count"></small></span>
+              <div class="row"><label>Loot</label><span class="seg" data-key="lootByDistance.2" data-options=":Same,poor:Poor,normal:Normal,rich:Rich,veryrich:Very rich"></span></div>
+              <div class="row"><label>Guards</label><span class="seg" data-key="guardsByDistance.2" data-options=":Same,weak:Weak,normal:Normal,strong:Strong"></span></div></div>
+            <div class="tier"><span class="tier-name">Further away <small id="tier3count"></small></span>
+              <div class="row"><label>Loot</label><span class="seg" data-key="lootByDistance.3" data-options=":Same,poor:Poor,normal:Normal,rich:Rich,veryrich:Very rich"></span></div>
+              <div class="row"><label>Guards</label><span class="seg" data-key="guardsByDistance.3" data-options=":Same,weak:Weak,normal:Normal,strong:Strong"></span></div></div>
+          </div>
+        </details>
         <p class="note">Monster strength itself is still chosen on the game's generator screen.</p>
       </fieldset>
 
@@ -185,7 +209,19 @@
     { label: "6 players with towns", o: { teams: 6, perTeam: 1, teamZones: 1, borderZones: 1, centreZones: 1, borderTowns: true } },
     { label: "3 vs 3 very rich", o: { teams: 2, perTeam: 3, teamZones: 1, borderZones: 2, centreZones: 2, borderTowns: true, loot: "veryrich" } }
   ];
-  var state = Object.assign({}, TM.DEFAULTS, PRESETS[0].o);
+  function fresh(o) {
+    return Object.assign({}, TM.DEFAULTS, o, { lootByDistance: {}, guardsByDistance: {} });
+  }
+  // Keys like "lootByDistance.2" reach into the per-distance settings.
+  function get(key) {
+    var p = key.split(".");
+    return p.length === 1 ? state[key] : (state[p[0]][p[1]] || "");
+  }
+  function set(key, v) {
+    var p = key.split(".");
+    if (p.length === 1) state[key] = v; else state[p[0]][p[1]] = v;
+  }
+  var state = fresh(PRESETS[0].o);
   var current = null, activePreset = 0;
   var form = document.getElementById("choices");
 
@@ -208,7 +244,7 @@
   PRESETS.forEach(function (p, i) {
     var b = el("button", { type: "button", "class": "chip", "aria-pressed": "false" }, p.label);
     b.addEventListener("click", function () {
-      state = Object.assign({}, TM.DEFAULTS, p.o, { underground: state.underground, name: "" });
+      state = fresh(Object.assign({}, p.o, { underground: state.underground, name: "" }));
       activePreset = i;
       sync();
     });
@@ -218,7 +254,7 @@
   // Steppers and segmented choices.
   form.querySelectorAll(".stepper").forEach(function (s) {
     var key = s.dataset.key, min = +s.dataset.min, max = +s.dataset.max;
-    var minus = el("button", { type: "button", "aria-label": "fewer" }, "−");
+    var minus = el("button", { type: "button", "aria-label": "fewer" }, String.fromCharCode(0x2212));
     var out = el("output", {});
     var plus = el("button", { type: "button", "aria-label": "more" }, "+");
     minus.addEventListener("click", function () { if (state[key] > min) { state[key]--; changed(); } });
@@ -230,7 +266,7 @@
     s.dataset.options.split(",").forEach(function (pair) {
       var v = pair.split(":")[0], text = pair.split(":")[1];
       var b = el("button", { type: "button", "data-value": v, "aria-pressed": "false" }, text);
-      b.addEventListener("click", function () { state[key] = v; changed(); });
+      b.addEventListener("click", function () { set(key, v); changed(); });
       s.appendChild(b);
     });
   });
@@ -245,7 +281,7 @@
   function sync() {
     form.querySelectorAll(".stepper").forEach(function (s) { s.querySelector("output").textContent = state[s.dataset.key]; });
     form.querySelectorAll(".seg").forEach(function (s) {
-      s.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.value === state[s.dataset.key])); });
+      s.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.value === get(s.dataset.key))); });
     });
     form.querySelectorAll("input[type=checkbox]").forEach(function (c) { c.checked = !!state[c.dataset.key]; });
     document.getElementById("name").value = state.name || "";
@@ -347,18 +383,22 @@
      ["Tiles per zone", st.tilesPerZone.toLocaleString("en")], ["Paths", st.connections]].forEach(function (p) {
       var d = el("div"); d.append(el("dt", {}, p[0]), el("dd", {}, String(p[1]))); stats.appendChild(d);
     });
+    var by = st.byDistance;
+    ["", "tier1count", "tier2count", "tier3count"].forEach(function (id, d) {
+      if (id) document.getElementById(id).textContent = "(" + by[d] + (by[d] === 1 ? " zone)" : " zones)");
+    });
     warnings.innerHTML = "";
     warnings.hidden = !current.warnings.length;
     current.warnings.forEach(function (w) { warnings.appendChild(el("p", {}, w)); });
     document.getElementById("filename").textContent = "data\\RMG\\Templates\\" + current.fileName;
-    document.getElementById("xml").textContent = current.xml.replace(/^﻿/, "");
+    document.getElementById("xml").textContent = current.xml.replace(/^\ufeff/, "");
   }
 
   // The file: a zip with data/RMG/Templates/<name>.xdb, ready to extract into the game folder.
   document.getElementById("download").addEventListener("click", function () {
     var status = document.getElementById("status");
     if (!current) return;
-    status.textContent = "Preparing the file…";
+    status.textContent = "Preparing the file...";
     var downloads = window.claude && window.claude.use ? window.claude.use("downloads") : Promise.resolve(null);
     var zip = new JSZip();
     zip.file("data/RMG/Templates/" + current.fileName, current.xml);
@@ -375,7 +415,7 @@
   document.getElementById("copy").addEventListener("click", function () {
     var status = document.getElementById("status");
     if (!current) return;
-    var text = current.xml.replace(/^﻿/, "");
+    var text = current.xml.replace(/^\ufeff/, "");
     var done = function () { status.textContent = "Copied. Save it as " + current.fileName + " in data\\RMG\\Templates\\."; };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done, function () {
