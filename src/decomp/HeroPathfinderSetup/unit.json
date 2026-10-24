@@ -1,0 +1,20 @@
+{
+  "sources": [
+    "HeroPathfinderSetup.cpp"
+  ],
+  "subsystem": "ai",
+  "functions": {
+    "00c070c0": "?Greater@SCost@@QBE_NABU1@@Z",
+    "00c07100": "?SetField_dc@CHeroPathfinder@@QAEXH@Z",
+    "00c071b0": "?MovesAt@CHeroPathfinder@@QAEIPBUSPos@@@Z",
+    "00c07230": "?MovesAtChecked@CHeroPathfinder@@QAEIPBUSPos@@@Z",
+    "00c07260": "?BoatCounterAt@CHeroPathfinder@@QAEIPBUSPos@@@Z",
+    "00c072d0": "?Visitable@CHeroPathfinder@@QAE_NPBUSPos@@@Z",
+    "00c07860": "??0CHeroPathfinder@@QAE@XZ",
+    "00c07a30": "?SetRefA@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
+    "00c07a80": "?SetRefB@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
+    "00c07ad0": "?SetRefC@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
+    "00c07b20": "?SetWeak94@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z",
+    "00c07b60": "?SetWeakA4@CHeroPathfinder@@QAEXPAVCRefObjA@@@Z"
+  }
+}
