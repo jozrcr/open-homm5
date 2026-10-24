@@ -78,6 +78,41 @@ These steps come from the generator's log strings.
   - It has a script, `H55_TeamHumansvsAI()` (`H55-Core.lua`), that puts all humans on team 1 and all AI on team 2.
   - It only runs when map scripts are active, which random LAN maps don't have. MMH5.5's `MMH55_Mapmixer.exe` post-processes a generated map to add them.
 
+## Teams in the lobby (static reading, 2026-10-25; not yet checked in a game)
+
+**On normal maps, the lobby doesn't choose teams either.** Teams are map data: `players[].Team` with `CustomTeams`. The lobby's team arrows only move a player to another **open start slot**, which belongs to some team. The sizes of the teams never change. The game's own manual says the same: alliances are fixed by the map.
+
+**The pieces:**
+- **UI:**
+  - The multiplayer lobby is `UI/MPWait`. Each player row is `UI/MPWait/PlayersList/ItemElements`, with the arrows `team_color_left` and `team_color_right` ("Choose a team"), `TeamIcon` and `TeamNumber`.
+  - The single-player custom game screen reuses the same rows.
+  - The hotseat lobby has no team widgets.
+- **Row:** `NUI::CMPWaitItem` (vtable `0x00e39c94`).
+  - The arrow handlers `0x00713860` and `0x00713880` queue a request (type 2 = team, direction).
+  - `0x0071ded0` sends it to the host as `CMPWaitChangeRequest`.
+  - The host handles it in `NUI::CMPUbiComWaitHostLogic` `0x0071f3d0`, case 2.
+  - The lock mask is built in `0x0071e7b0` (bit 4: team locked).
+- **Data:** `NWorld::CPlayersStartInfo` (vtable `0x00e92744`, 0x74 bytes).
+  - Its slots have a stride of 0x8c: +0 state (0 open, 1 AI, 2 human, 3 closed), +4 id, +8 shown position, +0x18 race, **+0x1c team**, +0x24 client id.
+  - `CanChangeTeam` is `0x00c9d740` (vtable slot `0x00e92770`). It allows a change when another open slot exists, and never looks at `CustomTeams`, random maps or the game mode.
+  - `SetTeam` is `0x00c9e660` (slot `0x00e92774`). It swaps the occupants of two slots; a slot's own team never changes.
+  - The constructor `0x00ca0240` reads `CustomTeams`: if it is set, the slot teams come from `Player.Team`; otherwise every slot gets its own team.
+- **How teams reach the other PCs:** through the **game setup**, not the map.
+  - The host's start function `0x0071feb0` builds `NMP::CMPStart` (0x98 bytes), which carries the host's whole `CPlayersStartInfo`, teams included. Field 7 of the slot serializer `0x007386d0` is the team.
+  - Clients create their players from it (`0x00c9fa80` → `0x004ffa50` → `0x004ff2a0`; the team is at player +0x15c).
+  - The regenerated map's `Team` fields are not read again.
+- **Lobby display:** the host's team command `CMPWaitChangeTeamUICommand` is only sent when a slot's shown position changes (`0x0071e67d`), not when only its team does.
+
+**So for random maps:**
+- **Changing only the host's slot teams before `CMPStart` is built** should give every PC the same teams, with no determinism needed. It might even work for players without our DLL. This is the plan's step B:
+  1. a "humans vs AI" option;
+  2. free team numbers on the existing arrows, by replacing `CanChangeTeam` and `SetTeam` for random maps and sending the team command when only the team changes.
+- **To check with the robot:**
+  - what the arrows do (dump the slots around `0x00c9e660`);
+  - that the teams arrive on a client (`0x00820830`, player +0x15c) with no desync;
+  - which player gets which start zone of a template;
+  - the single-player screen's request path.
+
 ## Multiplayer: every PC generates the map itself
 
 - **What travels:** the generated `map.xdb` ends with `sRMGProps` (template, parameters, seed). With `RMGmap` = true, each client **regenerates** the same map from those, instead of downloading it.
