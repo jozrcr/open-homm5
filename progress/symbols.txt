@@ -3,3 +3,5 @@
 # every call/jump/data reference in a matched function points to the right place.
 # Format: address  mangled-name   # comment
 00401330  ?Func00401330@CGameTimer@NGameTimer@@QAEXHH@Z   # called by CGameTimer slot 21
+008791f0  ??_U@YAPAXI@Z   # operator new[] (thunk to 00878fd0, the allocator); the exe may use one function for new and new[]
+00879240  ??_V@YAXPAX@Z   # operator delete[] (thunk to 008790b0)

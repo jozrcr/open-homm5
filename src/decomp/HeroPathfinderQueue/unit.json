@@ -4,6 +4,9 @@
   ],
   "subsystem": "ai",
   "functions": {
-    "00c08fd0": "?NodeLess@@YI_NABUNode@@0@Z"
+    "00c08f30": "?Alloc@?$Array2D@UNode@@@@QAEXXZ",
+    "00c08fd0": "?NodeLess@@YI_NABUNode@@0@Z",
+    "00c09110": "?Copy@?$Array2D@UNode@@@@QAEXABU1@@Z",
+    "00c093e0": "??4?$Array2D@UNode@@@@QAEAAU0@ABU0@@Z"
   }
 }
