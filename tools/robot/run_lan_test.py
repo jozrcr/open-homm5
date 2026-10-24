@@ -54,6 +54,7 @@ def instance_args(args, name, steps):
         trace_ai_busy=args.trace_ai_busy, ai_busy_ignore_end=args.ai_busy_ignore_end, trace_hello=args.trace_hello,
         trace_moves=args.trace_moves,
         coop_setting=args.host_coop if name == "host" else args.client_coop,
+        audio_setting=args.host_audio if name == "host" else args.client_audio,
         fast_paths=args.fast_paths, ai_setting=args.ai_setting,
         # the client never runs the AI (the host does), so "no AI step for 4
         # turn ends" means nothing there
@@ -87,6 +88,10 @@ def main():
                    help="[coop] setting for the host copy only, e.g. fast_segments=0 (co-op timing guard)")
     p.add_argument("--client-coop", action="append", default=[], metavar="KEY=VALUE",
                    help="[coop] setting for the client copy only, e.g. guard=0 (as if it had no DLL)")
+    p.add_argument("--host-audio", action="append", default=[], metavar="KEY=VALUE",
+                   help="[audio] setting for the host copy only, e.g. original_music=1")
+    p.add_argument("--client-audio", action="append", default=[], metavar="KEY=VALUE",
+                   help="[audio] setting for the client copy only, e.g. log_music=1")
     p.add_argument("--trace-moves", action="store_true", help="log the start-move command and the instant-walk decision")
     p.add_argument("--trace-hello", action="store_true",
                    help="EXPERIMENT: both copies send co-op guard hellos and log their order")

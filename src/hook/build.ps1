@@ -18,17 +18,21 @@ if (-not $vcvars) {
 }
 if (-not $vcvars) { throw "no Visual Studio found; set HOOK_VCVARS to vcvarsall.bat" }
 
-$sources = "dllmain.cpp", "log.cpp", "game_build.cpp", "hooks.cpp", "ai_trace.cpp", "robot.cpp", "robot_input.cpp", "robot_endturn.cpp", "robot_trace.cpp", "robot_menu.cpp", "robot_screen.cpp", "robot_ui.cpp", "robot_lobby.cpp", "robot_net.cpp", "robot_profile.cpp", "robot_paths.cpp", "robot_clock.cpp", "patch.cpp", "..\mods\net_tuning.cpp", "..\mods\lan_discovery.cpp", "..\mods\coop_guard.cpp", "..\mods\fast_paths.cpp", "..\mods\fast_paths_relax.cpp", "..\mods\fast_paths_search.cpp", "..\mods\fast_paths_expand.cpp", "..\mods\fast_paths_ashore.cpp" | ForEach-Object { "`"$src\$_`"" }
+$sources = "dllmain.cpp", "log.cpp", "game_build.cpp", "hooks.cpp", "ai_trace.cpp", "robot.cpp", "robot_input.cpp", "robot_endturn.cpp", "robot_trace.cpp", "robot_menu.cpp", "robot_screen.cpp", "robot_ui.cpp", "robot_lobby.cpp", "robot_net.cpp", "robot_profile.cpp", "robot_paths.cpp", "robot_clock.cpp", "patch.cpp", "..\mods\net_tuning.cpp", "..\mods\lan_discovery.cpp", "..\mods\coop_guard.cpp", "..\mods\fast_paths.cpp", "..\mods\fast_paths_relax.cpp", "..\mods\fast_paths_search.cpp", "..\mods\fast_paths_expand.cpp", "..\mods\fast_paths_ashore.cpp", "..\mods\original_music.cpp", "..\mods\original_music_xdb.cpp"
+# Source paths are relative to src\hook (the build runs there): with the full
+# path of a deep folder, the command line grew past cmd's 8191 characters.
 $flags = "/nologo /O2 /MT /W4 /WX /EHsc /std:c++17 /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN"
 # /GL + /LTCG: whole-program optimization of our own code (the AI pathfinding
 # mod calls small helpers across files thousands of times per search)
-$dll = "cl $flags /GL /LD $($sources -join ' ') /Fo`"$out\\`" /Fe`"$out\dinput8.dll`" /link /LTCG /DEF:`"$src\dinput8.def`" /MAP:`"$out\dinput8.map`" user32.lib dxguid.lib iphlpapi.lib"
-$cmd = "call `"$vcvars`" x86 >nul 2>&1 && $dll"
+$dll = "cl $flags /GL /LD $($sources -join ' ') /Fo`"$out\\`" /Fe`"$out\dinput8.dll`" /link /LTCG /DEF:dinput8.def /MAP:`"$out\dinput8.map`" user32.lib dxguid.lib iphlpapi.lib"
+$cmd = "call `"$vcvars`" x86 >nul 2>&1 && cd /d `"$src`" && $dll"
 if ($Test) {
-    $cmd += " && cl $flags `"$src\test\proxy_test.cpp`" /Fo`"$out\\`" /Fe`"$out\proxy_test.exe`" dxguid.lib"
+    $cmd += " && cl $flags test\proxy_test.cpp /Fo`"$out\\`" /Fe`"$out\proxy_test.exe`" dxguid.lib"
     # calling-convention test of the AI hook: debug build with runtime stack checks (/RTCs)
     $tflags = "/nologo /Od /RTCs /MTd /W4 /WX /EHsc /std:c++17 /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN /DAI_TRACE_TEST"
-    $cmd += " && cl $tflags `"$src\test\ai_trace_test.cpp`" `"$src\ai_trace.cpp`" `"$src\log.cpp`" `"$src\robot.cpp`" `"$src\robot_input.cpp`" `"$src\robot_endturn.cpp`" `"$src\robot_trace.cpp`" `"$src\robot_menu.cpp`" `"$src\robot_screen.cpp`" `"$src\robot_ui.cpp`" `"$src\robot_lobby.cpp`" `"$src\robot_net.cpp`" `"$src\robot_profile.cpp`" `"$src\robot_paths.cpp`" `"$src\robot_clock.cpp`" `"$src\patch.cpp`" `"$src\..\mods\fast_paths.cpp`" `"$src\..\mods\fast_paths_relax.cpp`" `"$src\..\mods\fast_paths_search.cpp`" `"$src\..\mods\fast_paths_expand.cpp`" `"$src\..\mods\fast_paths_ashore.cpp`" `"$src\game_build.cpp`" /Fo`"$out\\`" /Fe`"$out\ai_trace_test.exe`" dxguid.lib user32.lib"
+    # the "original music" mod's text work (no game needed)
+    $cmd += " && cl $flags test\original_music_test.cpp ..\mods\original_music_xdb.cpp /Fo`"$out\\`" /Fe`"$out\original_music_test.exe`""
+    $cmd += " && cl $tflags test\ai_trace_test.cpp ai_trace.cpp log.cpp robot.cpp robot_input.cpp robot_endturn.cpp robot_trace.cpp robot_menu.cpp robot_screen.cpp robot_ui.cpp robot_lobby.cpp robot_net.cpp robot_profile.cpp robot_paths.cpp robot_clock.cpp patch.cpp ..\mods\fast_paths.cpp ..\mods\fast_paths_relax.cpp ..\mods\fast_paths_search.cpp ..\mods\fast_paths_expand.cpp ..\mods\fast_paths_ashore.cpp game_build.cpp /Fo`"$out\\`" /Fe`"$out\ai_trace_test.exe`" dxguid.lib user32.lib"
 }
 # vcvarsall prints a harmless vswhere warning on stderr (silenced above);
 # PowerShell 5.1 would turn any native stderr line into an error.
@@ -48,5 +52,7 @@ if ($Test) {
         Remove-Item -ErrorAction SilentlyContinue open-homm5.log
         & (Join-Path $out "ai_trace_test.exe")
         if ($LASTEXITCODE -ne 0) { throw "AI trace test failed" }
+        & (Join-Path $out "original_music_test.exe")
+        if ($LASTEXITCODE -ne 0) { throw "original music test failed" }
     } finally { Pop-Location }
 }
