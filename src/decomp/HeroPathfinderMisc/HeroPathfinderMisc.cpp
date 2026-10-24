@@ -116,7 +116,9 @@ public:
 	bool m_flag;           // +0x20
 
 	CBonusList();                                   // 0x00c0a870
+	CBonusList(const CBonusList &o);                // 0x00434350 (not decompiled)
 	~CBonusList() { if (m_vec.begin) Free_00879240(m_vec.begin); }
+	bool Equals(const CBonusList *o);               // 0x006404d0 (not decompiled)
 
 	void GetTotal(SBonus *out);                     // 0x00c0a2c0
 	int Count();                                    // 0x00c0a440
@@ -133,8 +135,8 @@ int __fastcall BonusLevel(int kind, int n);         // 0x00c0a2f0
 // FUNCTION: 0x00c0a2f0
 int __fastcall BonusLevel(int kind, int n)
 {
-	if (n <= 0)
-		n = 1;
+	int m = (n > 0) ? n : 1;
+	n = m;
 	switch (kind) {
 	case 1: case 4:
 		return n / 5 + 1;
@@ -144,7 +146,8 @@ int __fastcall BonusLevel(int kind, int n)
 		double t = log(n * 10.0) / log(600.0);
 		t = t * t * t;
 		t = (t < 1.0) ? t : 1.0;
-		return (int)(Func_0046eae0((float)(t * 1.5707964f)) * 85.0);
+		float s = Func_0046eae0((float)(t * 1.5707964f));
+		return (int)(s * 85.0);
 	}
 	case 7:
 		return n / 10 + 1;
@@ -320,5 +323,119 @@ void __fastcall FillIds(SIntVec *v)
 		v->PushBack(8);
 		v->PushBack(9);
 		v->PushBack(10);
+	}
+}
+
+// ---------------------------------------------------------------------------
+// CGrid: a grid of CBonusList cells. Rows are 16 bytes (a vector of cells),
+// cells are 40 bytes: a "used" byte and the CBonusList at +4.
+
+struct SCell {
+	char used;                 // +0
+	CBonusList item;           // +4
+};
+
+struct SRow {
+	SCell *begin;              // +0
+	SCell *end;                // +4
+	SCell *cap;                // +8
+	int pad;                   // +0xc
+
+	CBonusList *At(int col);                        // 0x00c0b780 (not decompiled)
+	bool IsUsed(int col);                           // 0x00c0b700 (not decompiled)
+	void Set(int col, const CBonusList *item);      // 0x00c0bcc0 (not decompiled)
+};
+
+class CGrid {
+public:
+	SRow *m_begin;             // +0
+	SRow *m_end;               // +4
+	SRow *m_cap;               // +8
+
+	int ColCount(int row);                          // 0x00433d20 (not decompiled)
+	CBonusList *GetItem(int row, int col);          // 0x00c0ac80
+	bool SameContents(CGrid *other);                // 0x00c0ad30
+	void SwapItems(int r1, int c1, int r2, int c2); // 0x00c0af20
+};
+
+// FUNCTION: 0x00c0ac80
+CBonusList *CGrid::GetItem(int row, int col)
+{
+	SRow *rows;
+	if (row >= 0 && row < m_end - (rows = m_begin) && col >= 0 && col < ColCount(row))
+		return rows[row].At(col);
+	static CBonusList s_empty;
+	return &s_empty;
+}
+
+// ---------------------------------------------------------------------------
+// Reference-counted things (refcount at +8) and the two helpers that change it.
+
+struct SRefObj {
+	int a;
+	int b;
+	int refs;                  // +8
+};
+
+SRefObj * __fastcall Func_00c75330(void *p, void *q);   // 0x00c75330: returns p
+void __fastcall Func_008c6150(SRefObj *o);              // 0x008c6150: destroys o
+SRefObj * __fastcall Func_00ada320(int handle);         // 0x00ada320: handle -> object
+
+// A smart pointer to an SRefObj with a flag byte; Get() is at 0x00ae3e90.
+struct SHolder {
+	SRefObj *ptr;              // +0
+	char flag;                 // +4
+	char *Get();               // 0x00ae3e90
+};
+
+struct SHandle {
+	int a;
+	int b;
+	void Assign(const void *src);                       // 0x00415520
+};
+
+// A source record: a vector of 8-byte entries at +0 (begin, end), a handle at +0x1c.
+struct SSource {
+	char *begin;               // +0
+	char *end;                 // +4
+	int pad[5];
+	int handle;                // +0x1c
+};
+
+// Something that holds a count, a handle and a SHolder (0x10 bytes + flag).
+struct SOwner {
+	int count;                 // +0
+	SHandle h;                 // +4
+	SHolder holder;            // +0xc
+};
+
+// FUNCTION: 0x00c0ae80
+void __fastcall SetupOwner(SOwner *p, SSource *q)
+{
+	if (p && q) {
+		SRefObj *obj = Func_00ada320(q->handle);
+		SRefObj *old = p->holder.ptr;
+		SHolder *hp = &p->holder;
+		hp->ptr = obj;
+		if (obj)
+			obj->refs++;
+		if (old) {
+			if (--old->refs == 0)
+				Func_008c6150(old);
+		}
+		hp->flag = 0;
+		int n = (q->end - q->begin) >> 3;
+		p->count = n;
+		switch (n) {
+		case 1:
+			p->h.Assign(hp->Get() + 0x5c);
+			break;
+		case 2:
+			p->h.Assign(hp->Get() + 0x64);
+			break;
+		case 3:
+			p->h.Assign(hp->Get() + 0x6c);
+			break;
+		}
 	}
 }

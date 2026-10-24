@@ -12,6 +12,7 @@
     "00c0a870": "??0CBonusList@@QAE@XZ",
     "00c0a8a0": "?Clear@CBonusList@@QAEXXZ",
     "00c0a8f0": "?Add@CBonusList@@QAEXHPAVIHeroLike@@@Z",
-    "00c0a9b0": "?FillIds@@YIXPAUSIntVec@@@Z"
+    "00c0a9b0": "?FillIds@@YIXPAUSIntVec@@@Z",
+    "00c0ae80": "?SetupOwner@@YIXPAUSOwner@@PAUSSource@@@Z"
   }
 }
