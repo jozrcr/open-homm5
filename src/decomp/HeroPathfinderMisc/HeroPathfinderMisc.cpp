@@ -386,6 +386,20 @@ struct SHolder {
 	SRefObj *ptr;              // +0
 	char flag;                 // +4
 	char *Get();               // 0x00ae3e90
+	void Assign(const void *src);                       // 0x00415520
+
+	// Drops the object (decrements its count, destroys it at 0) and clears the flag.
+	void Reset()
+	{
+		SRefObj *old = ptr;
+		ptr = 0;
+		if (old) {
+			SRefObj *r = Func_00c75330(old, old);
+			if (--r->refs == 0)
+				Func_008c6150(r);
+		}
+		flag = 0;
+	}
 };
 
 struct SHandle {
@@ -401,6 +415,57 @@ struct SSource {
 	int pad[5];
 	int handle;                // +0x1c
 };
+
+// A wide string (begin, end, capacity) and a localized text that resolves to one.
+struct SWStr {
+	unsigned short *begin;
+	unsigned short *end;
+	unsigned short *cap;
+	void Assign(const unsigned short *first, const unsigned short *last);     // 0x0040e960
+
+	void Clear()
+	{
+		if (begin != end) {
+			*begin = 0;
+			end = begin;
+		}
+	}
+};
+
+struct SLocText {
+	int x[6];
+	SWStr *Resolve();                                           // 0x004c7430
+};
+
+// A name, a description and an icon (a refcounted pointer with a flag).
+struct SName {
+	SWStr name;                // +0
+	SWStr desc;                // +0xc
+	SHolder icon;              // +0x18 (flag at +0x1c)
+};
+
+int Func_00acb3a0();                                    // 0x00acb3a0: number of records
+char * __fastcall Func_00ada2e0(int idx);               // 0x00ada2e0: record idx
+
+// FUNCTION: 0x00c0abc0
+void __fastcall ResetFrom(SName *p, int idx)
+{
+	if (p) {
+		p->name.Clear();
+		p->desc.Clear();
+		p->icon.Reset();
+		if (idx >= 0 && idx < Func_00acb3a0()) {
+			char *rec = Func_00ada2e0(idx);
+			SWStr *s = ((SLocText *)(rec + 0x44))->Resolve();
+			if (s != &p->name)
+				p->name.Assign(s->begin, s->end);
+			s = ((SLocText *)(rec + 0x5c))->Resolve();
+			if (s != &p->desc)
+				p->desc.Assign(s->begin, s->end);
+			p->icon.Assign(rec + 0x68);
+		}
+	}
+}
 
 // Something that holds a count, a handle and a SHolder (0x10 bytes + flag).
 struct SOwner {

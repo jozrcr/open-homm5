@@ -22,3 +22,8 @@
 00ae3e90  ?Get@SHolder@@QAEPADXZ   # smart pointer: returns the object it points to
 00415520  ?Assign@SHandle@@QAEXPBX@Z   # assigns a handle from a pointer
 00c75330  ?Func_00c75330@@YIPAUSRefObj@@PAX0@Z   # fastcall(p, p): returns p
+0040e960  ?Assign@SWStr@@QAEXPBG0@Z   # wide string assign(first, last)
+004c7430  ?Resolve@SLocText@@QAEPAUSWStr@@XZ   # localized text -> its wide string
+00415520  ?Assign@SHolder@@QAEXPBX@Z   # same function as SHandle::Assign, on a smart pointer (refcounted pointer + flag)
+00acb3a0  ?Func_00acb3a0@@YAHXZ   # number of records
+00ada2e0  ?Func_00ada2e0@@YIPADH@Z   # fastcall(idx) -> record pointer
