@@ -102,7 +102,7 @@ python tools\robot\run_lan_test.py --seconds 240 --turns 4 --host-rmg teams=huma
 python tools\robot\run_ai_test.py --no-map --seconds 45 --shot-every 0 --step "8|menu|single custom_game" --step "13|ui|NUI::CCustomGameCreateScreen rmg_screen" --step "18|shot|rmg-screen" --step "20|key|F11" --step "22|shot|builder" --step "24|key|F11" --step "26|shot|closed"
 ```
 
-- The log says `rmg builder: the random map screen is on top`, then `overlay: modal panel "rmg builder" open over .?AVCRMGScreen@NUI@@`, `rmg builder: first frame drawn (...)` and, after the second F11, `... closed (closed by its panel)`.
+- The log says `rmg builder: screen on top: .?AVCRMGScreen@NUI@@ (the random map screen: ...)`, then `overlay: modal panel "rmg builder" open over .?AVCRMGScreen@NUI@@`, `rmg builder: first frame drawn (...)` and, after the second F11, `... closed (closed by its panel)`.
 - `--resolution 1920x1080` checks that the panel still covers the screen's main panel exactly.
 - Not possible with the robot: clicks on the panel, Esc, and checking that the game behind gets no input (the robot's window is in the background). That is checked by hand with the test panel (`[ui] overlay_test_panel=1`, `src/mods/README.md`).
 

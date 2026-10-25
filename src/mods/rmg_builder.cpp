@@ -155,10 +155,17 @@ bool Wanted()
 {
 	char top[96];
 	const bool on_screen = overlay::TopScreen(top, sizeof(top)) && strcmp(top, kScreenClass) == 0;
-	if (on_screen != g_on_screen) {
-		g_on_screen = on_screen;
-		hooklog::Write("rmg builder: the random map screen is %s", on_screen ? "on top (F11 opens the panel)" : "no longer on top");
+	// Each change of the screen on top (the first 100): which screens the panel
+	// can be over, and what closed it.
+	static char last[96] = "?";
+	static int changes = 0;
+	if (strcmp(top, last) != 0 && changes < 100) {
+		++changes;
+		lstrcpynA(last, top, sizeof(last));
+		hooklog::Write("rmg builder: screen on top: %s%s", top[0] ? top : "(none)",
+		               on_screen ? " (the random map screen: F11 opens the panel)" : "");
 	}
+	g_on_screen = on_screen;
 	if (overlay::KeyPressed(kKey, &g_key_down) && on_screen) {
 		if (overlay::ModalOpen(kName)) {
 			overlay::CloseModal(kName);
