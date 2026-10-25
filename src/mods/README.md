@@ -107,7 +107,16 @@ Why multiplayer clicks feel slow, and the measurements: [docs/plans/responsivene
 - **Drain:** the game's message pump (transceiver slot 3, 0x007ca7c0) takes in one "segment done" report per frame. With 4 PCs or a slow frame rate, that holds everyone back. The mod calls the pump again while it still takes in a report, up to two rounds of reports per frame.
 - **View delay:** the game's "now" for the screen and the AI (slot 8, 0x007c8b00) is the timer minus 400 ms, so moves start at least 400 ms after their segment.
 - **Catch-up (experiment):** the segment timer moves at most 150 ms per frame (0x00475d80), so a PC whose frame froze stays behind.
-- **Trace:** every 10 s, one log line with the wait after this PC's own report (average and longest), who reported last (count per player), frames per second, the drain's extra reports, and the spread of the players' segment counts.
+- **Pacing slope:** the game slows a PC that is ahead of the slowest one by 5% per segment of lead (slot 5, 0x007c8dd0: `speed = max(1 - 0.05 * lead, 0)`, the 0.05 a float at 0x00e12f18). That was made for 200 ms segments: with 50 ms segments, the same lead in milliseconds brakes 4 times harder, and a PC 1 s ahead stops. While co-op timing is ON, the mod points the instruction that reads it (`fmul` at 0x007c8ea2) at its own value, 0.05 × segment / 200 (0.0125 at 50 ms), and raises the lead's cap of 20 segments (0x007c8e7f, 0x007c8ef3; at the cap the speed is 0, which is what stops a PC from running further ahead) to 20 × 200 / segment (80). So the pacing is the game's per millisecond, and a PC stops 4 s ahead, as in the game. (The other `fmul`, at 0x007c8e64, is for a PC that only watches; it counts its lead in 200 ms units, so it stays as it is.) In the robot's games the host then made 17 to 20 segments a second, 20 being real time (without it: 15 to 18).
+- **Finer clock:** Windows wakes sleeping threads only every 15.6 ms unless a program asks for more (`timeBeginPeriod`), and the game never does. While the drain or the trace is on, the DLL asks for 1 ms once. The game's network thread (0x0047cbd0) rests `Sleep(10)` between its rounds (`push 0x0a` at 0x0047cc05); `net_sleep_ms` makes that 2 ms, so the 10 ms send interval of the link tuning really is 10 ms.
+- **Trace:** every 10 s, one log line with the wait after this PC's own report (average, p80 and longest), who reported last (count per player), frames per second, the drain's extra reports, and the spread of the players' segment counts. A second line times the commands this PC sent (clicks, and the AI's moves on the host), per kind: from sending to the run of their segment (average and longest), and to being shown on this PC (the run, or the margin after this PC's own report if that is later). It ends with a suggested `view_delay_ms`: the p80 of the waits, so that 4 moves in 5 start without a jump.
+
+Example (robot, host, with the AI moving):
+
+```
+lockstep: 197 segments in 10 s, waited 117 ms on average (p80 208, longest 557) after this PC's own report; ...
+lockstep: 31 commands from this PC, ms from sending to the run of their segment (and to being shown, margin 100 ms): CSetHeroAITargetCmd 8: 137 avg/239 max, shown 174; CSetWalkPathCmd 7: 122 avg/239 max, shown 165; ...; suggested view_delay_ms=208 (p80 of the waits 208 ms)
+```
 
 **Robot results** (2 copies on one PC; one run each, the AI decides differently each run):
 
@@ -117,14 +126,19 @@ Why multiplayer clicks feel slow, and the measurements: [docs/plans/responsivene
 | Drain plus `view_delay_ms=200` | 0.44 s | 0.46 s | all equal |
 | Drain plus `view_delay_ms=250` | 0.42 s | 0.57 s | all equal |
 | Drain plus `catch_up_ms=600` | 0.45 s | 0.56 s | all equal |
-| **0.2.0 defaults:** 50 ms segments, view 100, catch-up 600 | **0.32 s** | **0.30 s** | 825, all equal |
+| 0.2.0 defaults: 50 ms segments, view 100, catch-up 600 | 0.32 s | 0.30 s | 825, all equal |
+| **Now:** plus pacing slope, finer clock, `net_sleep_ms=2` (two runs) | **0.27 s, 0.25 s** | **0.20 s, 0.26 s** | 895 and 788, all equal |
+| The same with `scale_pacing=0` | 0.35 s | 0.39 s | 825, all equal |
+| The same with `view_delay_ms=60` | 0.27 s | 0.23 s | 891, all equal |
 
 ```ini
 [net]
 drain_reports=1   ; 0 = the game's one report per frame
-view_delay_ms=100 ; 100..400, only while co-op timing is ON (else the game's 400)
+view_delay_ms=100 ; 50..400, only while co-op timing is ON (else the game's 400)
 trace_lockstep=1  ; 0 = no summary lines
 catch_up_ms=600   ; 150..1000, only while co-op timing is ON (the game: 150)
+scale_pacing=1    ; 0 = the game's pacing slope also with co-op timing ON
+net_sleep_ms=2    ; 1..10, the network thread's rest between rounds (the game: 10)
 ```
 
 The robot passes them with `run_lan_test.py --net-setting KEY=VALUE`.
