@@ -5,6 +5,7 @@
 
 #include "log.h"
 #include "patch.h"
+#include "watchdog.h"
 
 namespace d3dhook {
 namespace {
@@ -154,11 +155,36 @@ HRESULT STDMETHODCALLTYPE HookCreateDevice(IDirect3D9 *self, UINT adapter, D3DDE
 	return hr;
 }
 
+// For the hang watchdog (watchdog.h): where the frames are.
+volatile LONG g_in_present = 0;  // 1: in our callbacks, 2: in the real Present
+volatile LONG g_in_reset = 0;
+volatile DWORD g_present_tick = 0, g_reset_tick = 0;
+volatile LONG g_presents = 0;
+volatile HRESULT g_present_result = S_OK;
+
+void ReportForWatchdog()
+{
+	const DWORD now = GetTickCount();
+	if (!g_presents) {
+		hooklog::Write("watchdog: d3d9: no frame shown through our hook yet");
+		return;
+	}
+	hooklog::Write("watchdog: d3d9: %s; the last frame was shown %lu ms ago (%ld frames, its Present said %08lx: %s); "
+	               "%s, the last reset %lu ms ago",
+	               g_in_present == 1 ? "INSIDE our frame callbacks (the player list)"
+	                                 : g_in_present == 2 ? "INSIDE the real Present" : "not inside Present",
+	               now - g_present_tick, g_presents, static_cast<DWORD>(g_present_result),
+	               g_present_result == D3DERR_DEVICELOST ? "device lost (alt-tabbed from full screen?)" : "ok or other",
+	               g_in_reset ? "INSIDE a device reset" : "not inside a device reset",
+	               g_reset_tick ? now - g_reset_tick : 0);
+}
+
 HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9 *self, const RECT *source, const RECT *dest, HWND window,
                                       const RGNDATA *dirty)
 {
 	const DeviceTable *t = DeviceTableOf(*reinterpret_cast<void ***>(self));
 	const PresentFn next = t && t->present ? t->present : g_last_present;
+	g_in_present = 1;
 	for (int i = 0; i < g_present_count; ++i) {
 		__try {
 			g_present[i].callback(self);
@@ -169,16 +195,25 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9 *self, const RECT *source
 				hooklog::Write("d3d9: a frame callback crashed (caught)");
 		}
 	}
-	return next(self, source, dest, window, dirty);
+	g_in_present = 2;
+	const HRESULT hr = next(self, source, dest, window, dirty);
+	g_in_present = 0;
+	g_present_result = hr;
+	g_present_tick = GetTickCount();
+	g_presents = g_presents + 1;
+	return hr;
 }
 
 HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9 *self, D3DPRESENT_PARAMETERS *params)
 {
 	const DeviceTable *t = DeviceTableOf(*reinterpret_cast<void ***>(self));
 	const ResetFn next = t && t->reset ? t->reset : g_last_reset;
+	g_in_reset = 1;
+	g_reset_tick = GetTickCount();
 	for (int i = 0; i < g_reset_count; ++i)
 		g_reset[i](self, false, false);
 	const HRESULT hr = next(self, params);
+	g_in_reset = 0;
 	HookDevice(self);  // (in case the reset gave the device other entries)
 	for (int i = 0; i < g_reset_count; ++i)
 		g_reset[i](self, true, SUCCEEDED(hr));
@@ -227,6 +262,9 @@ bool Install(bool late)
 			return false;
 		}
 		g_installed = true;
+		watchdog::AddReporter(&ReportForWatchdog);
+		watchdog::NameFunction(&HookPresent, "d3d9 HookPresent");
+		watchdog::NameFunction(&HookReset, "d3d9 HookReset");
 	}
 	static bool late_done = false;
 	if (late && !late_done) {

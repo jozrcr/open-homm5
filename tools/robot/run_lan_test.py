@@ -60,6 +60,7 @@ def instance_args(args, name, steps):
         notify_setting=args.notify_setting,
         ui_setting=args.ui_setting + (args.host_ui if name == "host" else args.client_ui),
         camera_setting=args.camera_setting + (args.host_camera if name == "host" else args.client_camera),
+        debug_setting=args.host_debug if name == "host" else args.client_debug,
         resolution=args.resolution,
         fast_paths=args.fast_paths, ai_setting=args.ai_setting,
         # the client never runs the AI (the host does), so "no AI step for 4
@@ -118,6 +119,9 @@ def main():
     p.add_argument("--ui-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="[ui] setting for both copies, e.g. trace_players=1 (src/mods/player_list.cpp)")
     p.add_argument("--host-ui", action="append", default=[], metavar="KEY=VALUE", help="[ui] setting, host only")
+    p.add_argument("--host-debug", action="append", default=[], metavar="KEY=VALUE",
+                   help="[debug] setting, host only, e.g. hang_test_at=120 (src/hook/watchdog.cpp)")
+    p.add_argument("--client-debug", action="append", default=[], metavar="KEY=VALUE", help="[debug] setting, client only")
     p.add_argument("--client-ui", action="append", default=[], metavar="KEY=VALUE", help="[ui] setting, client only")
     p.add_argument("--camera-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="[camera] setting for both copies, e.g. zoom_out=150 (src/mods/camera.cpp)")

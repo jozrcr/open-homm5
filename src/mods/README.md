@@ -39,6 +39,8 @@ batched_segments=0
 
 The DLL's log (`open-homm5.log`) says what it changed, for example `net tuning: links may send every 10 ms (game: 50)`.
 
+**MMH5.5 RC19k** sets the send interval to 20 ms itself (`<TransmissionInterval>` in `MMH55Stats.xml`, applied by `55u.dll` at start-up). The mod also accepts that value and still makes it 10 ms; the log then says `(game: 50, MMH5.5: 20)`. Measured on RC19k (A1M4, robot LAN run): 0.46 s per AI step with MMH5.5's 20 ms, 0.26 s with 10 ms (RC19d with 10 ms: 0.26 s). `send_interval_ms=0` keeps MMH5.5's 20 ms.
+
 ## LAN games over VPNs (`lan_discovery.cpp`, on by default)
 
 **What it fixes:** over a virtual network such as ZeroTier (for a friend on Linux, or without GameRanger), the host's game never shows up in the LAN list.
@@ -142,6 +144,31 @@ net_sleep_ms=2    ; 1..10, the network thread's rest between rounds (the game: 1
 ```
 
 The robot passes them with `run_lan_test.py --net-setting KEY=VALUE`.
+
+**A side effect, now fixed by `ai_pacing.cpp` (below):** with 50 ms segments and `catch_up_ms=600`, the game's AI manager runs several segments in one frame and calls the AI's turn driver in each of them, so on a slow frame the AI took a second (up to a sixth) decision in the same frame, before its first decision's commands had run. In the owner's game that froze, 17% of the AI's steps came that way; with the Oct 24 builds none did.
+
+**Hardened:** the trace follows the players' report counts from one frame to the next; a count that went back or jumped by more than its 256-segment memory now starts the trace again, instead of a long loop (it never happened in the logs, but those counts are the game's memory).
+
+## One AI decision per frame (`ai_pacing.cpp`; on by default)
+
+**What it is for:** the game itself never lets its AI decide twice in one frame, or before its last moves have happened in the world: with the game's own timing (200 ms segments, the segment timer moving at most 150 ms per frame) the AI manager calls the AI at most once per frame, and the AI's commands run in a later frame's network pump. Our faster co-op timing broke that on slow frames (above), and it is the leading suspect for the owner's freeze of 2026-10-25 ([docs/subsystems/hangs.md](../../docs/subsystems/hangs.md)). This puts the guarantee back.
+
+**What it does,** in multiplayer games (single player is untouched): the AI's turn driver is called at most once between two network pumps (once per frame), and after a call that produced commands, only once the segment holding them has run (no segment record numbered up to it is left in the transceiver's list after a pump). A call held back is simply not made; the AI gets it in a later frame. Only the host runs the AI and every PC applies the commands it sends, so this cannot desync. A safety valve lets the AI go on after 5 s of waiting (logged once; never seen). How: the two calls of the segment runner `0x007c98e0` in the pump (`0x007ca957`, `0x007ca97d`) go through us, after checking the runner's first bytes; the turn driver hook (`src/hook/ai_trace.cpp`) asks before each call. One line per AI turn: `ai pacing: this AI turn: N calls held for the next frame, M until the AI's own commands had run`.
+
+```ini
+[ai]
+one_decision_per_frame=1  ; 0 = as 0.2.0 to 0.2.3 (several decisions per frame on slow frames)
+```
+
+**Robot results** (LAN, 2 copies, A1M4, 6 AI turns each; world checksums equal in every run):
+
+| Run | Same-frame AI steps | AI time per step | Checksums |
+|---|---:|---:|---|
+| Slow host (every frame +60 ms, 10-13 frames/s), `view_delay_ms=50` (the owner's), **off** | 23 of 58 (40%) | 0.29 s | 976, all equal |
+| The same, **on** | **0 of 67** (46 calls held a frame) | 0.42 s | 1181, all equal |
+| Defaults (fast frames), **on** | 0 of 66 (none held) | 0.25 s (hero moves 199 ms) | 1085, all equal |
+
+On a fast PC nothing changes (0.25 s per step, as the 0.2.2 robot runs); on a slow frame the AI waits one frame per decision, as the game does with its own timing.
 
 ## Quicker autosaves (`autosave.cpp`; the trace and level 1 on by default)
 
@@ -316,7 +343,7 @@ max_expansions=0     ; EXPERIMENT, CHANGES THE AI'S PATHS: expand a tile at most
 
 `max_expansions` is not part of the exact speed-up: it is a first test of a faster search that may change the AI's paths (see the experiment in [ai-pathfinder.md](../../docs/subsystems/ai-pathfinder.md)). With 16 on the owner's day-50 save, AI thinking went from 16.7 s to 8.3 s; only the AI hero's giant long-range searches changed. On another save the AI then chose differently after a few moves. Off by default; not for real games until it has been tested much more.
 
-## Teams on random maps (`rmg_teams.cpp`, off by default)
+## Teams on random maps (`rmg_teams.cpp`; on by default only for recipe maps)
 
 Step 2 of the map generator plan ([docs/plans/map-generator.md](../../docs/plans/map-generator.md)).
 
@@ -333,7 +360,10 @@ Step 2 of the map generator plan ([docs/plans/map-generator.md](../../docs/plans
 teams=            ; empty: the map's teams. humans_vs_ai, pairs, or a list like 1,1,2,2,3,3
 lobby_teams=0     ; 1 = the lobby's team arrows pick team numbers on maps without teams
 trace_teams=1     ; log the teams each PC starts with
+recipe_teams=1    ; maps made from a recipe template get the template's teams
 ```
+
+**Teams of recipe maps** (`recipe_teams=1`, on by default, host only; the owner's choice, 2026-10-25). A map made from a recipe template (`OH-X1-...`, see [Random map templates](#random-map-templates-rmg_templatescpp-rmg_makercpp-rmg_recipecpp-on-by-default)) knows its teams: with 3 teams of 2, players 1+2, 3+4 and 5+6 start in the zones that belong together. When the host starts such a map, it sets those teams, unless `teams=` says something else or the lobby arrows (`lobby_teams=1`) already put two players together. How: the setup constructor gets the map's description, whose `sRMGProps` (`+0x254`) names the template (`+0x28`); we remember the recipe's teams per setup, as for `lobby_teams`. **Robot test** (LAN, a 2v2 recipe map, 2 humans and 2 computer players): both PCs started with the humans on team 0 and the computer players on team 1, checksums equal; with a lobby arrow pressed (`lobby_teams=1`), the arrows' teams; with `recipe_teams=0`, one team per player.
 
 **Choosing teams in the lobby** (`lobby_teams=1`, host only). On maps without teams of their own, each row's team arrows move that player's team number up or down, instead of moving the player to another colour (the game's arrows). The pieces:
 - **Which maps:** the setup constructor (0x00ca0240) tells whether the map has teams. We remember that per setup.
@@ -355,6 +385,46 @@ trace_teams=1     ; log the teams each PC starts with
 The robot sets these with `run_lan_test.py --host-rmg KEY=VALUE`, and presses a team arrow with the step `"38|arrow|<row> team left|right"`.
 
 **Not done yet:** a random map in a LAN robot game. The robot plays A1M4, which has no teams either.
+
+## Random map templates (`rmg_templates.cpp`, `rmg_maker.cpp`, `rmg_recipe.cpp`, on by default)
+
+Step 1 of the map generator plan ([docs/plans/map-generator.md](../../docs/plans/map-generator.md)), and steps 1 and 2 of the in-game builder plan ([docs/plans/in-game-generator.md](../../docs/plans/in-game-generator.md)).
+
+- **How the game finds templates:** the random map screen asks the game's file system (`NVFS::CWinVFS`) for the files in `RMG/Templates` (List, vtable slot 10), then opens each one (Open, slot 7). The mod sits on those two slots. Nothing on disk changes.
+- **Template files:** the `.xdb` files of `open-homm5\templates\` next to the exe (the install package puts the 24 ready ones there) are added to the list and served when the game opens them.
+- **Recipe names** (new): a template named `RMG/Templates/OH-X1-<16 characters>.xdb` needs no file at all. Its name holds every choice of the template maker, for example `OH-X1-321110nnxxxxxxxa` = 2v2v2, Normal, best size, underground. When the game opens such a name, the DLL builds the template's bytes from the name with `rmg_maker.cpp`, a C++ copy of the web page's template maker. The format: [tools/rmg/README.md](../../tools/rmg/README.md#recipe-names).
+  - **Why:** in multiplayer every PC builds the random map itself from the template's path. With a recipe, every PC with the DLL has the template, and they all get the same bytes.
+  - **The list** shows every recipe this PC was asked to open (for example a joined game's), plus those of `recipes=`. In the list, a recipe template's name is the maker's name plus `*`, for example `OH-2v2v2-Lu-Normal*`, so it can't be mixed up with the ready file of the same layout.
+  - **Same bytes as the page:** `build.ps1 -Test` checks that `rmg_maker.cpp` writes exactly what `tools/rmg/template_maker.js` writes, on the 24 ready templates and 400 random choices.
+  - **Same bytes forever:** what an `X1` name builds never changes (`tools/rmg/x1_fingerprints.txt` records 302 of them; the test fails on any change). And at start, the DLL builds three recorded names itself and serves no recipe if one differs (the log says `self-check FAILED`).
+  - A file in `open-homm5\templates\` whose name is a recipe is skipped (the log says so): the name decides.
+- **Joining a random map game** (`rmg_join.cpp`, step 3). Each PC rebuilds the host's random map from the template's name, the seed and the options, which the host's game info carries.
+  - When this PC reads a host's game info, the game loads the template by its name at once: for a recipe, the Open hook builds it and puts it in the list. Just before the game builds the map, a hook on the connector (`0x00701530`) registers the recipe again from the game info, in case.
+  - **The guard:** a PC without the map's template used to crash there, because the game used the missing template without a check (`0x007012b1`). Now the game shows its own "can't make the map" message (`RMG_MAP_FAIL`). This works for any missing template, also with `templates=0`.
+  - Players without our DLL still crash on templates they lack: everyone should update together.
+- **Teams on recipe maps:** see [Teams on random maps](#teams-on-random-maps-rmg_teamscpp-on-by-default-only-for-recipe-maps) (`recipe_teams=1`).
+- **Not done yet:** the builder panel (steps 4 to 7).
+
+```ini
+[rmg]
+templates=1     ; 0 = off: neither the folder's files nor recipe names
+recipes=        ; recipe names to offer in the list, separated by commas (for tests, before the panel)
+```
+
+The log says what was served, for example:
+
+```
+rmg templates: 24 template(s) from open-homm5\templates: OH-2v2-Lu-Normal.xdb, ...
+rmg templates: recipe names (RMG/Templates/OH-X1-....xdb) are built when the game asks for them (maker self-check ok); in the list from recipes=: OH-X1-321110nnxxxxxxxa
+rmg templates: OH-X1-321110nnxxxxxxxa.xdb built from its name: "OH-2v2v2-Lu-Normal*", 6 players, 13 zones, Large (176x176, with underground), 23121 bytes
+```
+
+**Robot tests (2026-10-25):**
+- A recipe map made with the console and no file: built, generated and played.
+- In a LAN game, the client rebuilt the host's recipe map, and all world checksums were equal.
+- A client without recipe support got the game's message instead of a crash.
+
+Details: [the plan's robot results](../../docs/plans/in-game-generator.md#robot-results-2026-10-25). Not checked yet: the generator screen's template list.
 
 ## Original music (`original_music*.cpp`, off by default)
 

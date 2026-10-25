@@ -122,6 +122,55 @@ These steps come from the generator's log strings.
   - A link only promises a path, which may be long or go through a teleport (MMH5.5 turned the cartographer object into `RMGDimensionDoor`).
 - **So templates cannot decide who starts next to whom.** That needs the placement code (step 3 of the plan). The log lines come from that code: zones are placed in an order that is not the index order (13, 5, 6, 7, 10, ... in one run), each with `k == 0.90, R = 21`.
 
+## Factions and the start terrain (static reading, 2026-10-25; not yet checked in a game)
+
+Plan: [../plans/faction-terrain.md](../plans/faction-terrain.md).
+
+- **A zone's faction:**
+  - Reading the template (`0x0090bd80`) treats `Setting` 0, 1 and 2 (`RACE_SPECIAL`, `RACE_RANDOM_TYPE`, `RACE_NO_TYPE`) all as "random": it rolls a faction for the zone.
+  - **A start zone takes its player's faction instead,** from the generator's player list (`PlayersInfo`, filled from the random map screen's "faction per player").
+  - If that player's faction is random, the roll becomes the player's faction.
+  - The roll is made either way, so the random numbers used here don't depend on the players' factions.
+- **What follows from the faction:**
+  - the town (a fixed town of that faction, or a random town with "Random towns" on, `+0xa5` of the generator);
+  - the ground, one tile per zone from `DefaultTile` and `OtherTiles` in `RMGPresetTable.xdb`;
+  - the decorations and the dwellings.
+- **Seen in the robot's test map:** a Haven town on Haven grass, Fortress towns on snow. The map's `sRMGProps.InitialParams.PlayersInfo` keeps the factions the map was made with.
+- **The lobby** (`NWorld::CPlayersStartInfo`):
+  - **Who may change faction:** `0x00c9e9f0` builds each slot's list of allowed factions (slot `+0x50`/`+0x54`) from the towns and heroes the player owns. A fixed town allows its own faction only; a random town (town type 1) allows several.
+  - **The arrows:** `CanChangeRace` (`0x00c9d7b0`, vtable slot `+0x34`) is true when the list has more than one faction, and `0x00c9df40` (slot `+0x38`) cycles through it. The slot's faction is at `+0x18`, 1 = random.
+  - **So with "Random towns" off, the lobby locks every player to the generated faction.**
+- **"Random" is settled during world creation:** in `0x00c9fa80`, a slot whose faction is 1 takes a pick from its allowed list, with the world's random generator.
+- **The generator runs only from the screen (`0x0079acc0`), the join rebuild (`0x007011d0`) and the console (`0x00833d89`).** These are the three callers of the generator getter `0x0090c6c0`; nothing rebuilds the map at game start.
+- **Movement cost** (`0x00ca9a70`):
+  - roads 75;
+  - grass, water, dwarven mines 100;
+  - dirt, lava, subterranean, taiga, wasteland 125;
+  - sand, snow 150;
+  - **no extra cost on the hero's native terrain** (movement settings `+0xc`, filled through the hero's vtable slot `+0x10c`). Which terrain is native to each faction is not yet known.
+  - Pathfinding multiplies the extra cost by 0.5 (vanilla).
+
+## The terrain file (`GroundTerrain.bin`, `UndergroundTerrain.bin`)
+
+It uses Nival's chunked binary format. Each chunk is:
+- an id byte;
+- a size: if the next byte is even, the size is that byte / 2 (1 byte); if it is odd, the size is the next uint32 / 2 (4 bytes).
+
+Chunks nest. Chunk `4` is the version (4); chunk `1.1` holds:
+
+| Chunk | Content |
+|---|---|
+| `2`, `3` | width and height in tiles (176) |
+| `4` | the ground layers: `2` = their count, then one `1` per layer, holding `2` = a weight map (`1`, `2` = 177, 177; `3` = one byte per tile corner) and `3` = the tile path (`/RMG/Tiles/Haven/Grass.xdb#xpointer(/AdvMapTile)`) |
+| `5` | the heights, one float per corner |
+| `7`, `8`, `15` | per-corner byte grids, not identified |
+| `10` | a 353×353 byte grid (half-tile steps), not identified |
+| `13`, `14`, `16` | small, not identified |
+
+- **Who reads and writes it:** `0x00a57d90` → `0x00c0faa0` reads it with the structure serializer. The file names come from `0x00a57d10`.
+- **Tile types come from the layers:** the reader then checks the layers (`0x00c0f4a0`, "TerrainInfo: Invalid layer detected") and the game works out each tile's ground from them.
+- **A script lists the layers:** `python tools/rmg/terrain_layers.py <GroundTerrain.bin> [x,y ...]` prints each layer's tile, its share of the map, and its weight near the given tiles.
+
 ## Multiplayer: every PC generates the map itself
 
 - **What travels:** the generated `map.xdb` ends with `sRMGProps` (template, parameters, seed). With `RMGmap` = true, each client **regenerates** the same map from those, instead of downloading it.
@@ -149,7 +198,7 @@ These steps come from the generator's log strings.
 - That a new template file shows up in the template list, and where it may live (pak, loose file, `.h5u`).
 - Whether the lobby lets the host change teams on a random map, and whether a team change keeps multiplayer regeneration working.
 - What the two float tables scale.
-- The format of `GroundTerrain.bin`: the only unknown for writing whole maps ourselves; `map.xdb` is fully described by `types.xml`.
+- The rest of `GroundTerrain.bin`'s format: the layers and heights are known (above); a few grids are not. `map.xdb` is fully described by `types.xml`.
 - Why generated maps record `RMGversion` 34 while `Default.xdb` says 37.
 - MMH5.5's ARMG manual says to generate maps only with `MMH55_Utility` or the editor, not `MMH55.exe`.
 
