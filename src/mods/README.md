@@ -270,7 +270,7 @@ It only shows the adventure map (not in towns, battles or menus). **F9** hides i
 
 **Where the data comes from:** the game world's players (turn order, name, colour, team, selected hero, "my turn now", "pressed End Turn"), the same on every PC; the hero's name and portrait from its game data. Details and addresses: [docs/subsystems/players.md](../../docs/subsystems/players.md). It only reads the game, so it cannot desync a game, and each player can turn it on or off.
 
-**How it draws:** the DLL sees the game's Direct3D 9 device (`src/hook/d3d9_hook.cpp`: the `Direct3DCreate9` import, then entries of the Direct3D objects' vtables; data patches only) and draws just before each frame is shown, with [Dear ImGui](https://github.com/ocornut/imgui) (`src/hook/third_party/imgui`, v1.91.9b, MIT). A device reset (fullscreen switch, alt-tab) is handled. It stays plain Direct3D 9 and Win32, so it should work under Wine/Proton (with their `d3d9.dll`), not checked there yet.
+**How it draws:** it is one client of the DLL's shared overlay (`src/hook/overlay.cpp`, see `src/hook/README.md`), with the template builder. The overlay sees the game's Direct3D 9 device (`src/hook/d3d9_hook.cpp`: the `Direct3DCreate9` import, then entries of the Direct3D objects' vtables; data patches only) and draws just before each frame is shown, with [Dear ImGui](https://github.com/ocornut/imgui) (`src/hook/third_party/imgui`, v1.91.9b, MIT); it also holds the fonts and the pictures read from the game's data. A device reset (fullscreen switch, alt-tab) is handled. It stays plain Direct3D 9 and Win32, so it should work under Wine/Proton (with their `d3d9.dll`), not checked there yet. The player list is not a modal panel: it never takes input.
 
 **Checked with the robot** (A1M4, LAN: 2 humans + 1 computer player; screenshots show the panel, see `tools/robot/README.md`):
 
@@ -360,10 +360,10 @@ Step 2 of the map generator plan ([docs/plans/map-generator.md](../../docs/plans
 teams=            ; empty: the map's teams. humans_vs_ai, pairs, or a list like 1,1,2,2,3,3
 lobby_teams=0     ; 1 = the lobby's team arrows pick team numbers on maps without teams
 trace_teams=1     ; log the teams each PC starts with
-recipe_teams=1    ; maps made from a recipe template get the template's teams
+recipe_teams=1    ; maps made from a recipe template get the template's teams, and the team arrows on them
 ```
 
-**Teams of recipe maps** (`recipe_teams=1`, on by default, host only; the owner's choice, 2026-10-25). A map made from a recipe template (`OH-X1-...`, see [Random map templates](#random-map-templates-rmg_templatescpp-rmg_makercpp-rmg_recipecpp-on-by-default)) knows its teams: with 3 teams of 2, players 1+2, 3+4 and 5+6 start in the zones that belong together. When the host starts such a map, it sets those teams, unless `teams=` says something else or the lobby arrows (`lobby_teams=1`) already put two players together. How: the setup constructor gets the map's description, whose `sRMGProps` (`+0x254`) names the template (`+0x28`); we remember the recipe's teams per setup, as for `lobby_teams`. **Robot test** (LAN, a 2v2 recipe map, 2 humans and 2 computer players): both PCs started with the humans on team 0 and the computer players on team 1, checksums equal; with a lobby arrow pressed (`lobby_teams=1`), the arrows' teams; with `recipe_teams=0`, one team per player.
+**Teams of recipe maps** (`recipe_teams=1`, on by default, host only; the owner's choice, 2026-10-25). A map made from a recipe template (`OH-X1-...`, see [Random map templates](#random-map-templates-rmg_templatescpp-rmg_makercpp-rmg_recipecpp-on-by-default)) knows its teams: with 3 teams of 2, players 1+2, 3+4 and 5+6 start in the zones that belong together. **They are set as soon as the game builds the setup** (single player and multiplayer), so the setup screen and the lobby show them from the start (the owner's request, 2026-10-25), and on these maps **the team arrows work** as with `lobby_teams=1`, so the players can still change them. `teams=` still wins (then the recipe's teams are not set). When the host starts, it keeps the teams it has. How: the setup constructor gets the map's description, whose `sRMGProps` (`+0x254`) names the template (`+0x28`); we remember the recipe's teams per setup, as for `lobby_teams`. **Robot test** (LAN, a 2v2 recipe map, 2 humans and 2 computer players): both PCs started with the humans on team 0 and the computer players on team 1, checksums equal; with a lobby arrow pressed (`lobby_teams=1`), the arrows' teams; with `recipe_teams=0`, one team per player. Again with the teams set when the setup is built (a map made with the builder): the host's and the client's lobby showed teams 1, 1, 2, 2 from the start, an arrow changed player 3's team without `lobby_teams`, and both PCs started with 1+2 against 3+4.
 
 **Choosing teams in the lobby** (`lobby_teams=1`, host only). On maps without teams of their own, each row's team arrows move that player's team number up or down, instead of moving the player to another colour (the game's arrows). The pieces:
 - **Which maps:** the setup constructor (0x00ca0240) tells whether the map has teams. We remember that per setup.
@@ -403,12 +403,12 @@ Step 1 of the map generator plan ([docs/plans/map-generator.md](../../docs/plans
   - **The guard:** a PC without the map's template used to crash there, because the game used the missing template without a check (`0x007012b1`). Now the game shows its own "can't make the map" message (`RMG_MAP_FAIL`). This works for any missing template, also with `templates=0`.
   - Players without our DLL still crash on templates they lack: everyone should update together.
 - **Teams on recipe maps:** see [Teams on random maps](#teams-on-random-maps-rmg_teamscpp-on-by-default-only-for-recipe-maps) (`recipe_teams=1`).
-- **Not done yet:** the builder panel (steps 4 to 7).
+- **The builder panel** (steps 4 to 7): [Template builder](#template-builder-rmg_buildercpp-rmg_screencpp-on-by-default).
 
 ```ini
 [rmg]
 templates=1     ; 0 = off: neither the folder's files nor recipe names
-recipes=        ; recipe names to offer in the list, separated by commas (for tests, before the panel)
+recipes=        ; recipe names to offer in the list, separated by commas (for tests; the builder adds its own)
 ```
 
 The log says what was served, for example:
@@ -424,7 +424,58 @@ rmg templates: OH-X1-321110nnxxxxxxxa.xdb built from its name: "OH-2v2v2-Lu-Norm
 - In a LAN game, the client rebuilt the host's recipe map, and all world checksums were equal.
 - A client without recipe support got the game's message instead of a crash.
 
-Details: [the plan's robot results](../../docs/plans/in-game-generator.md#robot-results-2026-10-25). Not checked yet: the generator screen's template list.
+Details: [the plan's robot results](../../docs/plans/in-game-generator.md#robot-results-2026-10-25). The generator screen's template list: checked with the builder (below).
+
+## Template builder (`rmg_builder*.cpp`, `rmg_screen.cpp`, on by default)
+
+The plan: [docs/plans/in-game-generator.md](../../docs/plans/in-game-generator.md) (build steps 4 to 7). Every choice of the web template maker, on the game's own random map screen (`NUI::CRMGScreen`, the same screen in single player and multiplayer).
+
+**How a player uses it:**
+1. The random map screen (single player: Custom game, then "Générer une carte"; multiplayer: the same screen from the create-game screen).
+2. **Modèles... / Template...**, the new button between Save and Back (or **F11**). The builder covers the screen's main panel; the game behind is dimmed and gets no input.
+3. Pick a ready template in **Partir d'un modèle / Start from**, or change the choices. The zone map, the numbers and the warnings follow at once.
+4. **Utiliser / Use**: the panel closes and the game's own screen is set: map size, underground level, players, "ARMG Templates" ticked and our template chosen in its list (`OH-2v2v2-Lu-Normal*`). Also, ticked, so that nothing is left to chance: **no water** (our templates are land maps; unticked, the game makes an island map half the time), **resources and experience normal** (×1 on the template's treasure and chests; unticked, the game uses the list's first item, ×0.2), and the **monster level that leaves the template's guards as written** ("Faibles"/weak in MMH5.5, whose levels are ×1.0, 1.9, 2.7, 3.5, 7.0; unticked, the game draws one of the first three). The facts: [docs/subsystems/rmg.md](../../docs/subsystems/rmg.md#the-screens-own-options-and-the-template-static-reading-2026-10-25-robot-checked). Then the game's own options if wanted, **Créer / Create**, **Sauvegarder / Save**, and play the map. In multiplayer, the other PCs rebuild the template from its name ([Random map templates](#random-map-templates-rmg_templatescpp-rmg_makercpp-rmg_recipecpp-on-by-default)).
+5. **Enregistrer / Save as file** writes the template as the web page's download gives it, to `open-homm5\templates\<name>.xdb` (listed by the game from its next start; a different file of the same name gets `-2`, `-3`...). **Annuler / Cancel** or **Esc** changes nothing.
+
+**The panel** (`rmg_builder.cpp`, drawn with the game's pictures by `rmg_builder_widgets.cpp`). Its parts sit where the screen's own parts are:
+- **Left, in the minimap's box:** the zone map, drawn from the maker's own zones and paths (`rmg_builder_data.cpp`: the page's `positions()`, checked against Node). Start zones in their team's colour with the player's number, each team's treasure zones paler, neutral zones grey, the centre gold ("C"); thicker paths for stronger guards, dashed when open; a small gold mark for a town.
+- **Under it:** players and zones, the name the game's list will show (with its `*`), the map size.
+- **Right, scrolling in the options list's box** (the wheel, or drag in the game's scroll bar track): the ready templates; teams (steppers, the teammates' path, the start mines); neutral zones (steppers, two town boxes); loot and guards, and "by distance from the bases", which shows a small table (loot and guards per distance ring, with each ring's zone count); size ("Auto" shows the size it picks) and underground; then the maker's warnings.
+- **Invalid choices are not offered:** each arrow asks the maker's own check (`rmg::CheckChoices`) first. An arrow that would make more than 8 players is greyed; clicking it shows the maker's message ("Le jeu permet 8 joueurs au plus (9 demandés).").
+- **Words:** French in a French game, English otherwise (`[ui] language`). Every text is measured; one too long for its place is cut with "…" (none is today, at 1024×768 and 1920×1080).
+- `builder_last=` in `open-homm5.ini` remembers the last choices used or saved (a recipe name); the panel opens on them.
+
+**The native button** (`rmg_screen.cpp`). The screen's window comes from UI files of the game's data. The DLL serves, through the game's file system (nothing on disk changes):
+- `UI/RMGScreen/MainPanel.(WindowSimpleShared).xdb`: the game's file with one more child, our button. **Only when the file is the one we know** (its fingerprint); otherwise the builder draws a button of its own at the same place, and the log says why.
+- `UI/RMGScreen/OpenHomm5Builder.(WindowMSButton).xdb`: the game's Save button, moved to x 340 (the free slot), enabled, with our label. `OpenHomm5Builder.(UISRunReaction).xdb` sends `oh_builder` instead of `save`. `OpenHomm5Builder.txt` and its tooltip are in the panel's language.
+- The screen's command handler (`0x0079a650`, vtable cell `0x00e4110c`) is wrapped: `oh_builder` opens the panel; every other command goes to the game.
+
+**"Use"** sets the screen's options as clicks would: the size, levels and players options are ticked and their item chosen (`NUI::CRMGScreen::CComboOption`, vtable `0x00e41070`); "ARMG Templates" (EP 6) is ticked; the screen's own "change_option" (`0x00799500`) refills its template list with the templates that fit; our recipe is chosen in it. If anything is not as expected, nothing more is changed, the panel stays open with a message, and the log says what it found.
+
+```ini
+[rmg]
+builder=1           ; 0 = no panel and no button (nothing is installed); needs templates=1
+builder_key=F11     ; the panel's key on the random map screen (none = no key)
+builder_last=       ; written by the panel: the last choices used or saved
+
+[ui]
+language=auto          ; the panels' words: auto (the game's), en or fr
+overlay_test_panel=0   ; testing only: 1 = F10 opens the overlay's test panel on any screen
+```
+
+The log says what happened, for example:
+
+```
+rmg screen: the random map screen gets our "Template..." button (its main panel, 1641 bytes, with one more child)
+rmg screen: "oh_builder" (the Template... button)
+rmg builder: panel opened (the Template... button): OH-X1-321110nnxxxxxxxa, OH-2v2v2-Lu-Normal
+rmg builder: Use OH-X1-221110nnxxxxxxxa ("OH-2v2-Lu-Normal*"): size L with underground, 4 players, no water, monsters item 1 (x1.0), resources and experience normal (x1), "ARMG Templates" ticked, OH-X1-221110nnxxxxxxxa chosen (14 of 19 that fit)
+rmg teams: setup 139D1380 is for a random map made from /RMG/Templates/OH-X1-221110nnxxxxxxxa.xdb#xpointer(/RMGTemplate)
+```
+
+**Robot tests (2026-10-25, the French test copy):** the native button on the screen; the panel opened by the button's command and by F11, filled, at 1024×768 and 1920×1080; a preset, then Use set the screen (Large, underground, 4 players, our template 14th of the 19 that fit); Create built the map from `OH-X1-221110nnxxxxxxxa`; Save wrote it to `Maps\`; the saved map started and its AI played. Commands: [tools/robot/README.md](../../tools/robot/README.md#checking-the-template-builder-a-modal-panel-of-the-overlay).
+
+**Checking by hand** (the robot cannot click: its game runs in the background): the drop-down lists, the arrows, the check boxes, the wheel and the scroll bar; Save as file; Esc; and that the game behind gets no click. On Linux (Proton) too. With `overlay_test_panel=1`, the overlay's test panel shows what input arrives.
 
 ## Original music (`original_music*.cpp`, off by default)
 

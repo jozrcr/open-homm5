@@ -1,28 +1,26 @@
-// The player list overlay: pictures from the game's data (the heroes'
-// portraits, and the frame of the game's resource bar for the panel's look).
+// The overlay: pictures from the game's data, for every panel (the player
+// list's portraits and the frame of the game's resource bar, the template
+// builder's background, buttons and check boxes).
 //
-// A hero's portrait is the FaceTexture of its game data (NDb::SAdvMapHeroShared
-// +0x12c, an NDb::STexture), whose DestName (+0x40) is the .dds file in the
-// game's data, e.g. "UI/H5A1/Icons/Heroes/Portrets128x128/Giovanni.(Texture).dds"
-// (player_list_game.cpp finds that path). We read the files through the game's
-// own file system, so MMH5.5's paks count as they do for the game: its
-// "open file" (NVFS::CWinVFS vtable slot 7, 0x009e0020) is wrapped only to
-// learn the file system object, and called to read the .dds. Then the picture
-// becomes a Direct3D texture of ours (D3DPOOL_MANAGED: it survives a device
-// reset), once per file.
-#include "player_list_internal.h"
-
+// A picture is a .dds file of the game's data, e.g. a hero's portrait
+// "UI/H5A1/Icons/Heroes/Portrets128x128/Giovanni.(Texture).dds" (the DestName
+// of a Texture .xdb). We read the files through the game's own file system, so
+// MMH5.5's paks count as they do for the game: its "open file" (NVFS::CWinVFS
+// vtable slot 7, 0x009e0020) is wrapped only to learn the file system object,
+// and called to read the .dds. Then the picture becomes a Direct3D texture of
+// ours (D3DPOOL_MANAGED: it survives a device reset), once per file.
 #include <d3d9.h>
 #include <string.h>
 
 #include <string>
 #include <vector>
 
-#include "../hook/log.h"
-#include "../hook/patch.h"
+#include "log.h"
+#include "overlay.h"
+#include "overlay_internal.h"
+#include "patch.h"
 
-namespace mods {
-namespace plist {
+namespace overlay {
 namespace {
 
 const DWORD kWinVfsOpenSlot = 0x00e6651c;  // NVFS::CWinVFS vftable 0x00e66500, slot 7: OpenFile
@@ -91,11 +89,11 @@ int MaskShift(DWORD mask)
 }
 
 // The first picture of a .dds file as a texture of the device, or nullptr.
-// Uncompressed 32/24-bit pictures and DXT1/3/5 (the formats of the game's icons).
+// Uncompressed 32/24-bit pictures and DXT1/3/5 (the formats of the game's interface).
 IDirect3DTexture9 *TextureFromDds(IDirect3DDevice9 *device, const std::string &d, const char *path)
 {
 	if (d.size() < 128 || d.compare(0, 4, "DDS ") != 0) {
-		hooklog::Write("player list: %s is not a .dds file", path);
+		hooklog::Write("overlay: %s is not a .dds file", path);
 		return nullptr;
 	}
 	const UINT height = Dw(d, 12), width = Dw(d, 16);
@@ -110,7 +108,7 @@ IDirect3DTexture9 *TextureFromDds(IDirect3DDevice9 *device, const std::string &d
 	if (pf_flags & 0x4) {  // DDPF_FOURCC
 		if (fourcc != MAKEFOURCC('D', 'X', 'T', '1') && fourcc != MAKEFOURCC('D', 'X', 'T', '3') &&
 		    fourcc != MAKEFOURCC('D', 'X', 'T', '5')) {
-			hooklog::Write("player list: %s: picture format %.4s not supported", path, reinterpret_cast<const char *>(&fourcc));
+			hooklog::Write("overlay: %s: picture format %.4s not supported", path, reinterpret_cast<const char *>(&fourcc));
 			return nullptr;
 		}
 		format = static_cast<D3DFORMAT>(fourcc);
@@ -121,13 +119,13 @@ IDirect3DTexture9 *TextureFromDds(IDirect3DDevice9 *device, const std::string &d
 		row_bytes = width * (bits / 8);
 	}
 	else {
-		hooklog::Write("player list: %s: picture format not supported (flags %lx, %lu bits)", path, pf_flags, bits);
+		hooklog::Write("overlay: %s: picture format not supported (flags %lx, %lu bits)", path, pf_flags, bits);
 		return nullptr;
 	}
 	if (row_bytes * rows > available)
 		return nullptr;
 	if (format != D3DFMT_A8R8G8B8) {
-		// DXT: the first picture only (the panels' frame, drawn near its size)
+		// DXT: the first picture only (backgrounds and frames, drawn near their size)
 		IDirect3DTexture9 *texture = nullptr;
 		if (FAILED(device->CreateTexture(width, height, 1, 0, format, D3DPOOL_MANAGED, &texture, nullptr)) || !texture)
 			return nullptr;
@@ -203,7 +201,7 @@ struct Picture {
 	char path[160];
 	IDirect3DTexture9 *texture;  // nullptr: it could not be read
 };
-const int kPictures = 48;
+const int kPictures = 64;
 Picture g_pictures[kPictures];
 int g_count = 0;
 IDirect3DDevice9 *g_device = nullptr;
@@ -211,18 +209,31 @@ bool g_installed = false;
 
 }  // namespace
 
-bool InstallGameTextures()
+namespace internal {
+
+bool InstallTextures()
 {
 	if (g_installed)
 		return true;
 	g_open_next = reinterpret_cast<OpenFn>(hookpatch::PatchPointer(kWinVfsOpenSlot, kWinVfsOpen, &OpenFileHook));
 	if (!g_open_next) {
-		hooklog::Write("player list: the game's file system is not as expected: no portraits, plain style");
+		hooklog::Write("overlay: the game's file system is not as expected: no pictures (plain style)");
 		return false;
 	}
 	g_installed = true;
 	return true;
 }
+
+void ReleaseTextures()
+{
+	for (int i = 0; i < g_count; ++i)
+		if (g_pictures[i].texture)
+			g_pictures[i].texture->Release();
+	g_count = 0;
+	g_device = nullptr;
+}
+
+}  // namespace internal
 
 void *GameTexture(IDirect3DDevice9 *device, const char *path, int *loads_left, bool *failed)
 {
@@ -231,7 +242,7 @@ void *GameTexture(IDirect3DDevice9 *device, const char *path, int *loads_left, b
 	if (!g_installed || !path[0])
 		return nullptr;
 	if (device != g_device) {
-		ReleaseGameTextures();
+		internal::ReleaseTextures();
 		g_device = device;
 	}
 	for (int i = 0; i < g_count; ++i) {
@@ -251,20 +262,10 @@ void *GameTexture(IDirect3DDevice9 *device, const char *path, int *loads_left, b
 	if (ReadGameFile(path, &data))
 		p.texture = TextureFromDds(device, data, path);
 	else
-		hooklog::Write("player list: cannot read %s", path);
+		hooklog::Write("overlay: cannot read %s", path);
 	if (failed)
 		*failed = !p.texture;
 	return p.texture;
 }
 
-void ReleaseGameTextures()
-{
-	for (int i = 0; i < g_count; ++i)
-		if (g_pictures[i].texture)
-			g_pictures[i].texture->Release();
-	g_count = 0;
-	g_device = nullptr;
-}
-
-}  // namespace plist
-}  // namespace mods
+}  // namespace overlay

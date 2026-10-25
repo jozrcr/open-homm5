@@ -121,5 +121,9 @@ const int kZoneAreaMax = 7500;
 // template_maker.js's message (the page shows the same words).
 bool MakeTemplate(const Choices &choices, Template *out, std::string *error);
 
+// Only MakeTemplate's checks (the same words), without building anything:
+// cheap enough to ask before offering each choice.
+bool CheckChoices(const Choices &choices, std::string *error);
+
 }  // namespace rmg
 }  // namespace mods
