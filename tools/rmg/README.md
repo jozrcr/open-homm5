@@ -53,7 +53,7 @@ Tools:
 
 Still to check:
 - whether the template shows up in the generator screen's list (the console test bypasses the list);
-- treasure values above the highest shipped one (252,000), which "rich" reaches in the centre zones.
+- whether treasure values above the highest shipped one (252,000) really give more treasure. They do generate: `OH-3v3-XLu-Veryrich-Towns` (428,000 in the centre) built and played in the robot. The generator's "pure road algo failed" messages come about once per zone with every template, MMH5.5's own included, so they are normal.
 
 To test:
 ```
