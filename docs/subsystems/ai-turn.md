@@ -149,6 +149,34 @@ Neighbouring classes: `NWorld::CHeroTraceTile`, `NWorld::CHeroesFilter`, `NWorld
 
 The rest of the late-game run was blocked by dialogs for the robot's own human player (a battle's retreat box, which needs Flee or Surrender chosen). Benchmarks on such saves need those handled, or the human player switched to AI.
 
+## Whose turn it is (2026-10-25, robot)
+
+Found for the "your turn" notification (`src/mods/notify.cpp`), checked in robot LAN games with its trace (`[notify] trace=1`).
+
+**Each player has a turn state.** `NWorld::CPlayer` objects are reached through their `IPlayer` part (at `CPlayer +0x1c`, vftable `0x00e1a09c`); the world's player list (`CWorld +0x24`, a vector `{begin, end, capacity}` of `IPlayer *`, from slot `0x64`) and the adventure controller hold those pointers. Fields of the `IPlayer` part:
+
+| Field | Read by | What |
+|---|---|---|
+| `+0x74` | slot `0x184` = `0x00500d60` (`[ecx+0x74] == 0`) | 0 = human. Slot `0x190` (`0x004fb8c0`) is the same unless the global `0x00fd5c9c` is set (not identified yet). |
+| `+0x78` | slot `0x2c` = `0x00720e90` | player number, 1..8 |
+| `+0x7c` | slot `0x6c` = `0x00c61a70` | status: 1 = in the game; 4 = an empty slot of the map |
+| `+0x634` | slot `0x44` = `0x00500c10`; set by slot `0x48` = `0x00500c20` (stores, then marks the player changed with `0x0050c020`) | **turn state: 0 = playing its turn now, 1 = waiting** |
+
+Nothing else in the exe writes `+0x634` (byte scan): every change goes through slot `0x48`. The game itself finds "the player whose turn it is" from these: `0x0098d480(players, human, alive)` returns the one living player (human or AI, as asked) whose state is 0, or none when there are several. The adventure controller's frame update (`0x006082f0`) uses it to pick the AI player to run, and `0x00607d50` (called when the world's `+0x12c`, read by slot `0xac` and probably a turn number, or the day changes) to follow the human whose turn it is.
+
+**This PC's player** is the adventure controller's `+0x3c` (`NUI::CAdventureController`, vftable `0x00e29a2c`; its world is `+0x18`). In a hotseat game `0x00607d50` switches it to the human whose turn it is.
+
+What the trace showed (A1M4, 2 humans + 1 AI; players 4..8 are the map's empty slots, status 4):
+
+```
+day 2  1h:1/0 2h:1/1 3ai:1/1     player 1 plays
+day 2  1h:1/1 2h:1/0 3ai:1/1     player 1 ended: player 2 plays
+day 2  1h:1/1 2h:1/1 3ai:1/0     the AI plays
+day 3  1h:1/0 2h:1/1 3ai:1/1     a new day
+```
+
+With simultaneous turns, both humans are at 0 together (`1h:1/0 2h:1/0 3ai:1/1`), each goes to 1 when it ends its turn, then the AI plays. The states are part of the game world (set by world commands), so both PCs logged the same changes at the same time.
+
 ## Related settings (console variables)
 
 From strings in the exe; most addresses of the backing globals are still unknown.
