@@ -2,6 +2,13 @@
 //   node tools/rmg/test_template_maker.js
 // The XML must be well formed, every zone reachable, start zones = players,
 // teammates linked, indexes valid, and the map size must give sensible zones.
+//
+//   node tools/rmg/test_template_maker.js --expected build/rmg_parity
+// also writes what the C++ maker (src/mods/rmg_maker.cpp) must build, for its
+// parity test (src/hook/test/rmg_maker_test.cpp, run by build.ps1 -Test): the
+// ready templates, 400 random choices over every value the page and the
+// recipe names offer, a few special cases, and choices the maker must refuse.
+// See writeExpected() below for the file format.
 "use strict";
 var fs = require("fs");
 var path = require("path");
@@ -108,9 +115,17 @@ READY.forEach(function (c, i) { verify(c, "ready " + (i + 1)); });
   onDisk.forEach(function (f) { check(files[f.toLowerCase()], "ready set: src/mods/rmg/templates/" + f + " is in the ready set"); });
 })();
 
-// Random choices (deterministic generator, so a failure can be reproduced).
-var seed = 12345;
-function rnd(n) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; }
+// A deterministic random generator (xorshift32), so a failure can be
+// reproduced. (Until 2026-10-25 this was "seed = (seed * 1103515245 + 12345) &
+// 0x7fffffff; seed % n": its low bits barely change, so nearly all of its 400
+// cases were free-for-all games with poor loot and no underground.)
+function randomFrom(seed) {
+  var s = seed | 0;
+  return function (n) { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) % n; };
+}
+
+// Random choices.
+var rnd = randomFrom(12345);
 var loots = Object.keys(TM.LOOT), guards = Object.keys(TM.GUARDS);
 for (var i = 0; i < 400; i++) {
   var perTeam = 1 + rnd(4), teams = 2 + rnd(Math.max(1, Math.floor(8 / perTeam) - 1));
@@ -124,6 +139,10 @@ for (var i = 0; i < 400; i++) {
     underground: rnd(2) === 1
   }, "random " + i + " (" + teams + "x" + perTeam + ")");
 }
+
+// The wider random choices of the C++ parity test (below) pass the same checks:
+// they also reach 3 team zones, 4 border zones, 3 centre zones and every map size.
+parityChoices().forEach(function (c, i) { verify(c, "parity " + (i + 1) + " (" + c.teams + "x" + c.perTeam + ")"); });
 
 // Loot and guards by distance from the bases.
 (function () {
@@ -155,6 +174,102 @@ for (var i = 0; i < 400; i++) {
 var refused = false;
 try { TM.makeTemplate({ teams: 3, perTeam: 3 }); } catch (e) { refused = true; }
 check(refused, "9 players refused");
+
+// --- Expected files for the C++ maker's parity test ---------------------------
+
+// Random choices over every value the page and the recipe names (OH-X1-...)
+// can give, from their own fixed seed: the same 400 cases on every run.
+function parityChoices() {
+  var r = randomFrom(20261025);
+  var sizes = ["auto"].concat(TM.SIZES.map(function (z) { return z.key; }));
+  var list = [];
+  for (var i = 0; i < 400; i++) {
+    var perTeam = 1 + r(4), teams = 2 + r(Math.floor(8 / perTeam) - 1);
+    var lootBy = {}, guardsBy = {};
+    for (var k = 0; k < 4; k++) lootBy[k] = r(2) ? "" : loots[r(loots.length)];
+    for (k = 1; k < 4; k++) guardsBy[k] = r(2) ? "" : guards[r(guards.length)];
+    if (r(10) === 0) guardsBy[0] = guards[r(guards.length)];  // not on the page, but the maker takes it
+    list.push({
+      teams: teams, perTeam: perTeam, teamZones: r(4), borderZones: r(5), centreZones: r(4),
+      borderTowns: r(2) === 1, teamTowns: r(2) === 1, allyLink: r(2) ? "weak" : "open",
+      startMines: r(2) ? "all" : "woodore", loot: loots[r(loots.length)], guards: guards[r(guards.length)],
+      lootByDistance: lootBy, guardsByDistance: guardsBy,
+      size: r(2) ? "auto" : sizes[1 + r(sizes.length - 1)], underground: r(2) === 1
+    });
+  }
+  return list;
+}
+
+// Cases worth a look of their own, and choices the maker must refuse (the C++
+// maker must give the same message).
+var SPECIAL = [
+  {},  // the maker's defaults
+  { name: "Tom & Jerry's <best> map *" },
+  { name: "Été à Paris — café" },  // UTF-8 in the name, and a run of non-ASCII in the file name
+  { name: "OH-2v2v2-Lu-Normal*" },
+  { teams: 2, perTeam: 1, teamZones: 0, borderZones: 0, centreZones: 0 },  // 2 zones: very big zones
+  { teams: 8, perTeam: 1, teamZones: 3, borderZones: 4, centreZones: 3 },  // 67 zones: small zones
+  { teams: 2, perTeam: 3, borderZones: 0, guardsByDistance: { "0": "strong" } },  // start-to-start paths at distance 0
+  { teams: 2, perTeam: 1, borderZones: 0, teamZones: 0 },  // the same link on both sides, kept once
+  { loot: "rich", lootByDistance: { "1": "rich" }, guardsByDistance: { "2": "normal" } },  // tiers equal to the overall: no "Tiers"
+  { teamZones: 0, teamTowns: true, borderZones: 0, borderTowns: true },  // "Towns" in the name with no zone to hold one
+  { loot: "veryrich", lootByDistance: { "3": "veryrich" }, size: "I", underground: false },
+  { teams: 1 }, { perTeam: 0 }, { teams: 3, perTeam: 3 }, { teams: 2, perTeam: 5 },
+  { loot: "" }, { loot: "gold" }, { guards: "Strong" }, { lootByDistance: { "2": "lots" } },
+  { guardsByDistance: { "1": "none" } }, { size: "xl" }, { size: "" }, { teams: 9, loot: "bad" }
+];
+
+// Writes <dir>/cases.txt and one .xdb per case. cases.txt has one line per
+// case, fields separated by tabs:
+//   id=<id>  then  file=<file in dir>  or  error=<hex of the message>
+//   c.<choice>=<value>   only the choices the case sets (the others are the
+//                        maker's defaults); names are hex of their UTF-8
+//   out.<field>=<hex>    name, fileName, warnings (one per line) and stats
+// Hex keeps the format trivial to read from C++.
+function writeExpected(dir) {
+  function hex(text) { return Buffer.from(text, "utf8").toString("hex"); }
+  function choiceFields(c) {
+    var f = [];
+    Object.keys(c).forEach(function (k) {
+      var v = c[k];
+      if (k === "lootByDistance" || k === "guardsByDistance")
+        Object.keys(v).forEach(function (d) { f.push("c." + k + "." + d + "=" + v[d]); });
+      else f.push("c." + k + "=" + (k === "name" ? hex(v) : String(v)));
+    });
+    return f;
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  var cases = [];
+  READY.forEach(function (c, i) { cases.push({ id: "ready-" + (i + 1), choices: c }); });
+  parityChoices().forEach(function (c, i) { cases.push({ id: "random-" + (i + 1), choices: c }); });
+  SPECIAL.forEach(function (c, i) { cases.push({ id: "special-" + (i + 1), choices: c }); });
+  var lines = [], built = 0, refused = 0;
+  cases.forEach(function (k) {
+    var f = ["id=" + k.id], t;
+    try { t = TM.makeTemplate(k.choices); } catch (e) { f.push("error=" + hex(e.message)); refused++; }
+    if (t) {
+      var file = k.id + ".xdb", s = t.stats;
+      fs.writeFileSync(path.join(dir, file), Buffer.from(t.xml, "utf8"));
+      f.push("file=" + file);
+      built++;
+    }
+    f = f.concat(choiceFields(k.choices));
+    if (t) {
+      f.push("out.name=" + hex(t.name), "out.fileName=" + hex(t.fileName), "out.warnings=" + hex(t.warnings.join("\n")),
+        "out.stats=" + hex([s.players, s.zones, s.size, s.tilesPerZone, s.connections, s.neutralZones].concat(s.byDistance).join("|")));
+    }
+    lines.push(f.join("\t"));
+  });
+  fs.writeFileSync(path.join(dir, "cases.txt"), lines.join("\n") + "\n");
+  console.log("expected files: %d templates and %d refused choices written to %s", built, refused, dir);
+}
+
+var at = process.argv.indexOf("--expected");
+if (at > 0) {
+  if (!process.argv[at + 1]) { console.log("--expected needs a folder"); process.exit(2); }
+  writeExpected(process.argv[at + 1]);
+}
 
 console.log("%d of %d checks passed", checks - failures, checks);
 process.exit(failures ? 1 : 0);
