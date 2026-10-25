@@ -92,6 +92,7 @@ python tools\robot\run_lan_test.py --seconds 240 --turns 4 --host-rmg teams=huma
 - `--simultaneous`: the host ticks the setup screen's simultaneous turns option (`option|simultaneus 0`).
 - `--ui-setting KEY=VALUE` (both copies; `--host-ui` / `--client-ui` for one; `run_ai_test.py` has `--ui-setting` too): `[ui]` settings (`src/mods/README.md`). `trace_players=1` logs each change of a player's status (`players: day 3 (simultaneous turns): player 2 "Robot-client" (human, colour 2, team 0) hero "Anwen": turn ended (turn=1 ended=1)`); `trace_players=2` also dumps the game's raw player and hero data once (research).
 - `--host-rmg teams=humans_vs_ai` puts the two humans on one team (A1M4 has no teams of its own), to see the team buttons.
+- **A random map in a LAN game:** pass part of its path, e.g. `--map "EDD31DF8-A828-4414-A615-E8AC32ACA9C0/"` (a saved random map in the test copy's `Maps`; the trailing `/` keeps rebuilt copies out). The client rebuilds the map when it joins, which takes a few seconds, so give it `--client-ready-at 56 --start-at 70`, and set the map's other start slots to computer with `--host-step "38|arrow|3 right"`. To pick a faction, use `"50|arrow|1 race right"` (before "ready"). Example (`src/mods/rmg_factions.cpp`): `--host-rmg faction_terrain=1 --host-rmg trace_factions=1 --client-rmg trace_factions=1`.
 - `--resolution WxH` (both runners; default 1024x768) sets the game windows' size, e.g. `1920x1080` or `2560x1080`, to see how the list scales next to the game's own interface.
 - `--client-ui player_list_test_rows=8` makes the client show 8 rows (copies of the real players, in 4 teams of 2: the tallest list), to check that it still fits above the chat box and the minimap.
 - Not possible with the robot: F9 and the fade under the mouse (the windows are in the background).
@@ -125,6 +126,23 @@ python tools\robot\save_rmg_map.py --remove OH-X1-robot-2v2
 - `save_rmg_map.py` packs the generated map the way the generator screen's Save does, so the LAN host can pick it. The map has 4 players: `38|arrow|3 right` makes the fourth one a computer player.
 - Look for `rmg join:` and `rmg teams:` lines in both logs; `lan_report.py` checks the checksums.
 - Not possible yet: opening the generator screen. Its button sends `rmg_screen` as a `UISSendGameMessage`, and the robot's `msg|rmg_screen` is not taken (by the single-player or the multiplayer screen).
+## Checking the template builder (a modal panel of the overlay)
+
+Two runs: the builder, Use, then the game's Create and Save; then the saved map is started.
+
+```
+python tools\robot\run_ai_test.py --no-map --seconds 95 --shot-every 0 --step "8|menu|single custom_game" --step "13|rmg|" --step "20|shot|rmg-screen" --step "22|ui|NUI::CRMGScreen oh_builder" --step "26|shot|builder-filled" --step "28|panel|preset 1" --step "29|panel|distance on" --step "31|shot|builder-preset" --step "32|panel|scroll end" --step "34|shot|builder-scrolled" --step "36|panel|use" --step "39|shot|after-use" --step "41|ui|NUI::CRMGScreen create" --step "70|shot|created" --step "72|ui|NUI::CRMGScreen save" --step "77|shot|saved"
+python tools\robot\run_ai_test.py --no-map --seconds 170 --turns 1 --quick-combat --shot-every 0 --step "8|menu|single custom_game" --step "13|rmg|" --step "18|key|F11" --step "22|shot|builder-filled" --step "24|panel|cancel" --step "26|ui|NUI::CRMGScreen back" --step "30|console|advmap /Maps/RMG/<RMGguid>/map.xdb#xpointer(/AdvMapDesc) 0 1 1"
+```
+
+- `rmg|` opens the random map screen from the custom game screen (`msg|rmg_screen` does not: see the step table).
+- `ui|NUI::CRMGScreen oh_builder` sends what our "Template..." button sends: the panel opens as from a click. `key|F11` opens it too.
+- `panel|...` gives the open panel what a click would (`rmg_builder.cpp`, `RobotCommand`): `preset <number in the list, recipe name or part of a ready name>`, `distance on|off`, `scroll <units>|end`, `use`, `save`, `cancel`, `open`.
+- `ui|NUI::CRMGScreen create` and `... save` press the game's own Create and Save. The map is saved as `Maps\<the screen's name>.h5m`; its `RMGguid` (inside: `Maps/RMG/<guid>/map.xdb`) starts it in the second run. Remove the saved map afterwards: `python tools\robot\save_rmg_map.py --remove <name without .h5m>`.
+- `--resolution 1920x1080` checks the panel at another size.
+- What to look for in the log: `rmg screen: the random map screen gets our "Template..." button`, `rmg screen: "oh_builder"`, `rmg builder: Use OH-X1-...: size ..., "ARMG Templates" ticked, OH-X1-... chosen (n of m that fit)`, then at Create and when the saved map starts `rmg teams: setup ... is for a random map made from /RMG/Templates/OH-X1-....xdb`.
+- Checked 2026-10-25 at 1024×768 and 1920×1080 on the French test copy: every line above, our template chosen 14th of the 19 that fit, the map built from it, saved and started, and the computer players took their turns.
+- Not possible with the robot: clicks on the panel (the drop-down lists, the arrows, the boxes, the scroll bar), Esc, and checking that the game behind gets no input (the robot's window is in the background). That is checked by hand, with the test panel's help (`[ui] overlay_test_panel=1`, `src/mods/README.md`).
 
 ## Robot script
 
@@ -140,10 +158,13 @@ Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--ho
 | `save` | part of a save's name | highlights that save on the single-player load screen (`menu|single load_game`) and selects it; then `msg|load` loads it (`run_ai_test.py --save-file <path> --load-save <name>` does it all) |
 | `option` | `<checkbox> <state>` | a checkbox of the multiplayer setup screen: `quick_combat`, `ghostmode`, `realtime` (it is the autosave option), `simultaneus` (simultaneous turns); state 0 = checked (`run_lan_test.py` turns quick combat on, so battles resolve by themselves) |
 | `game` | a number | highlights that game (0 = first) in the LAN lobby's list, before `ui|NUI::CLobbyScreen join` |
-| `arrow` | `<row> left\|right` | presses a player row's state arrow in the multiplayer waiting room: on your own row it toggles "ready", on an empty slot it cycles open → computer → closed |
+| `arrow` | `<row> left\|right` | presses a player row's state arrow in the multiplayer waiting room: on your own row it toggles "ready", on an empty slot it cycles open → computer → closed; `<row> team left\|right` and `<row> race left\|right` press the team and faction arrows; `<row> ready` presses your own row's arrow only while it is "not ready" (safe to repeat, e.g. while a client rebuilds a random map) |
 | `slots` | (none) | research: logs the waiting room's rows (state, player) and whether the host can start |
 | `mem` | hex addresses | research: logs the 32-bit values there (e.g. `f27398` = `net_batched_segments`) |
 | `shot` | a label | saves the next frame as `frame-NNN-<label>.png` |
+| `rmg` | (none) | opens the random map screen from the custom game screen (`menu|single custom_game` first). Its button posts the game message `rmg_screen`, but the screen's observer (`0x0077b090`) drops a message without the button as sender, so `msg|rmg_screen` does nothing; the step calls the observer's handler `0x0077a6c0` on the live `NUI::CHSCreate` instead (`robot_ui.cpp`) |
+| `key` | `F1`..`F12` | presses one of **our overlay's** keys (the DLL's own key handling sees it; the game does not): e.g. `F11` opens the template builder on the random map screen, `F9` is not covered (the player list reads its key itself) |
+| `panel` | a command | for our open panel, what a click would do (the robot cannot click): the template builder takes `preset <n>`, `distance on\|off`, `scroll <units>\|end`, `use`, `save`, `cancel` and `open` (`rmg_builder.cpp`) |
 | `peek` | `<screen class> <hex offset> ...` | research: logs the objects along a pointer chain from a screen, with their class names |
 
 When the game hangs, the DLL logs where: if the main loop stops calling `PeekMessageA`, or stops showing frames, for 3 s, it logs the main thread's position and the game's return addresses on its stack (`robot: stall ...`), and how many game messages are queued.

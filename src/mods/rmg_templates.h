@@ -16,4 +16,11 @@ void ApplyRmgTemplatesFromSettings();
 // template list offers; true when it was not there yet. Any thread.
 bool RegisterRecipe(const std::string &recipe);
 
+// Are recipe names served (templates=1 and the maker's self-check passed)?
+bool RecipesServed();
+
+// A game file stream (CMemoryStream, the game's allocator) holding `data`, as
+// the file system's Open returns one; nullptr when out of memory.
+void *NewGameStream(const std::string &data);
+
 }  // namespace mods

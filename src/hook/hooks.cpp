@@ -4,6 +4,7 @@
 
 #include "game_build.h"
 #include "log.h"
+#include "overlay.h"
 #include "watchdog.h"
 #include "../mods/ai_pacing.h"
 #include "../mods/autosave.h"
@@ -17,6 +18,8 @@
 #include "../mods/notify.h"
 #include "../mods/original_music.h"
 #include "../mods/player_list.h"
+#include "../mods/rmg_builder.h"
+#include "../mods/rmg_factions.h"
 #include "../mods/rmg_teams.h"
 #include "../mods/rmg_templates.h"
 
@@ -50,6 +53,8 @@ void InstallEarly()
 	mods::InstallLanguagesEarly();  // [lang] texts=fr, before the game reads its first text
 	mods::InstallOriginalMusicEarly();
 	mods::InstallPlayerListEarly();  // the Direct3D import, before the game makes its device
+	mods::InstallRmgBuilderEarly();
+	overlay::InstallTestPanelEarly();
 }
 
 void InstallAll()
@@ -71,8 +76,11 @@ void InstallAll()
 	mods::ApplyRmgTeamsFromSettings();
 	mods::ApplyRmgTemplatesFromSettings();
 	mods::ApplyLanguagesFromSettings();
+	mods::ApplyRmgFactionsFromSettings();
 	mods::ApplyOriginalMusicFromSettings();
-	mods::ApplyPlayerListFromSettings();
+	mods::ApplyPlayerListFromSettings();  // overlay clients: drawn in this order
+	mods::ApplyRmgBuilderFromSettings();
+	overlay::ApplyTestPanelFromSettings();
 	mods::ApplyCameraFromSettings();
 }
 

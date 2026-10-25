@@ -81,6 +81,9 @@ def main():
                    help="the DLL ends its human player's turn (when no AI is playing) at most every N seconds")
     p.add_argument("--setvar", action="append", default=[], help="extra profile setting for both copies")
     p.add_argument("--start-at", type=int, default=43, help="script time of the host's start (seconds)")
+    p.add_argument("--client-ready-at", type=int, default=36,
+                   help="script time of the client's 'ready' (later for a random map, which the client rebuilds "
+                        "when it joins; --client-step 'N|arrow|1 ready' repeats it safely)")
     p.add_argument("--trace-mp", action="store_true", help="log every multiplayer segment step and command sent")
     p.add_argument("--mp-segment-ms", type=int, default=0,
                    help="EXPERIMENT: multiplayer segment length 100 or 50 ms on both copies (game: 200)")
@@ -178,7 +181,7 @@ def main():
         # waiting room: rows 0 = host, 1 = client, 2 = the map's third player.
         # State arrows (src/hook/robot_lobby.cpp): the host gets ready; the empty
         # third slot goes open -> computer, so there is an AI to time.
-        "36|arrow|0 right",
+        "36|arrow|0 ready",
         "37|arrow|2 right",
         "40|slots|",
         "41|shot|host-ready",
@@ -193,7 +196,7 @@ def main():
         "26|game|0",
         "27|ui|NUI::CLobbyScreen join",
         "32|shot|client-joined",
-        "36|arrow|1 right",
+        "%d|arrow|1 ready" % args.client_ready_at,
         "%d|shot|client-started" % (args.start_at + 12),
     ] + args.client_step
 

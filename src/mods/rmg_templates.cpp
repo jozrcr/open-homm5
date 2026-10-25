@@ -429,6 +429,16 @@ bool RegisterRecipe(const std::string &recipe)
 	return AddRecipe(recipe, true);
 }
 
+bool RecipesServed()
+{
+	return g_recipes_on && g_open_next && g_list_next;
+}
+
+void *NewGameStream(const std::string &data)
+{
+	return NewStream(data);
+}
+
 void ApplyRmgTemplatesFromSettings()
 {
 	wchar_t path[MAX_PATH];

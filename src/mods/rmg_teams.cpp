@@ -42,13 +42,19 @@
 //   recipe_teams=1      (the default) maps made from a recipe template
 //                       (OH-X1-..., rmg_recipe.cpp) get the recipe's teams:
 //                       with 3 teams of 2, players 1+2, 3+4, 5+6 (player N
-//                       starts in zone N). Only when teams= is empty and the
-//                       lobby arrows (lobby_teams=1) left every player alone.
+//                       starts in zone N). Only when teams= is empty. They are
+//                       set as soon as the setup is built, so the solo custom
+//                       game screen and the multiplayer lobby show them from
+//                       the start; and on these maps the team arrows work as
+//                       with lobby_teams=1, so players can still change them.
 // How: the setup constructor gets the map's description (NDb::SAdvMapDesc);
 // its sRMGProps (+0x254) names the template the map was made from (+0x28, a
-// database link, read by rmg_join.cpp). We remember the recipe's teams per
-// setup, as for lobby_teams, and the host start applies them.
+// database link, read by rmg_join.cpp). Right after the constructor, the
+// recipe's teams go into the setup's slots (by the player number of each
+// slot, whatever its state). The host start keeps teams that are already set
+// (and sets the recipe's teams if somehow they are not).
 #include <windows.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -88,6 +94,7 @@ int g_list[kMaxSlots];  // kList: the team (1..8) of each player number
 bool g_trace = true;
 bool g_lobby = false;
 bool g_recipe_teams = true;
+bool g_arrows = false;  // the team arrow hooks are in (lobby_teams or recipe_teams)
 
 // Setups of maps without teams of their own, as built (a small ring: a setup
 // lives for one lobby or one game, and a reused address is overwritten).
@@ -249,6 +256,36 @@ bool IsFfa(const void *info)
 	return e && e->ffa;
 }
 
+// Do the lobby's team arrows pick team numbers on this setup? On maps without
+// teams of their own with lobby_teams=1, and on recipe maps with recipe_teams=1.
+bool Pickable(const void *info)
+{
+	const FfaEntry *e = Find(info);
+	return g_arrows && e && e->ffa && (g_lobby || (g_recipe_teams && e->recipe[0]));
+}
+
+// The recipe's teams in a setup just built: by each slot's player number (the
+// slots are not taken yet). Players without a start zone get teams of their own.
+void SetRecipeTeams(const BYTE *info, const FfaEntry &e)
+{
+	rmg::Choices c;
+	c.teams = e.teams;
+	c.per_team = e.per_team;
+	const int n = Slots(info);
+	int next = e.teams;
+	for (int i = 0; i < n; ++i) {
+		const DWORD id = Read(Slot(info, i), 4);
+		const int team = id >= 1 && id <= kMaxSlots ? rmg::RecipeTeamOf(c, static_cast<int>(id)) : -1;
+		*reinterpret_cast<DWORD *>(Slot(info, i) + 0x1c) = team >= 0 ? static_cast<DWORD>(team) : static_cast<DWORD>(next++);
+	}
+	if (g_trace) {
+		char when[96];
+		_snprintf_s(when, sizeof(when), _TRUNCATE, "setup %p, the recipe %s's teams (%d of %d) set when it was built", info,
+		            e.recipe, e.teams, e.per_team);
+		LogSlots(when, info);
+	}
+}
+
 // The recipe a map was made from: its description's sRMGProps names the
 // template (a database link, loaded with the map).
 void NoteRecipe(FfaEntry *e, const BYTE *desc)
@@ -282,13 +319,16 @@ void *__fastcall CtorHook(void *self, void *edx, const BYTE *desc)
 	e.ffa = desc && !IsBadReadPtr(desc + 0x100, 1) && desc[0x100] == 0;
 	NoteRecipe(&e, desc);
 	g_ffa_next = (g_ffa_next + 1) % kFfaRing;
+	const BYTE *info = static_cast<const BYTE *>(self);
+	if (g_recipe_teams && g_mode == kOff && e.ffa && e.per_team > 1 && IsStartInfo(info))
+		SetRecipeTeams(info, e);
 	return result;
 }
 
 bool __fastcall CanChangeTeamHook(void *self, void *edx, int slot)
 {
 	const BYTE *info = static_cast<const BYTE *>(self);
-	if (!IsFfa(info))
+	if (!Pickable(info))
 		return g_can_change_next(self, edx, slot);
 	return slot >= 0 && slot < Slots(info) && Plays(Slot(info, slot));
 }
@@ -296,7 +336,7 @@ bool __fastcall CanChangeTeamHook(void *self, void *edx, int slot)
 void __fastcall SetTeamHook(void *self, void *edx, int slot, int right)
 {
 	const BYTE *info = static_cast<const BYTE *>(self);
-	if (!IsFfa(info)) {
+	if (!Pickable(info)) {
 		g_set_team_next(self, edx, slot, right);
 		return;
 	}
@@ -373,7 +413,7 @@ void __fastcall HostStartHook(void *logic, void *edx)
 	if (IsStartInfo(info)) {
 		if (g_trace)
 			LogSlots("host setup before the start", info);
-		if (g_lobby && IsFfa(info))
+		if (Pickable(info))
 			Normalize(info);
 		const FfaEntry *e = Find(info);
 		if (g_trace && g_ctor_next)  // (without the constructor hook we know no setup)
@@ -441,15 +481,18 @@ void ApplyRmgTeamsFromSettings()
 			g_lobby = g_recipe_teams = false;
 		}
 	}
-	if (g_lobby) {
+	if (g_lobby || g_recipe_teams) {  // the arrows: on maps without teams (lobby_teams), on recipe maps (recipe_teams)
 		g_can_change_next =
 			reinterpret_cast<CanChangeTeamFn>(hookpatch::PatchPointer(kCanChangeTeamSlot, kCanChangeTeam, &CanChangeTeamHook));
 		g_set_team_next = reinterpret_cast<SetTeamFn>(hookpatch::PatchPointer(kSetTeamSlot, kSetTeam, &SetTeamHook));
 		if (!g_can_change_next || !g_set_team_next || !PatchTeamCommand()) {
 			hooklog::Write("rmg teams: the lobby code is not as expected: lobby team choice off");
 			g_lobby = false;
+			g_can_change_next = nullptr;
 		} else {
-			hooklog::Write("rmg teams: in the lobby, the team arrows pick teams on maps without teams of their own");
+			g_arrows = true;
+			hooklog::Write("rmg teams: in the lobby, the team arrows pick teams on %s",
+			               g_lobby ? "maps without teams of their own" : "maps made from a recipe");
 		}
 	}
 	if (g_mode == kOff && !g_trace && !g_lobby && !g_recipe_teams)

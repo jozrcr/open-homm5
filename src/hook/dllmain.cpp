@@ -11,6 +11,7 @@
 #include <windows.h>
 #include <unknwn.h>
 
+#include "dinput_hook.h"
 #include "game_build.h"
 #include "hooks.h"
 #include "log.h"
@@ -60,8 +61,10 @@ HRESULT WINAPI Proxy_DirectInput8Create(HINSTANCE inst, DWORD version, REFIID ri
 	typedef HRESULT(WINAPI * Fn)(HINSTANCE, DWORD, REFIID, LPVOID *, LPUNKNOWN);
 	Fn fn = reinterpret_cast<Fn>(Real("DirectInput8Create"));
 	const HRESULT hr = fn ? fn(inst, version, riid, out, outer) : E_FAIL;
-	if (SUCCEEDED(hr) && out)
-		robot::OnDirectInputCreated(*out);  // no-op unless robot mode is on
+	if (SUCCEEDED(hr) && out) {
+		robot::OnDirectInputCreated(*out);   // no-op unless robot mode is on
+		dihook::OnDirectInputCreated(*out);  // no-op unless the robot or a modal panel needs it
+	}
 	return hr;
 }
 
