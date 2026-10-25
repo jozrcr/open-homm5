@@ -26,7 +26,7 @@ How a click becomes a move, from the code (static reading by a research agent; d
 |---|---|---|
 | `drain_reports=1` | **on** | Each frame takes in every report that has arrived. Safe: the same work in the same order, only sooner. |
 | `trace_lockstep=1` | **on** | A log line every 10 s: the wait after this PC's own report, who was last, frames per second, the spread. Then a real game tells us who everyone waits for. |
-| `view_delay_ms=400` | the game's | The margin of point 3. Lower values make moves start sooner. **Q10** |
+| `view_delay_ms=150` | **150 while co-op timing is ON**, else the game's 400 | The margin of point 3. The owner's choice (Q10): everyone is on fiber, and 250 felt too slow. |
 | `catch_up_ms=150` | the game's | Experiment for point 5. |
 
 **Robot results** (2 copies on one PC, about 45 AI moves each; the AI decides differently every run, so the numbers are noisy):
@@ -45,7 +45,7 @@ How a click becomes a move, from the code (static reading by a research agent; d
 
 ## Next
 
-1. **Q10:** a lower `view_delay_ms` by default. It is the biggest single gain: moves start up to 200 ms sooner.
+1. **Q10, decided: 150 ms by default with co-op timing ON** (moves start 250 ms sooner). Tune it from the trace of the next real game: if the waits stay well under 150, go lower. To make lower margins safe, shrink the drift between the PCs' step timers (catch-up, pacing).
 2. **Read the trace from the owner's next real game** (it is on by default). It shows the real wait and who is last, so we can see whether 4 PCs are held back by the network, by frame rates or by freezes.
 3. **Then, depending on that trace:**
    - **Adaptive margin:** the view delay follows the measured wait, changed slowly so the clock never jumps.
