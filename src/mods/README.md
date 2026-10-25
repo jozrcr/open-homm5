@@ -143,6 +143,10 @@ net_sleep_ms=2    ; 1..10, the network thread's rest between rounds (the game: 1
 
 The robot passes them with `run_lan_test.py --net-setting KEY=VALUE`.
 
+**A side effect to know (found after the owner's freeze of 2026-10-25, [docs/subsystems/hangs.md](../../docs/subsystems/hangs.md)):** with 50 ms segments and `catch_up_ms=600`, the game's AI manager runs several segments in one frame and calls the AI's turn driver in each of them, so the AI can take a second (up to a sixth) decision in the same frame, before its first decision's commands have run. In the owner's real game 17% of the AI's steps came that way; with the Oct 24 builds (100 ms segments, the game's 150 ms catch-up) none did. It does not desync (only the host runs the AI and sends its commands), but the AI then sees a world without its last moves, which the game itself never shows it. Whether that caused the freeze is not known yet; the hang watchdog will tell. The timing of the Oct 24 builds (`[coop] segment_ms=100`, `[net] catch_up_ms=150`, `view_delay_ms=400`) had no such steps in the owner's logs (not checked with the robot yet).
+
+**Hardened:** the trace follows the players' report counts from one frame to the next; a count that went back or jumped by more than its 256-segment memory now starts the trace again, instead of a long loop (it never happened in the logs, but those counts are the game's memory).
+
 ## Quicker autosaves (`autosave.cpp`; the trace and level 1 on by default)
 
 **What it is for:** in co-op games the autosave at the start of each round freezes every PC for a long time. Findings and addresses: [docs/subsystems/save.md](../../docs/subsystems/save.md).

@@ -17,6 +17,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "robot.h"
+#include "watchdog.h"
 #include "../mods/fast_paths.h"
 
 namespace {
@@ -108,6 +109,82 @@ void CommandTypes(void *commands, char *out, size_t size)
 	}
 }
 
+// --- for the hang watchdog (watchdog.h): where the AI is, and its last steps ---------
+// Written by the main thread only; the watchdog reads them after it looked at
+// the main thread (a value being written may be off by one step, nothing worse).
+volatile LONG g_in_step = 0;    // 1 while the game's turn driver runs
+void *volatile g_step_ai = nullptr;
+volatile DWORD g_step_stage = 0;  // the stage when it was called
+volatile DWORD g_step_calls = 0;
+volatile DWORD g_step_since = 0;  // GetTickCount() when it was called
+struct Step {
+	DWORD tick;  // when it returned
+	void *ai;
+	DWORD from, to;
+	int cmds;
+	float think_ms, gap_ms;
+	DWORD first_type;  // the vtable of its first command, 0 = none
+};
+const int kSteps = 20;
+Step g_steps[kSteps];
+volatile LONG g_step_count = 0;  // steps recorded so far (the ring holds the last kSteps)
+
+const char *StageName(DWORD stage)
+{
+	static const char *const kNames[] = {
+		"INIT_DAY", "MOVE_HERO", "COLLECT_PASSABLE_OBJECTS", "BUILD_HERO_CHOICES", "ESTIMATE_CHOICES",
+		"EXECUTE_BEST_CHOICE", "MANAGE_TOWNS", "HIRE_HEROES", "LAST_WAIT", "RETURN_TURN", "START_CHOOSE_DESTINATION",
+		"CHOOSE_DESTINATION", "MANAGE_HEROES", "STEP_REARRANGE_TOWN_HEROES", "STEP_ORDER_CARAVANS",
+	};  // the game's own names (0x00866550)
+	return stage < sizeof(kNames) / sizeof(kNames[0]) ? kNames[stage] : "?";
+}
+
+DWORD FirstType(void *commands)
+{
+	__try {
+		const DWORD *v = static_cast<const DWORD *>(commands);
+		if (!commands || v[1] <= v[0])
+			return 0;
+		const DWORD object = *reinterpret_cast<const DWORD *>(v[0]);
+		return object ? *reinterpret_cast<const DWORD *>(object) : 0;
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		return 0;
+	}
+}
+
+void ReportForWatchdog()
+{
+	const DWORD now = GetTickCount();
+	if (g_in_step)
+		hooklog::Write("watchdog: AI: INSIDE the game's AI turn driver for %lu ms (ai=%p, called at stage %lu %s, its "
+		               "call %lu)", now - g_step_since, g_step_ai, g_step_stage, StageName(g_step_stage),
+		               g_step_calls + 1);
+	else
+		hooklog::Write("watchdog: AI: not inside the AI turn driver");
+	const LONG count = g_step_count;
+	if (!count) {
+		hooklog::Write("watchdog: AI: no AI step since the game started");
+		return;
+	}
+	// the last steps, oldest first, 5 per line
+	const LONG first = count > kSteps ? count - kSteps : 0;
+	char line[700];
+	size_t used = 0;
+	for (LONG i = first; i < count; ++i) {
+		const Step &s = g_steps[i % kSteps];
+		const int n = _snprintf_s(line + used, sizeof(line) - used, _TRUNCATE, "%s%lu ms ago ai=%p %lu->%lu cmds=%d (%08lx) "
+		                          "think %.0f gap %.0f", used ? "; " : "", now - s.tick, s.ai, s.from, s.to, s.cmds,
+		                          s.first_type, s.think_ms, s.gap_ms);
+		used = n > 0 ? used + static_cast<size_t>(n) : sizeof(line) - 1;
+		if ((i - first) % 5 == 4 || i + 1 == count) {
+			hooklog::Write("watchdog: AI: last steps: %s", line);
+			used = 0;
+			line[0] = 0;
+		}
+	}
+}
+
 void __fastcall TurnDriverHook(void *self, void *edx, void *commands, int flag)
 {
 	const DWORD stage_before = Field(self, kOffStage);
@@ -115,11 +192,17 @@ void __fastcall TurnDriverHook(void *self, void *edx, void *commands, int flag)
 	LARGE_INTEGER t0, t1;
 	QueryPerformanceCounter(&t0);
 	const double gap = last.returned.QuadPart ? Ms(last.returned, t0) : -1.0;
+	g_step_ai = self;
+	g_step_stage = stage_before;
+	g_step_calls = Field(self, kOffCallCount);
+	g_step_since = GetTickCount();
+	g_in_step = 1;
 	robot::OnAiThinking(true);  // for the AI profiler (robot mode only)
 	mods::FastPathsOnAiStep(true);
 	g_original(self, edx, commands, flag);
 	mods::FastPathsOnAiStep(false);
 	robot::OnAiThinking(false);
+	g_in_step = 0;
 	QueryPerformanceCounter(&t1);
 	last.returned = t1;
 	const DWORD stage_after = Field(self, kOffStage);
@@ -128,9 +211,15 @@ void __fastcall TurnDriverHook(void *self, void *edx, void *commands, int flag)
 		robot::OnAiTurnStart(self);
 	char types[96];
 	CommandTypes(commands, types, sizeof(types));
+	const int cmds = CommandCount(commands);
+	const double think = Ms(t0, t1);
+	Step &s = g_steps[g_step_count % kSteps];
+	s = {GetTickCount(), self, stage_before, stage_after, cmds, static_cast<float>(think), static_cast<float>(gap),
+	     FirstType(commands)};
+	g_step_count = g_step_count + 1;
 	hooklog::Write("ai-step ai=%p flag=%d stage %lu->%lu calls=%lu cmds=%d turn_age=%lums think=%.2fms gap=%.1fms types=%s",
-	               self, flag & 0xff, stage_before, stage_after, Field(self, kOffCallCount),
-	               CommandCount(commands), GetTickCount() - Field(self, kOffTurnStart), Ms(t0, t1), gap, types);
+	               self, flag & 0xff, stage_before, stage_after, Field(self, kOffCallCount), cmds,
+	               GetTickCount() - Field(self, kOffTurnStart), think, gap, types);
 }
 
 bool PatchPointer(DWORD address, DWORD expected, DWORD replacement)
@@ -163,10 +252,14 @@ void *AiTraceHookForTest(void *fake_driver)
 void InstallAiTrace()
 {
 	QueryPerformanceFrequency(&g_freq);
-	if (PatchPointer(kVftableSlot, kTurnDriver, reinterpret_cast<DWORD>(&TurnDriverHook)))
+	if (PatchPointer(kVftableSlot, kTurnDriver, reinterpret_cast<DWORD>(&TurnDriverHook))) {
 		hooklog::Write("hooked AI turn driver (CPlayerAI vftable slot 0 at %08lx)", kVftableSlot);
-	else
+		watchdog::AddReporter(&ReportForWatchdog);
+		watchdog::NameFunction(&TurnDriverHook, "ai_trace TurnDriverHook");
+	}
+	else {
 		hooklog::Write("could not hook the AI turn driver: vftable slot changed or not writable");
+	}
 }
 
 }  // namespace hooks
