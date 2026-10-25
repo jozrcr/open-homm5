@@ -383,6 +383,13 @@ The parts sit where the game's own parts are: the zone map on the minimap, the c
 
 ## Questions for the owner
 
+**Answered 2026-10-25:**
+1. **Yes, automatic teams.** A setting, on by default, for recipe maps only; the lobby arrows still win.
+2. **Favourites later.** This version has the presets and "remember my last choices" only.
+3. **Yes, recipe names on the web page.** The page shows each template's recipe name, so a template made on the page works in the game by name alone.
+
+The questions as asked:
+
 1. **Teams from the template:** when the host starts a map made from a team recipe (for example 2v2v2), should the DLL set the teams to match (players 1+2, 3+4, 5+6) unless the lobby arrows changed them? It would be a setting; the proposal is to have it on for recipe maps only.
 2. **Presets:** the page's 8 presets and "remember my last choices" are planned. Do you also want named favourites (save under a name, pick from a list) in this version, or later?
 3. **The web page:** should it also show the recipe name (and the panel's "Save as file" become rare)? Then a template made on the page works in the game for everyone just by its name, with no file to share.
