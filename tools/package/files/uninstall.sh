@@ -2,8 +2,11 @@
 # open-homm5 uninstaller for Linux (Steam / Proton).
 #
 # Removes only what install.sh put in the game's bin folder:
-#   dinput8.dll (only if it is ours), open-homm5.log, and open-homm5.ini (after asking).
-# Nothing else is touched. Steam's launch options are yours to clear by hand.
+#   dinput8.dll (only if it is ours), open-homm5.log, open-homm5.ini (after asking),
+#   and the random map templates of this package (the OH-*.xdb files whose names are in
+#   this package's open-homm5/templates folder), then the folders if they are empty.
+# Nothing else is touched: a template of your own stays. Steam's launch options are
+# yours to clear by hand.
 #
 # Normal use:   bash uninstall.sh
 # Options, for tests and odd setups:
@@ -195,6 +198,43 @@ else
             ;;
         *) echo "  - kept open-homm5.ini" ;;
     esac
+fi
+
+# The random map templates: only the names this package holds, never another file.
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+tpl_names=()
+for f in "$here/open-homm5/templates"/*.xdb; do
+    [ -f "$f" ] && tpl_names+=("$(basename "$f")")
+done
+tpl_dir="$(find_ci "$bin" open-homm5)"
+tpl_sub=""
+[ -n "$tpl_dir" ] && [ -d "$tpl_dir" ] && tpl_sub="$(find_ci "$tpl_dir" templates)"
+if [ -z "$tpl_sub" ] || [ ! -d "$tpl_sub" ]; then
+    echo "  - no random map templates here"
+elif [ "${#tpl_names[@]}" -eq 0 ]; then
+    echo "  - this folder has no list of our templates, so I left open-homm5/templates alone"
+else
+    removed=0
+    for name in "${tpl_names[@]}"; do
+        p="$(find_ci "$tpl_sub" "$name")"
+        [ -n "$p" ] && [ -f "$p" ] || continue
+        if rm -f "$p"; then
+            removed=$((removed + 1))
+        else
+            echo "  - could not remove $name"
+            failed=1
+        fi
+    done
+    echo "  - removed $removed random map templates"
+    if [ -n "$(ls -A "$tpl_sub")" ]; then
+        echo "  - kept the other file(s) in open-homm5/templates (not ours)"
+    elif rmdir "$tpl_sub"; then
+        rmdir "$tpl_dir" 2>/dev/null   # only if nothing else is in it
+        echo "  - removed the empty folder open-homm5/templates"
+    else
+        echo "  - could not remove the empty folder open-homm5/templates"
+        failed=1
+    fi
 fi
 
 echo

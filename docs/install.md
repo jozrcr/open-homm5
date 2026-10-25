@@ -12,10 +12,10 @@ Everything here is something **you** do; the DLL only adds files and never chang
 The simplest way is the package, a zip called `open-homm5-<version>.zip`. It holds the DLL, a settings file, an installer and an uninstaller for Windows, the same for Linux, and a short `README.txt`. It is built with `python tools/package/make_package.py` ([tools/package/README.md](../tools/package/README.md)); there is no download page yet, so ask the owner for the zip. If you use it, skip "What you need" and "Install" below.
 
 1. Close the game. Extract the whole zip (right-click it, **Extract All**).
-2. **Windows:** double-click `install.bat`. It finds the game through Steam, or asks you for the folder. It copies `dinput8.dll` and `open-homm5.ini` into the game's `bin` folder and tells you what it did. It never overwrites a `dinput8.dll` that is not ours, and never overwrites your `open-homm5.ini`. It also warns you if a ZeroTier network is set to Public in Windows and tells you how to make it Private (it changes no Windows setting itself).
+2. **Windows:** double-click `install.bat`. It finds the game through Steam, or asks you for the folder. It copies `dinput8.dll` and `open-homm5.ini` into the game's `bin` folder and tells you what it did. It never overwrites a `dinput8.dll` that is not ours, and never overwrites your `open-homm5.ini`. It also puts our ready random map templates (files called `OH-*.xdb`) in `bin\open-homm5\templates`, overwriting only its own and leaving any template you added; they show up in the generator's template list, and **every player of a multiplayer game needs the same ones**. It also warns you if a ZeroTier network is set to Public in Windows and tells you how to make it Private (it changes no Windows setting itself).
    **Linux (Steam / Proton):** run `bash install.sh` in the extracted folder. It does the same, then prints the one launch option to paste into Steam. [linux.md](linux.md) has the full walkthrough.
 3. Start the game. A file `open-homm5.log` appears in the `bin` folder: the add-on is running.
-4. To remove it: `uninstall.bat` (Windows) or `bash uninstall.sh` (Linux). Only our own files are removed; it asks before deleting your `open-homm5.ini`.
+4. To remove it: `uninstall.bat` (Windows) or `bash uninstall.sh` (Linux). Only our own files are removed (our templates too, never one you added); it asks before deleting your `open-homm5.ini`.
 
 The manual steps below do the same by hand.
 
@@ -69,7 +69,7 @@ fast_paths=0
 
 ## Uninstall
 
-Delete `dinput8.dll` (and `open-homm5.ini` / `open-homm5.log` if present) from the `bin` folder. Nothing else was changed.
+Delete `dinput8.dll` (and `open-homm5.ini` / `open-homm5.log` / the `open-homm5` folder of templates, if present) from the `bin` folder. Nothing else was changed.
 
 ## Linux (Wine / Proton)
 

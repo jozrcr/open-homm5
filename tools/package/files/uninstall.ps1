@@ -1,8 +1,10 @@
 # open-homm5 uninstaller for Windows. Runs on Windows PowerShell 5.1.
 #
 # Removes only what install.ps1 put in the game's bin folder:
-#   dinput8.dll (only if it is ours), open-homm5.log, and open-homm5.ini (after asking).
-# Nothing else is touched.
+#   dinput8.dll (only if it is ours), open-homm5.log, open-homm5.ini (after asking),
+#   and the random map templates of this package (the OH-*.xdb files whose names are in
+#   this package's open-homm5\templates folder), then the folders if they are empty.
+# Nothing else is touched: a template of your own stays.
 #
 # Keep this file plain ASCII (see install.ps1 for why).
 #
@@ -210,6 +212,48 @@ try {
         }
     } else {
         Write-Host "  - no open-homm5.ini here"
+    }
+
+    # The random map templates: only the names this package holds, never another file.
+    $srcTemplates = Join-Path $PSScriptRoot "open-homm5\templates"
+    $dstDir = Join-Path $bin "open-homm5"
+    $dstTemplates = Join-Path $dstDir "templates"
+    $tplNames = @()
+    if (Test-Path -LiteralPath $srcTemplates) {
+        $tplNames = @(Get-ChildItem -LiteralPath $srcTemplates -File | Where-Object { $_.Extension -ieq ".xdb" } | ForEach-Object { $_.Name })
+    }
+    if (-not (Test-Path -LiteralPath $dstTemplates)) {
+        Write-Host "  - no random map templates here"
+    } elseif ($tplNames.Count -eq 0) {
+        Write-Host "  - this folder has no list of our templates, so I left open-homm5\templates alone" -ForegroundColor Yellow
+    } else {
+        $removed = 0
+        foreach ($n in $tplNames) {
+            $p = Join-Path $dstTemplates $n
+            if (Test-Path -LiteralPath $p -PathType Leaf) {
+                try {
+                    Remove-Item -LiteralPath $p -Force
+                    $removed++
+                } catch {
+                    Write-Host ("  - could not remove " + $n + ": " + $_.Exception.Message) -ForegroundColor Red
+                    $failed = $true
+                }
+            }
+        }
+        Write-Host ("  - removed {0} random map templates" -f $removed)
+        $left = @(Get-ChildItem -LiteralPath $dstTemplates -Force)
+        if ($left.Count -gt 0) {
+            Write-Host ("  - kept {0} other file(s) in open-homm5\templates (not ours)" -f $left.Count)
+        } else {
+            try {
+                Remove-Item -LiteralPath $dstTemplates -Force
+                if (@(Get-ChildItem -LiteralPath $dstDir -Force).Count -eq 0) { Remove-Item -LiteralPath $dstDir -Force }
+                Write-Host "  - removed the empty folder open-homm5\templates"
+            } catch {
+                Write-Host ("  - could not remove the empty folder: " + $_.Exception.Message) -ForegroundColor Red
+                $failed = $true
+            }
+        }
     }
 
     Write-Host ""

@@ -9,6 +9,10 @@
 # It looks for Steam in ~/.steam/steam, ~/.local/share/Steam and the Flatpak
 # folder, so a fake $HOME works for tests.
 #
+# It also copies the random map templates of this package (open-homm5/templates/*.xdb)
+# into <game bin>/open-homm5/templates. It overwrites its own files there and
+# never touches another file.
+#
 # Exit codes: 0 done, 3 refused (a dinput8.dll that is not ours is there),
 # 4 game not found, 5 copy failed, 7 package incomplete.
 
@@ -149,8 +153,13 @@ echo "--------------------"
 
 src_dll="$here/dinput8.dll"
 src_ini="$here/open-homm5.ini"
-if [ ! -f "$src_dll" ] || [ ! -f "$src_ini" ]; then
-    echo "dinput8.dll and open-homm5.ini must be in the same folder as this script."
+src_tpl="$here/open-homm5/templates"
+tpl_files=()
+for f in "$src_tpl"/*.xdb; do
+    [ -f "$f" ] && tpl_files+=("$f")
+done
+if [ ! -f "$src_dll" ] || [ ! -f "$src_ini" ] || [ "${#tpl_files[@]}" -eq 0 ]; then
+    echo "dinput8.dll, open-homm5.ini and the folder open-homm5/templates must be next to this script."
     echo "Please extract the whole zip first, then run install.sh from the new folder."
     echo "Nothing was installed."
     exit 7
@@ -202,6 +211,28 @@ if [ -z "$dst_ini" ]; then
     fi
 fi
 
+# Our random map templates: overwrite our own OH-*.xdb files, leave every other file alone.
+tpl_dir="$(find_ci "$bin" open-homm5)"
+[ -n "$tpl_dir" ] && [ -d "$tpl_dir" ] || tpl_dir="$bin/open-homm5"
+tpl_sub="$(find_ci "$tpl_dir" templates)"
+[ -n "$tpl_sub" ] && [ -d "$tpl_sub" ] || tpl_sub="$tpl_dir/templates"
+if ! mkdir -p "$tpl_sub"; then
+    echo "Could not create the folder $tpl_sub (see the message above)."
+    exit 5
+fi
+tpl_replaced=0
+for f in "${tpl_files[@]}"; do
+    name="$(basename "$f")"
+    dst="$(find_ci "$tpl_sub" "$name")"
+    if [ -n "$dst" ]; then tpl_replaced=$((tpl_replaced + 1)); else dst="$tpl_sub/$name"; fi
+    if ! cp -f "$f" "$dst"; then
+        echo "Could not copy $name into $tpl_sub (see the message above)."
+        exit 5
+    fi
+done
+tpl_total="$(find "$tpl_sub" -mindepth 1 -maxdepth 1 -type f | wc -l)"
+tpl_others=$((tpl_total - ${#tpl_files[@]}))
+
 echo
 echo "Done. What I did:"
 case "$dll_was" in
@@ -214,6 +245,10 @@ if [ "$ini_was" = "new" ]; then
 else
     echo "  - kept your existing open-homm5.ini, with your settings"
 fi
+echo "  - installed ${#tpl_files[@]} random map templates in open-homm5/templates (they are in the game's random map list)"
+[ "$tpl_replaced" -gt 0 ] && echo "    ($tpl_replaced of them replaced our files from an earlier install)"
+[ "$tpl_others" -gt 0 ] && echo "    (left the $tpl_others other file(s) in that folder alone)"
+echo "    Everyone in a multiplayer game needs the same templates: install the same version."
 echo "  - did not change or replace any file of the game itself"
 
 if [ -z "$(find_ci "$bin" MMH55_Utility_64.exe)" ]; then

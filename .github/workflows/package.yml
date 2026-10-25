@@ -34,6 +34,11 @@ jobs:
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File src\hook\build.ps1 -Test
 
+      # the ready random map templates go in the package: they must be what the maker builds
+      - name: Check the ready random map templates
+        shell: cmd
+        run: node tools/rmg/test_template_maker.js
+
       - name: Version
         shell: bash
         run: |
