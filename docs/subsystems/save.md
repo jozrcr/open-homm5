@@ -7,7 +7,8 @@ Why we looked: in co-op games the autosave at the start of each round freezes ev
 ## Short answer
 
 - **One PC asks, every PC saves.** Each round, only the PC of the first living human asks for the autosave. Every PC then writes its own file, inside the lockstep, so everyone waits for the slowest one.
-- **The freeze is mostly the game looking through the saves folder, not the writing.** To pick a name and a file, the game reads the header of every multiplayer save in the folder: 3 times on the PC that asks, once more on every PC. With the owner's 17 old multiplayer saves (copied into the robot's profile), each round froze for **about 10 s**: 7 s for the request, 3.3 s for the save. With only the 3 autosave files of a small map: 0.1 s and 0.15 s.
+- **The freeze is mostly the game looking through the saves folder, not the writing.** To pick a name and a file, the game reads the header of every multiplayer save in the folder: 4 times on the PC that asks, twice more on every PC. With the owner's 17 old multiplayer saves (copied into the robot's profile), each round froze for **about 10 s**: 7 s for the request, 3.3 s for the save. With only the 3 autosave files of a small map: 0.1 s and 0.15 s.
+- **Fixed by the mod (`fast_save_list`, on by default):** during those reads, the costly step (each save's hero pool) is skipped. The same round with the owner's saves: **0.08 s for the request and 0.12 s for each save** (the first autosave of a session: ~0.9 s).
 - **Writing the world** is 0.1 s on the robot's small map. On the owner's big maps (43 to 106 MB before compression) the zlib part alone takes 0.7 to 1.75 s at the game's level. Level 1 takes a third of that, for files 24% bigger.
 
 ## How an autosave happens
@@ -38,7 +39,7 @@ A profile (robot, a temporary build whose sampler ran during the request and the
 | + the owner's 29 saves (17 multiplayer, 12 single player) | 6.4 to 8.5 s | 3.2 to 3.6 s, of which 3.1 to 3.5 s before the first zlib stream | ~10 s |
 | + only the owner's 17 multiplayer saves | 6.6 to 8.0 s | 3.3 to 3.6 s | ~10 s |
 
-The 12 single-player saves cost nothing in a multiplayer game; each multiplayer save on a big map costs about 0.15 s per lookup, a robot autosave of the small map about 0.03 s. (In single player a request took 30 to 370 ms with 7 saves in the folder.)
+The 12 single-player saves cost nothing in a multiplayer game. With 20 multiplayer saves in the folder, the trace counted 80 header reads in each request (4 folder scans: the 3 name lookups and one more) and 40 in each save (2 scans: the file name, and one more), so about 85 ms per read of a big-map save. (In single player a request took 30 to 370 ms with 7 saves in the folder.)
 
 "Freeze" here is how long each PC closed no lockstep segment (the trace's "closed no segment" lines): the PC that asks freezes during the request, then every PC during its save, one after the other.
 
@@ -76,10 +77,36 @@ In (a'), (b') and (c) the host closed no segment for 7 to 9 s during the request
 - `compression=1`: the zlib level of every save (only the save stream's call to `deflateInit_`, recognized by its return address `0x00d10359`).
 - `autosave_every=N`: autosave only on days 1, 1+N, 1+2N... The day comes from the world (`+0x48`, CWorld slot `0xa8` = `0x00c61ab0`, 0 on the first day), the same on every PC.
 
+- `fast_save_list=1`: the fix for the folder reads, below.
+
 Not built: making only the host ask (`autosave_host_only`). The robot showed that the game already sends one request per round, and the PC that asks is the one of the first living human, not always the host: skipping its request would lose the autosave.
+
+## The fix for the folder reads (`fast_save_list`, 2026-10-25)
+
+**What is skipped.** In the setup constructor `0x00ca0240`, the call at `0x00ca0af6` (`mov edx, esi; mov ecx, edi; call 0x00c9f4a0`: `__fastcall(map, setup)`, plain `ret`) is redirected to the mod. The mod skips that hero pool step only when both hold:
+- the autosave request (`0x007f9e10`, autosave key only) or a multiplayer save (`CMPSaveWorldCmd::Execute`) is running on this thread (a thread flag set by the mod's hooks on them);
+- the return address `0x007f320c` (after `call 0x007e67b0` at `0x007f3207`, the per-file read of the folder scan `0x007f30d0`) is on this thread's stack, at most 16 KB above.
+
+Otherwise the game's step runs. The mod checks these bytes before patching: `0x00ca0af2` = `8b d6 8b cf e8 a5 e9 ff ff`, `0x00c9f4a0` = `83 ec 38 53 55 56 8b f2 33 db 3b f3 8b e9`, `0x007f3207` = `e8 a4 35 ff ff`.
+
+**Why it is safe.**
+- `0x00c9f4a0` writes nothing into the setup or the map. It only fills the global hero pool (the list per faction at `0x010db28c`) and notes which setup it belongs to (`0x010daf84`). Read from the disassembly: it stores only to those globals and its own locals, and the functions it calls fill or free the pool, or read the map and the game data.
+- Only two functions read the pool: the setup's vtable slots 15 and 16 (`0x00c9e140`, `0x00c9e1e0`, the lobby's hero choice). Both first check that the setup is the one in `0x010daf84`.
+- A probe (a temporary build) counted the calls of slot 15 in a robot LAN game: 27, all in the lobby, **none during an autosave**. Slot 16 calls slot 15 first.
+- The folder scan throws its temporary setups away. The name lookup and the oldest-slot choice use the saves' names and times. The file name uses the names. The header the save writes comes from the running game, not from these reads. (Trace: "0 with it", so no other setup was built during the autosaves at all.)
+- Only the globals differ afterwards. In the game they then belong to a setup that no longer exists; with the mod they keep their earlier owner. Both are lobby-only state, and they already differ from PC to PC in the game (each PC reads its own folder), so they cannot be part of the synced world.
+
+**Results** (robot LAN, A1M4, the owner's 29 saves copied into both profiles, the final DLL with PR #35 merged):
+
+| | Request (host) | Each PC's save | Frozen ("closed no segment") | World checksums |
+|---|---|---|---|---|
+| `fast_save_list=0` | 6.4–7.2 s | 3.2–3.3 s / 3.2–3.9 s | host 6.9–7.8 s + 3.2–3.4 s, client 3.8–4.7 s | 482, all equal |
+| `fast_save_list=1` | 67–83 ms (first: 823 ms) | 110–116 ms / 114–131 ms (client's first: 855 ms) | host 80–123 ms + 129–162 ms, client 168–197 ms (first round ~1 s) | 976, all equal |
+
+The first autosave of a session still takes ~0.9 s (the files' first read). The autosave names still rotate (auto 3, 1, 2, 3, 1, 2), and the game still reuses the file of the save with the same name. An autosave made with the fix shows normally in the multiplayer load list: name, time, map, picture, 3 players, "Multiplayer - LAN", size, difficulty. A single-player autosave made with it loads and plays on.
 
 ## Next
 
-1. **Quick fix, no code:** move old multiplayer saves out of the `Saves` folder of the profile (keep the ones you still want somewhere else). The game only reads the folder itself.
-2. **Mod, bigger:** remember each save's info between lookups (key: file name, size and time), so a round reads each header at most once, or never if the file did not change. The info is a 0x28c-byte object with strings (copied by `0x007f1290`, freed by `0x006f9ff0`), and `0x007e67b0` takes its path in `eax`, so this needs care.
-3. Measure the owner's real game with the trace on: the freeze per PC, and how many saves each friend has.
+1. Measure the owner's real game with the trace on: the freeze per PC, and how many saves each friend has.
+2. If the first autosave of a session (~1 s) matters: remember each save's info between lookups (key: file name, size and time). The info is a 0x28c-byte object with strings (copied by `0x007f1290`, freed by `0x006f9ff0`), and `0x007e67b0` takes its path in `eax`, so this needs care.
+3. Without the mod, the quick fix is to move old multiplayer saves out of the profile's `Saves` folder.

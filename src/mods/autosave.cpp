@@ -31,11 +31,12 @@
 //    save stream's constructor 0x00d10310 with level -1, zlib's default 6),
 //    and the result goes to a memory-mapped file.
 //
-// Measured (save.md): the folder lookups are most of the freeze. Reading one
-// multiplayer save's header builds its game setup, whose constructor computes
-// the hero pool (0x00c9f4a0, every hero against the map's objects): about
-// 0.15 s per save of a big map, per lookup. With the owner's 17 multiplayer
-// saves in the folder, a round froze for ~10 s; zlib was ~0.1 s of it.
+// Measured (save.md): the folder lookups are most of the freeze. The request
+// reads every multiplayer save's header 4 times, each save on every PC twice.
+// Reading one builds its game setup, whose constructor computes the hero pool
+// (0x00c9f4a0, every hero against the map's objects): ~85 ms per big-map
+// save. With the owner's 17 multiplayer saves in the folder, a round froze
+// for ~10 s; zlib was ~0.1 s of it.
 //
 // What this mod does, settings in open-homm5.ini [save]:
 //   trace_autosave=1   one log line per request (which PC asks, the folder
@@ -49,6 +50,9 @@
 //                      of each week). The day (world +0x48, CWorld slot 0xa8,
 //                      0 on the first day) is part of the game world, so every
 //                      PC with the mod decides the same.
+//   fast_save_list=1   during the autosave request and the multiplayer saves,
+//                      the folder's header reads skip the hero pool step
+//                      (see "fast_save_list" below): ~10 s -> ~0.2 s a round.
 // A save does not change the game world, so none of this can desync a game.
 #include <windows.h>
 #include <intrin.h>
@@ -86,10 +90,20 @@ const DWORD kGuidCall = 0x008236de;         // call [CoCreateGuid] in 0x008236d0
 const BYTE kDeflateInitCallBytes[] = {0xff, 0x15, 0x68, 0xa7, 0xe0, 0x00};
 const BYTE kGuidCallBytes[] = {0xff, 0x15, 0x3c, 0xa7, 0xe0, 0x00};
 const BYTE kWorldDayBytes[] = {0x8d, 0x41, 0x48, 0xc3};
+// fast_save_list: the hero pool step of the setup constructor 0x00ca0240.
+const DWORD kHeroPoolArgs = 0x00ca0af2;  // mov edx, esi (the setup); mov ecx, edi (the map); call 0x00c9f4a0
+const DWORD kHeroPoolCall = kHeroPoolArgs + 4;
+const DWORD kHeroPool = 0x00c9f4a0;  // __fastcall(map, setup), plain ret; writes only globals
+const DWORD kListingRead = 0x007f3207;  // in the folder scan 0x007f30d0: call 0x007e67b0 (one save's info)
+const DWORD kListingReadReturn = kListingRead + 5;
+const BYTE kHeroPoolArgsBytes[] = {0x8b, 0xd6, 0x8b, 0xcf, 0xe8, 0xa5, 0xe9, 0xff, 0xff};
+const BYTE kHeroPoolBytes[] = {0x83, 0xec, 0x38, 0x53, 0x55, 0x56, 0x8b, 0xf2, 0x33, 0xdb, 0x3b, 0xf3, 0x8b, 0xe9};
+const BYTE kListingReadBytes[] = {0xe8, 0xa4, 0x35, 0xff, 0xff};
 
 bool g_trace = false;
 int g_level = -1;  // -1 = leave the game's
 int g_every = 1;
+bool g_fast_list = false;
 bool g_level_ok = false;  // the save stream's call site is the expected one
 bool g_guid_ok = false;
 bool g_day_ok = false;
@@ -334,6 +348,65 @@ void EndSave()
 	g_saving_thread = 0;
 }
 
+// --- fast_save_list: the saves folder's header reads ------------------------------
+// While the autosave request or a multiplayer save runs, the game reads every
+// save's info in the folder (0x007f30d0, one 0x007e67b0 per file). Each info
+// holds a game setup, and the setup constructor (0x00ca0240) ends with the
+// hero pool step 0x00c9f4a0 (call at 0x00ca0af6), which takes nearly all the
+// time. That step writes nothing into the setup or the save: only the pool
+// globals (0x010db28c, per faction) and the "setup the pool belongs to"
+// (0x010daf84), which only the setup's own lobby hero choice reads (vtable
+// slots 15 and 16: 0x00c9e140, 0x00c9e1e0, both check that pointer first). The
+// listing throws these temporary setups away; the game's saves never read the
+// pool. So during those reads, and only those (0x007f320c, the return address
+// of the per-file read, is on the stack), the step is skipped.
+volatile DWORD g_autosave_thread = 0;  // the request or a save runs on this thread
+LONG g_pool_skipped = 0, g_pool_kept = 0;  // hero pool steps inside them
+
+struct AutosaveScope {
+	DWORD previous;
+	AutosaveScope() : previous(g_autosave_thread) { g_autosave_thread = GetCurrentThreadId(); }
+	~AutosaveScope() { g_autosave_thread = previous; }
+};
+
+// The return address of the folder scan's per-file read is on this thread's
+// stack (between here and the stack's base, at most 16 KB up).
+bool ListingReadOnStack()
+{
+	const DWORD *p = static_cast<const DWORD *>(_AddressOfReturnAddress());
+	const DWORD *base = static_cast<const DWORD *>(reinterpret_cast<const NT_TIB *>(NtCurrentTeb())->StackBase);
+	const DWORD *end = p + 4096 < base ? p + 4096 : base;
+	for (; p < end; ++p)
+		if (*p == kListingReadReturn)
+			return true;
+	return false;
+}
+
+typedef void(__fastcall *HeroPoolFn)(void *map, void *setup);
+HeroPoolFn g_hero_pool_next = nullptr;
+
+void __fastcall HeroPoolHook(void *map, void *setup)
+{
+	if (g_autosave_thread && g_autosave_thread == GetCurrentThreadId()) {
+		if (ListingReadOnStack()) {
+			++g_pool_skipped;
+			return;
+		}
+		++g_pool_kept;
+	}
+	g_hero_pool_next(map, setup);
+}
+
+// ", 17 save headers read without the hero pool" (and how many with it).
+void FormatPool(char *out, size_t size, LONG skipped_before, LONG kept_before)
+{
+	out[0] = 0;
+	const LONG skipped = g_pool_skipped - skipped_before, kept = g_pool_kept - kept_before;
+	if (skipped || kept)
+		_snprintf_s(out, size, _TRUNCATE, "; %ld save headers read without the hero pool, %ld with it", skipped,
+		            kept);
+}
+
 // "812 ms in all: 2 ms preparing, 20 ms until the first stream (disk check,
 // file name, header), 700 ms serializing and compressing (deflate 420 ms,
 // level 1, 43000 KB -> 5900 KB in 4 streams), 2 ms closing the file, 60 ms
@@ -389,9 +462,15 @@ void __fastcall SenderHook(void *creator, void *edx, void *transceiver, const ch
 	}
 
 	g_last_guid = 0;
+	const LONG skipped = g_pool_skipped, kept = g_pool_kept;
 	const LONGLONG t0 = Now();
-	g_sender_next(creator, edx, transceiver, key);
+	{
+		AutosaveScope scope;
+		g_sender_next(creator, edx, transceiver, key);
+	}
 	const LONGLONG t1 = Now();
+	char pool[96];
+	FormatPool(pool, sizeof(pool), skipped, kept);
 	if (mp && g_last_guid) {
 		g_own_requests[g_own_next] = g_last_guid;
 		g_own_next = (g_own_next + 1) % kOwnRequests;
@@ -403,15 +482,16 @@ void __fastcall SenderHook(void *creator, void *edx, void *transceiver, const ch
 	if (mp) {
 		if (g_last_guid)
 			hooklog::Write("autosave: day %d (%s): player %d asks every PC to save (request %08lx; finding the "
-			               "oldest autosave and sending took %.0f ms)", day, trigger, me, g_last_guid, Ms(t1 - t0));
+			               "oldest autosave and sending took %.0f ms%s)", day, trigger, me, g_last_guid, Ms(t1 - t0),
+			               pool);
 		else
-			hooklog::Write("autosave: day %d (%s): player %d sent no request (%.0f ms)", day, trigger, me,
-			               Ms(t1 - t0));
+			hooklog::Write("autosave: day %d (%s): player %d sent no request (%.0f ms%s)", day, trigger, me,
+			               Ms(t1 - t0), pool);
 		return;
 	}
 	// In single player the save is queued (0x007f9090) and runs later.
-	hooklog::Write("autosave: day %d (%s): asked for the autosave (not a multiplayer game; %.0f ms)", day, trigger,
-	               Ms(t1 - t0));
+	hooklog::Write("autosave: day %d (%s): asked for the autosave (not a multiplayer game; %.0f ms%s)", day, trigger,
+	               Ms(t1 - t0), pool);
 }
 
 // --- the save (CMPSaveWorldCmd::Execute) -------------------------------------------
@@ -449,12 +529,23 @@ void SaveName(const void *cmd, char *out, int size)
 
 bool __fastcall ExecuteHook(void *cmd, void *edx)
 {
+	if (!g_trace) {
+		AutosaveScope scope;  // fast_save_list only
+		return g_execute_next(cmd, edx);
+	}
 	const Stats before = g_stats;
+	const LONG skipped = g_pool_skipped, kept = g_pool_kept;
 	BeginSave();
 	const LONGLONG t0 = Now();
-	const bool result = g_execute_next(cmd, edx);
+	bool result;
+	{
+		AutosaveScope scope;
+		result = g_execute_next(cmd, edx);
+	}
 	const LONGLONG t1 = Now();
 	EndSave();
+	char pool[96];
+	FormatPool(pool, sizeof(pool), skipped, kept);
 
 	if (!g_pause_from)
 		g_pause_from = g_last_step;
@@ -471,8 +562,8 @@ bool __fastcall ExecuteHook(void *cmd, void *edx)
 		name[0] = 0;
 	char what[400];
 	FormatSave(what, sizeof(what), t0, t1, before);
-	hooklog::Write("autosave: day %d: player %d saved \"%s\" (save %d this round; request %08lx from %s): %s",
-	               g_round_day, Me(), name, g_round_saves, guid, own ? "this PC" : "another PC", what);
+	hooklog::Write("autosave: day %d: player %d saved \"%s\" (save %d this round; request %08lx from %s): %s%s",
+	               g_round_day, Me(), name, g_round_saves, guid, own ? "this PC" : "another PC", what, pool);
 	return result;
 }
 
@@ -501,6 +592,7 @@ void ApplyAutosaveFromSettings()
 	g_trace = ReadInt(path, L"trace_autosave", 1) != 0;
 	g_level = ReadInt(path, L"compression", 1);
 	g_every = ReadInt(path, L"autosave_every", 1);
+	g_fast_list = ReadInt(path, L"fast_save_list", 1) != 0;
 	LARGE_INTEGER freq;
 	QueryPerformanceFrequency(&freq);
 	g_freq = freq.QuadPart ? freq.QuadPart : 1;
@@ -548,22 +640,39 @@ void ApplyAutosaveFromSettings()
 		hooklog::Write("autosave: the world code is not as expected: autosave every day (as the game)");
 		g_every = 1;
 	}
-	if (g_trace || g_every > 1) {
+	// fast_save_list: the hero pool step, skipped during the autosave's folder reads.
+	if (g_fast_list) {
+		if (Matches(kHeroPoolArgs, kHeroPoolArgsBytes, sizeof(kHeroPoolArgsBytes)) &&
+		    Matches(kHeroPool, kHeroPoolBytes, sizeof(kHeroPoolBytes)) &&
+		    Matches(kListingRead, kListingReadBytes, sizeof(kListingReadBytes)))
+			g_hero_pool_next =
+				reinterpret_cast<HeroPoolFn>(hookpatch::RedirectCall(kHeroPoolCall, kHeroPool, &HeroPoolHook));
+		if (!g_hero_pool_next) {
+			hooklog::Write("autosave: the save list code is not as expected: fast_save_list off");
+			g_fast_list = false;
+		}
+	}
+	if (g_trace || g_every > 1 || g_fast_list) {
 		g_sender_next = reinterpret_cast<SenderFn>(hookpatch::PatchPointer(kSenderSlot, kSender, &SenderHook));
 		if (!g_sender_next) {
 			hooklog::Write("autosave: the saves code is not as expected: autosave every day (as the game), no trace");
 			g_every = 1;
 		}
 	}
+	if (g_trace || g_fast_list) {
+		g_execute_next = reinterpret_cast<ExecuteFn>(hookpatch::PatchPointer(kExecuteSlot, kExecute, &ExecuteHook));
+		if (!g_execute_next)
+			hooklog::Write("autosave: the multiplayer save code is not as expected: no save lines");
+	}
+	if (g_fast_list)
+		hooklog::Write("autosave: fast_save_list on: the autosave's look through the saves folder skips each "
+		               "save's hero pool");
 	if (g_trace) {
 		g_guid_ok = Matches(kGuidCall, kGuidCallBytes, sizeof(kGuidCallBytes));
 		if (g_guid_ok)
 			g_co_create_guid = reinterpret_cast<CoCreateGuidFn>(
 				hookpatch::PatchImport("ole32.dll", "CoCreateGuid", reinterpret_cast<void *>(&CoCreateGuidHook)));
 		g_guid_ok = g_co_create_guid != nullptr;
-		g_execute_next = reinterpret_cast<ExecuteFn>(hookpatch::PatchPointer(kExecuteSlot, kExecute, &ExecuteHook));
-		if (!g_execute_next)
-			hooklog::Write("autosave: the multiplayer save code is not as expected: no save lines");
 		g_save_next = reinterpret_cast<SaveFn>(hookpatch::RedirectCall(kSaveCall, kSave, &SaveHook));
 		g_own_step_next = reinterpret_cast<OwnStepFn>(hookpatch::PatchPointer(kOwnStepSlot, kOwnStep, &OwnStepHook));
 		if (g_day_ok)

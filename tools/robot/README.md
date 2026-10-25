@@ -66,7 +66,7 @@ python tools\robot\run_ai_test.py --load-save "Sauvegarde auto" --turns 2 --quic
 
 - `--autosave`: the host ticks the setup screen's autosave option (the checkbox named `realtime`), so every PC autosaves at the start of each day. Without it, multiplayer games never autosave (the console variable `autosave` only counts in single player).
 - `--save-setting KEY=VALUE` (both copies), `--host-save` / `--client-save`: `[save]` settings (`src/mods/README.md`). `run_ai_test.py` has `--save-setting` too.
-- The trace lines start with `autosave:` in both logs. Robot autosaves go to `<test copy>/robot_home-<host|client>/.../Profiles/Robot/Saves/` and stay there between runs (3 files, "Sauvegarde auto 1..3"). The time of each autosave grows with the multiplayer saves in that folder (docs/subsystems/save.md).
+- The trace lines start with `autosave:` in both logs. Robot autosaves go to `<test copy>/robot_home-<host|client>/.../Profiles/Robot/Saves/` and stay there between runs (3 files, "Sauvegarde auto 1..3"). With `fast_save_list=0`, the time of each autosave grows with the multiplayer saves in that folder (docs/subsystems/save.md). Saves copied there whose name is an autosave's ("Sauvegarde auto 2") get overwritten: the game reuses the file of the save with the same name.
 - Multiplayer saves do not show in the single-player load list, so the load check uses a single-player autosave (`run_ai_test.py` makes one each day: the robot profile has `autosave = 1`).
 
 ## Robot script

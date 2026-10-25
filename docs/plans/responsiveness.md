@@ -65,16 +65,18 @@ So, in short: a click is shown after about S/2 (the segment closes) + max(the wa
 The owner: the autosave at the start of each round freezes everyone for a long time. Details in [../subsystems/save.md](../subsystems/save.md).
 
 - **Not N saves per round.** The game sends one autosave request per round, from the PC of the first living human; every PC then saves once. (Robot, 2 PCs, normal and simultaneous turns.) So no "only the host asks" setting was built: it could lose the autosave when the first human is not the host.
-- **The freeze is the saves folder.** To pick the name and the file, the game reads the header of every multiplayer save in the profile's `Saves` folder: 3 times on the PC that asks, once more on every PC. Each read of a big-map save costs ~0.15 s (it rebuilds that game's hero pool). With the owner's 17 old multiplayer saves copied into the robot's profile: **~7 s for the request, then ~3.3 s for each PC's save**, every round. With 3 small autosaves only: 0.1 s and 0.15 s.
+- **The freeze is the saves folder.** To pick the name and the file, the game reads the header of every multiplayer save in the profile's `Saves` folder: 4 times on the PC that asks, twice more on every PC. Each read of a big-map save costs ~85 ms (it rebuilds that game's hero pool). With the owner's 17 old multiplayer saves copied into the robot's profile: **~7 s for the request, then ~3.3 s for each PC's save**, every round. With 3 small autosaves only: 0.1 s and 0.15 s.
+- **Fixed:** `fast_save_list` skips that hero pool step during these reads only (nothing in a save uses it). Same folder: **0.07–0.08 s for the request, 0.11–0.13 s per save**, about 0.3 s frozen per round instead of ~10 s (the first autosave of a session: ~1 s).
 - **Writing is the smaller part.** On the robot's small map, zlib takes 0.1 s per save. On the owner's biggest save (106 MB before compression), the game's zlib takes 1.75 s at its level 6 and 0.60 s at level 1.
 
 | Setting | Default | What it does |
 |---|---|---|
-| `trace_autosave=1` | **on** | A log line per request and per save (each phase, zlib time and sizes), and how long each PC closed no segment. |
+| `fast_save_list=1` | **on** | The folder reads during autosaves skip each save's hero pool step. |
+| `trace_autosave=1` | **on** | A log line per request and per save (each phase, zlib time and sizes, header reads), and how long each PC closed no segment. |
 | `compression=1` | **level 1** (the game: 6) | Saves compress 3x faster, files ~25% bigger, same format. |
 | `autosave_every=1` | every day (as the game) | Autosave only on days 1, 1+N, 1+2N..., decided from the game's day, the same on every PC. |
 
-World checksums stayed equal in every robot run. **Quickest fix for the owner today:** move old multiplayer saves out of the `Saves` folder. **Next step in code:** remember each save's header between lookups, so a round reads each one at most once.
+World checksums stayed equal in every robot run. **Next:** read the trace of the owner's next real game (the freeze per PC on big maps, where the world's own writing takes longer).
 
 ## Next
 
