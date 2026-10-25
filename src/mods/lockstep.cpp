@@ -254,18 +254,28 @@ bool SetImmediate(DWORD address, DWORD expected, DWORD value)
 	return true;
 }
 
-DWORD g_view_ms = 400;  // the margin with co-op timing ON ([net] view_delay_ms)
+DWORD g_view_ms = 400;      // the margin with co-op timing ON ([net] view_delay_ms)
+DWORD g_catch_up_ms = 150;  // the timer's step limit with co-op timing ON ([net] catch_up_ms)
+
+// Sets a 4-byte immediate that holds either the game's value or ours.
+void Switch(DWORD address, DWORD game, DWORD ours, bool on)
+{
+	const DWORD now = *reinterpret_cast<const DWORD *>(address);
+	const DWORD want = on ? ours : game;
+	if (now != want && (now == game || now == ours))
+		SetImmediate(address, now, want);
+}
 
 }  // namespace
 
 // The co-op guard (coop_guard.cpp) switched to its shorter segments, or a new
-// game started with the game's own timing.
+// game started with the game's own timing: our margin and catch-up apply only
+// while every PC runs the add-on's timing.
 void LockstepCoopTiming(bool on)
 {
-	const DWORD now = *reinterpret_cast<const DWORD *>(kViewDelayImmediate);
-	const DWORD want = on ? g_view_ms : 400;
-	if (now != want && (now == 400 || now == g_view_ms))
-		SetImmediate(kViewDelayImmediate, now, want);
+	Switch(kViewDelayImmediate, 400, g_view_ms, on);
+	Switch(kCatchUpImmediates[0], 150, g_catch_up_ms, on);
+	Switch(kCatchUpImmediates[1], 150, g_catch_up_ms, on);
 }
 
 void ApplyLockstepFromSettings()
@@ -274,8 +284,8 @@ void ApplyLockstepFromSettings()
 	hooklog::PathNextToExe(L"open-homm5", L".ini", path, MAX_PATH);
 	g_drain = GetPrivateProfileIntW(L"net", L"drain_reports", 1, path) != 0;
 	g_trace = GetPrivateProfileIntW(L"net", L"trace_lockstep", 1, path) != 0;
-	const DWORD view = GetPrivateProfileIntW(L"net", L"view_delay_ms", 150, path);
-	const DWORD catch_up = GetPrivateProfileIntW(L"net", L"catch_up_ms", 150, path);
+	const DWORD view = GetPrivateProfileIntW(L"net", L"view_delay_ms", 100, path);
+	const DWORD catch_up = GetPrivateProfileIntW(L"net", L"catch_up_ms", 600, path);
 
 	if (view != 400) {
 		if (view < 100 || view > 400)
@@ -294,9 +304,9 @@ void ApplyLockstepFromSettings()
 		         *reinterpret_cast<const DWORD *>(kCatchUpImmediates[1]) != 150)
 			hooklog::Write("lockstep: the timer code is not as expected: keeping the game's 150 ms");
 		else {
-			SetImmediate(kCatchUpImmediates[0], 150, catch_up);
-			SetImmediate(kCatchUpImmediates[1], 150, catch_up);
-			hooklog::Write("lockstep: the segment timer may move %lu ms in one frame (game: 150)", catch_up);
+			g_catch_up_ms = catch_up;
+			hooklog::Write("lockstep: with co-op timing ON, the segment timer may move %lu ms in one frame (game: 150)",
+			               catch_up);
 		}
 	}
 	if (!g_drain && !g_trace)
