@@ -24,12 +24,18 @@
 //    the transceiver (slot 0).
 // 3. The save. CMPSaveWorldCmd::Execute (0x008256a0, cell 0x00e487bc) runs on
 //    every PC inside the lockstep's segment runner, so everyone waits for the
-//    slowest PC. After finding the file for the name (0x008249b0), the save
-//    proper (0x00822950, called at 0x00825735) checks the free disk space,
-//    writes the header, then the world: every object is serialized and fed to
-//    zlib (deflateInit_ called from the save stream's constructor 0x00d10310
-//    with level -1, zlib's default 6), and the result goes to a memory-mapped
-//    file.
+//    slowest PC. The save proper (0x00822950, called at 0x00825735) checks the
+//    free disk space, generates the file name (0x006f8e70: it reads the header
+//    of every save in the folder again), writes the header, then the world:
+//    every object is serialized and fed to zlib (deflateInit_ called from the
+//    save stream's constructor 0x00d10310 with level -1, zlib's default 6),
+//    and the result goes to a memory-mapped file.
+//
+// Measured (save.md): the folder lookups are most of the freeze. Reading one
+// multiplayer save's header builds its game setup, whose constructor computes
+// the hero pool (0x00c9f4a0, every hero against the map's objects): about
+// 0.15 s per save of a big map, per lookup. With the owner's 17 multiplayer
+// saves in the folder, a round froze for ~10 s; zlib was ~0.1 s of it.
 //
 // What this mod does, settings in open-homm5.ini [save]:
 //   trace_autosave=1   one log line per request (which PC asks, the folder
@@ -328,10 +334,10 @@ void EndSave()
 	g_saving_thread = 0;
 }
 
-// "812 ms in all: 30 ms finding the file, 20 ms until the first stream (disk
-// check, header), 700 ms serializing and compressing (deflate 420 ms, level 1,
-// 43000 KB -> 5900 KB in 4 streams), 2 ms closing the file, 60 ms after
-// (file flushes 1 ms, 9 calls)"
+// "812 ms in all: 2 ms preparing, 20 ms until the first stream (disk check,
+// file name, header), 700 ms serializing and compressing (deflate 420 ms,
+// level 1, 43000 KB -> 5900 KB in 4 streams), 2 ms closing the file, 60 ms
+// after (file flushes 1 ms, 9 calls)"
 void FormatSave(char *out, size_t size, LONGLONG t0, LONGLONG t1, const Stats &before)
 {
 	const Stats &now = g_stats;
@@ -343,12 +349,12 @@ void FormatSave(char *out, size_t size, LONGLONG t0, LONGLONG t1, const Stats &b
 		_snprintf_s(out, size, _TRUNCATE, "%.0f ms in all (no compressed stream seen)", total);
 		return;
 	}
-	// Without the save proper's times (a single-player save), the phases
-	// around the streams are "before" and "after".
+	// Without the save proper's times, the phases around the streams are
+	// "before" and "after".
 	const LONGLONG begin = g_save_begin ? g_save_begin : t0;
 	const LONGLONG end = g_save_end ? g_save_end : t1;
 	_snprintf_s(out, size, _TRUNCATE,
-	            "%.0f ms in all: %.0f ms finding the file, %.0f ms until the first stream (disk check, header), "
+	            "%.0f ms in all: %.0f ms preparing, %.0f ms until the first stream (disk check, file name, header), "
 	            "%.0f ms serializing and compressing (deflate %.0f ms, level %d, %llu KB -> %llu KB in %ld streams), "
 	            "%.0f ms closing the file, %.0f ms after (file flushes %.0f ms, %ld calls)",
 	            total, Ms(begin - t0), Ms(g_first_init - begin), Ms(g_last_end - g_first_init), deflate, now.level,
@@ -382,14 +388,10 @@ void __fastcall SenderHook(void *creator, void *edx, void *transceiver, const ch
 		return;
 	}
 
-	const Stats before = g_stats;
 	g_last_guid = 0;
-	if (!mp)
-		BeginSave();  // in single player the save is made right here
 	const LONGLONG t0 = Now();
 	g_sender_next(creator, edx, transceiver, key);
 	const LONGLONG t1 = Now();
-	EndSave();
 	if (mp && g_last_guid) {
 		g_own_requests[g_own_next] = g_last_guid;
 		g_own_next = (g_own_next + 1) % kOwnRequests;
@@ -407,9 +409,9 @@ void __fastcall SenderHook(void *creator, void *edx, void *transceiver, const ch
 			               Ms(t1 - t0));
 		return;
 	}
-	char what[400];
-	FormatSave(what, sizeof(what), t0, t1, before);
-	hooklog::Write("autosave: day %d (%s): saved here (not a multiplayer game): %s", day, trigger, what);
+	// In single player the save is queued (0x007f9090) and runs later.
+	hooklog::Write("autosave: day %d (%s): asked for the autosave (not a multiplayer game; %.0f ms)", day, trigger,
+	               Ms(t1 - t0));
 }
 
 // --- the save (CMPSaveWorldCmd::Execute) -------------------------------------------

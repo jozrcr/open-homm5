@@ -44,6 +44,22 @@ How a click becomes a move, from the code (static reading by a research agent; d
 - Both copies have frames that freeze for about 390 ms (during AI turns).
 - The drain took in about 90 extra reports per 10 s: reports often arrive two at a time.
 
+## Autosave (2026-10-25, `src/mods/autosave.cpp`)
+
+The owner: the autosave at the start of each round freezes everyone for a long time. Details in [../subsystems/save.md](../subsystems/save.md).
+
+- **Not N saves per round.** The game sends one autosave request per round, from the PC of the first living human; every PC then saves once. (Robot, 2 PCs, normal and simultaneous turns.) So no "only the host asks" setting was built: it could lose the autosave when the first human is not the host.
+- **The freeze is the saves folder.** To pick the name and the file, the game reads the header of every multiplayer save in the profile's `Saves` folder: 3 times on the PC that asks, once more on every PC. Each read of a big-map save costs ~0.15 s (it rebuilds that game's hero pool). With the owner's 17 old multiplayer saves copied into the robot's profile: **~7 s for the request, then ~3.3 s for each PC's save**, every round. With 3 small autosaves only: 0.1 s and 0.15 s.
+- **Writing is the smaller part.** On the robot's small map, zlib takes 0.1 s per save. On the owner's biggest save (106 MB before compression), the game's zlib takes 1.75 s at its level 6 and 0.60 s at level 1.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `trace_autosave=1` | **on** | A log line per request and per save (each phase, zlib time and sizes), and how long each PC closed no segment. |
+| `compression=1` | **level 1** (the game: 6) | Saves compress 3x faster, files ~25% bigger, same format. |
+| `autosave_every=1` | every day (as the game) | Autosave only on days 1, 1+N, 1+2N..., decided from the game's day, the same on every PC. |
+
+World checksums stayed equal in every robot run. **Quickest fix for the owner today:** move old multiplayer saves out of the `Saves` folder. **Next step in code:** remember each save's header between lookups, so a round reads each one at most once.
+
 ## Next
 
 1. **Q10, decided: 150 ms by default with co-op timing ON** (moves start 250 ms sooner). Tune it from the trace of the next real game: if the waits stay well under 150, go lower. To make lower margins safe, shrink the drift between the PCs' step timers (catch-up, pacing).
