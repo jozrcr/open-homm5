@@ -96,6 +96,16 @@ python tools\robot\run_lan_test.py --seconds 240 --turns 4 --host-rmg teams=huma
 - `--client-ui player_list_test_rows=8` makes the client show 8 rows (copies of the real players, in 4 teams of 2: the tallest list), to check that it still fits above the chat box and the minimap.
 - Not possible with the robot: F9 and the fade under the mouse (the windows are in the background).
 
+## Checking the template builder (a modal panel of the overlay)
+
+```
+python tools\robot\run_ai_test.py --no-map --seconds 45 --shot-every 0 --step "8|menu|single custom_game" --step "13|ui|NUI::CCustomGameCreateScreen rmg_screen" --step "18|shot|rmg-screen" --step "20|key|F11" --step "22|shot|builder" --step "24|key|F11" --step "26|shot|closed"
+```
+
+- The log says `rmg builder: the random map screen is on top`, then `overlay: modal panel "rmg builder" open over .?AVCRMGScreen@NUI@@`, `rmg builder: first frame drawn (...)` and, after the second F11, `... closed (closed by its panel)`.
+- `--resolution 1920x1080` checks that the panel still covers the screen's main panel exactly.
+- Not possible with the robot: clicks on the panel, Esc, and checking that the game behind gets no input (the robot's window is in the background). That is checked by hand with the test panel (`[ui] overlay_test_panel=1`, `src/mods/README.md`).
+
 ## Robot script
 
 Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--host-step` / `--client-step`), `"<seconds>|<kind>|<text>"`, seconds counted from the first main-loop call:
@@ -114,6 +124,7 @@ Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--ho
 | `slots` | (none) | research: logs the waiting room's rows (state, player) and whether the host can start |
 | `mem` | hex addresses | research: logs the 32-bit values there (e.g. `f27398` = `net_batched_segments`) |
 | `shot` | a label | saves the next frame as `frame-NNN-<label>.png` |
+| `key` | `F1`..`F12` | presses one of **our overlay's** keys (the DLL's own key handling sees it; the game does not): e.g. `F11` opens the template builder on the random map screen, `F9` is not covered (the player list reads its key itself) |
 | `peek` | `<screen class> <hex offset> ...` | research: logs the objects along a pointer chain from a screen, with their class names |
 
 When the game hangs, the DLL logs where: if the main loop stops calling `PeekMessageA`, or stops showing frames, for 3 s, it logs the main thread's position and the game's return addresses on its stack (`robot: stall ...`), and how many game messages are queued.
