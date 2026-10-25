@@ -56,6 +56,7 @@ def instance_args(args, name, steps):
         coop_setting=args.host_coop if name == "host" else args.client_coop,
         audio_setting=args.host_audio if name == "host" else args.client_audio,
         rmg_setting=args.host_rmg if name == "host" else args.client_rmg,
+        save_setting=args.save_setting + (args.host_save if name == "host" else args.client_save),
         fast_paths=args.fast_paths, ai_setting=args.ai_setting,
         # the client never runs the AI (the host does), so "no AI step for 4
         # turn ends" means nothing there
@@ -97,6 +98,16 @@ def main():
                    help="[rmg] setting for the host copy, e.g. teams=humans_vs_ai (src/mods/rmg_teams.cpp)")
     p.add_argument("--client-rmg", action="append", default=[], metavar="KEY=VALUE",
                    help="[rmg] setting for the client copy")
+    p.add_argument("--save-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="[save] setting for both copies, e.g. autosave_host_only=0 or compression=-1 "
+                        "(src/mods/autosave.cpp)")
+    p.add_argument("--host-save", action="append", default=[], metavar="KEY=VALUE",
+                   help="[save] setting for the host copy only")
+    p.add_argument("--client-save", action="append", default=[], metavar="KEY=VALUE",
+                   help="[save] setting for the client copy only")
+    p.add_argument("--autosave", action="store_true",
+                   help="the host ticks the setup screen's autosave option (the checkbox named 'realtime'), so "
+                        "every PC autosaves at the start of each day")
     p.add_argument("--trace-moves", action="store_true", help="log the start-move command and the instant-walk decision")
     p.add_argument("--trace-hello", action="store_true",
                    help="EXPERIMENT: both copies send co-op guard hellos and log their order")
@@ -142,7 +153,8 @@ def main():
         "41|shot|host-ready",
         "%d|msg|start" % args.start_at,
         "%d|shot|host-started" % (args.start_at + 12),
-    ] + (["16|option|quick_combat %d" % args.quick_combat_state] if args.quick_combat_state >= 0 else [])       + args.host_step
+    ] + (["16|option|quick_combat %d" % args.quick_combat_state] if args.quick_combat_state >= 0 else []) \
+      + (["16|option|realtime 0"] if args.autosave else []) + args.host_step
     client_steps = [
         "10|menu|multi lan",
         "24|shot|client-lobby",
