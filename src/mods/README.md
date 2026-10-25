@@ -171,6 +171,46 @@ max_expansions=0     ; EXPERIMENT, CHANGES THE AI'S PATHS: expand a tile at most
 
 `max_expansions` is not part of the exact speed-up: it is a first test of a faster search that may change the AI's paths (see the experiment in [ai-pathfinder.md](../../docs/subsystems/ai-pathfinder.md)). With 16 on the owner's day-50 save, AI thinking went from 16.7 s to 8.3 s; only the AI hero's giant long-range searches changed. On another save the AI then chose differently after a few moves. Off by default; not for real games until it has been tested much more.
 
+## Teams on random maps (`rmg_teams.cpp`, off by default)
+
+Step 2 of the map generator plan ([docs/plans/map-generator.md](../../docs/plans/map-generator.md)).
+
+- **Where teams live:** in the game setup (`NWorld::CPlayersStartInfo`), one slot per player with its team at +0x1c. A random map puts every player on their own team.
+- **How it works:** when the host starts the game (0x007200da → 0x0071feb0), it sends its setup to every PC, and each PC creates its players from it (0x00c9fa80). The mod changes the teams in the host's setup just before that.
+- **Results:**
+  - Every PC gets the same teams, including friends without our DLL.
+  - Only the host's setting counts.
+  - Maps with teams of their own keep them.
+  - A choice that would leave a single team is not applied.
+
+```ini
+[rmg]
+teams=            ; empty: the map's teams. humans_vs_ai, pairs, or a list like 1,1,2,2,3,3
+lobby_teams=0     ; 1 = the lobby's team arrows pick team numbers on maps without teams
+trace_teams=1     ; log the teams each PC starts with
+```
+
+**Choosing teams in the lobby** (`lobby_teams=1`, host only). On maps without teams of their own, each row's team arrows move that player's team number up or down, instead of moving the player to another colour (the game's arrows). The pieces:
+- **Which maps:** the setup constructor (0x00ca0240) tells whether the map has teams. We remember that per setup.
+- **The rules:** for those maps, `CanChangeTeam` (vtable cell 0x00e92770) allows every playing slot, and `SetTeam` (cell 0x00e92774) changes the slot's team.
+- **The other lobbies:** at 0x0071e67d, a 6-byte jump to a small patch makes the host send a row's team to them also when only the team changed. The game itself never changes a team without the colour.
+- **At the start,** the teams are renumbered 0, 1, 2…
+- **Clients** need nothing: the host decides and tells them. Lobby choices win over `teams=`.
+- **Maps with teams of their own** keep the game's arrows.
+
+**Robot tests** (LAN; the host has the settings, the client has none):
+- `teams=humans_vs_ai`: both PCs started with the two humans on team 0 and the computer player on team 1. 352 checksums, all equal.
+- `teams=1,2,2`: both PCs started with player 1 alone against players 2 and 3. 466 checksums, all equal.
+- `lobby_teams=1`, on A1M4:
+  - The host pressed its own team arrow right, and the computer player's left; the client pressed its own right.
+  - Both PCs started with the host and the computer player together against the client. 544 checksums, all equal.
+  - AI moves were slower (1.7 s), as the AI's ally can now see its heroes walk.
+- `lobby_teams=1`, on A1M2 (a map with teams): the arrow moved the host to the other team's open seat, as in the game.
+
+The robot sets these with `run_lan_test.py --host-rmg KEY=VALUE`, and presses a team arrow with the step `"38|arrow|<row> team left|right"`.
+
+**Not done yet:** a random map in a LAN robot game. The robot plays A1M4, which has no teams either.
+
 ## Original music (`original_music*.cpp`, off by default)
 
 **What it is for:** MMH5.5 brings its own music (new tracks for terrains, the main menu, the credits, battles and hero themes). With this switch on, the game plays the **original Heroes V music** wherever MMH5.5 changed it. Off (the default), you hear MMH5.5's music, exactly as without the add-on.

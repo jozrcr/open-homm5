@@ -94,6 +94,10 @@ def write_mod_settings(game, args, instance):
     coop = getattr(args, "coop_setting", None) or []  # e.g. fast_segments=0
     if coop:
         lines += ["[coop]"] + coop
+    # [rmg] = teams on maps without teams (src/mods/rmg_teams.cpp), off by default
+    rmg = getattr(args, "rmg_setting", None) or []  # e.g. teams=humans_vs_ai
+    if rmg:
+        lines += ["[rmg]"] + rmg
     # [audio] = the original music switch (src/mods/original_music.cpp), off by default
     audio = getattr(args, "audio_setting", None) or []  # e.g. original_music=1, log_music=1
     if audio:

@@ -55,6 +55,7 @@ def instance_args(args, name, steps):
         trace_moves=args.trace_moves,
         coop_setting=args.host_coop if name == "host" else args.client_coop,
         audio_setting=args.host_audio if name == "host" else args.client_audio,
+        rmg_setting=args.host_rmg if name == "host" else args.client_rmg,
         fast_paths=args.fast_paths, ai_setting=args.ai_setting,
         # the client never runs the AI (the host does), so "no AI step for 4
         # turn ends" means nothing there
@@ -92,6 +93,10 @@ def main():
                    help="[audio] setting for the host copy only, e.g. original_music=1")
     p.add_argument("--client-audio", action="append", default=[], metavar="KEY=VALUE",
                    help="[audio] setting for the client copy only, e.g. log_music=1")
+    p.add_argument("--host-rmg", action="append", default=[], metavar="KEY=VALUE",
+                   help="[rmg] setting for the host copy, e.g. teams=humans_vs_ai (src/mods/rmg_teams.cpp)")
+    p.add_argument("--client-rmg", action="append", default=[], metavar="KEY=VALUE",
+                   help="[rmg] setting for the client copy")
     p.add_argument("--trace-moves", action="store_true", help="log the start-move command and the instant-walk decision")
     p.add_argument("--trace-hello", action="store_true",
                    help="EXPERIMENT: both copies send co-op guard hellos and log their order")
