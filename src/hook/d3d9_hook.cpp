@@ -25,8 +25,11 @@ bool g_installed = false;
 Direct3DCreate9Fn g_real_create9 = nullptr;
 HWND volatile g_window = nullptr;
 
-// The replaced vtable entries, per vtable (normally one of each kind; a
-// different d3d9 implementation for another device type would add one more).
+// The replaced vtable entries, per vtable. A vtable is not always shared and
+// static: d3d9.dll may give a device a vtable of its own, freed with it, and
+// a later device may get one at the same address, not hooked. So each new
+// object's entries are checked (and hooked again when they are not ours), and
+// the table remembers the last kTables vtables.
 struct D3dTable {
 	void **vtable;
 	CreateDeviceFn create_device;
@@ -36,9 +39,13 @@ struct DeviceTable {
 	PresentFn present;
 	ResetFn reset;
 };
-const int kTables = 4;
+const int kTables = 16;
 D3dTable g_d3d[kTables];
 DeviceTable g_devices[kTables];
+int g_d3d_next = 0, g_devices_next = 0;  // the entry to reuse when all are taken
+CreateDeviceFn g_last_create_device = nullptr;  // for an object we somehow do not know
+PresentFn g_last_present = nullptr;
+ResetFn g_last_reset = nullptr;
 CRITICAL_SECTION g_lock;
 
 struct PresentClient {
@@ -85,43 +92,48 @@ DeviceTable *DeviceTableOf(void **vtable)
 	return nullptr;
 }
 
-// A Direct3D object: its CreateDevice entry goes through us (once per vtable).
+// A Direct3D object: its CreateDevice entry goes through us.
 void HookD3d(IDirect3D9 *d3d)
 {
 	void **vtable = *reinterpret_cast<void ***>(d3d);
 	EnterCriticalSection(&g_lock);
-	if (!D3dTableOf(vtable)) {
-		for (D3dTable &t : g_d3d) {
-			if (t.vtable)
-				continue;
-			void *original = ReplaceSlot(vtable, kCreateDeviceSlot, reinterpret_cast<void *>(&HookCreateDevice));
-			if (original && original != reinterpret_cast<void *>(&HookCreateDevice)) {
-				t.create_device = reinterpret_cast<CreateDeviceFn>(original);
-				t.vtable = vtable;
-			}
-			break;
+	if (vtable[kCreateDeviceSlot] != reinterpret_cast<void *>(&HookCreateDevice)) {
+		D3dTable *t = D3dTableOf(vtable);
+		if (!t) {
+			t = &g_d3d[g_d3d_next];
+			g_d3d_next = (g_d3d_next + 1) % kTables;
+		}
+		if (void *original = ReplaceSlot(vtable, kCreateDeviceSlot, reinterpret_cast<void *>(&HookCreateDevice))) {
+			t->create_device = g_last_create_device = reinterpret_cast<CreateDeviceFn>(original);
+			t->vtable = vtable;
 		}
 	}
 	LeaveCriticalSection(&g_lock);
 }
 
+// A device: its Present and Reset entries go through us.
 void HookDevice(IDirect3DDevice9 *device)
 {
 	void **vtable = *reinterpret_cast<void ***>(device);
 	EnterCriticalSection(&g_lock);
-	if (!DeviceTableOf(vtable)) {
-		for (DeviceTable &t : g_devices) {
-			if (t.vtable)
-				continue;
-			void *present = ReplaceSlot(vtable, kPresentSlot, reinterpret_cast<void *>(&HookPresent));
-			void *reset = ReplaceSlot(vtable, kResetSlot, reinterpret_cast<void *>(&HookReset));
-			if (present && reset) {
-				t.present = reinterpret_cast<PresentFn>(present);
-				t.reset = reinterpret_cast<ResetFn>(reset);
-				t.vtable = vtable;
-			}
-			break;
+	const bool present_ours = vtable[kPresentSlot] == reinterpret_cast<void *>(&HookPresent);
+	const bool reset_ours = vtable[kResetSlot] == reinterpret_cast<void *>(&HookReset);
+	if (!present_ours || !reset_ours) {
+		DeviceTable *t = DeviceTableOf(vtable);
+		if (!t) {
+			t = &g_devices[g_devices_next];
+			g_devices_next = (g_devices_next + 1) % kTables;
+			t->present = nullptr;
+			t->reset = nullptr;
 		}
+		t->vtable = vtable;
+		if (!present_ours)
+			t->present = g_last_present = reinterpret_cast<PresentFn>(
+				ReplaceSlot(vtable, kPresentSlot, reinterpret_cast<void *>(&HookPresent)));
+		if (!reset_ours)
+			t->reset = g_last_reset =
+				reinterpret_cast<ResetFn>(ReplaceSlot(vtable, kResetSlot, reinterpret_cast<void *>(&HookReset)));
+		hooklog::Write("d3d9: device vtable %p hooked", vtable);
 	}
 	LeaveCriticalSection(&g_lock);
 }
@@ -130,9 +142,8 @@ HRESULT STDMETHODCALLTYPE HookCreateDevice(IDirect3D9 *self, UINT adapter, D3DDE
                                            D3DPRESENT_PARAMETERS *params, IDirect3DDevice9 **device)
 {
 	const D3dTable *t = D3dTableOf(*reinterpret_cast<void ***>(self));
-	if (!t)
-		return D3DERR_INVALIDCALL;  // cannot happen: only our vtables lead here
-	const HRESULT hr = t->create_device(self, adapter, type, window, flags, params, device);
+	const CreateDeviceFn next = t && t->create_device ? t->create_device : g_last_create_device;
+	const HRESULT hr = next(self, adapter, type, window, flags, params, device);
 	if (SUCCEEDED(hr) && device && *device) {
 		HookDevice(*device);
 		g_window = window ? window : (params ? params->hDeviceWindow : nullptr);
@@ -147,8 +158,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9 *self, const RECT *source
                                       const RGNDATA *dirty)
 {
 	const DeviceTable *t = DeviceTableOf(*reinterpret_cast<void ***>(self));
-	if (!t)
-		return D3DERR_INVALIDCALL;
+	const PresentFn next = t && t->present ? t->present : g_last_present;
 	for (int i = 0; i < g_present_count; ++i) {
 		__try {
 			g_present[i].callback(self);
@@ -159,17 +169,17 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9 *self, const RECT *source
 				hooklog::Write("d3d9: a frame callback crashed (caught)");
 		}
 	}
-	return t->present(self, source, dest, window, dirty);
+	return next(self, source, dest, window, dirty);
 }
 
 HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9 *self, D3DPRESENT_PARAMETERS *params)
 {
 	const DeviceTable *t = DeviceTableOf(*reinterpret_cast<void ***>(self));
-	if (!t)
-		return D3DERR_INVALIDCALL;
+	const ResetFn next = t && t->reset ? t->reset : g_last_reset;
 	for (int i = 0; i < g_reset_count; ++i)
 		g_reset[i](self, false, false);
-	const HRESULT hr = t->reset(self, params);
+	const HRESULT hr = next(self, params);
+	HookDevice(self);  // (in case the reset gave the device other entries)
 	for (int i = 0; i < g_reset_count; ++i)
 		g_reset[i](self, true, SUCCEEDED(hr));
 	hooklog::Write("d3d9: device %p reset (%ux%u, %s): %s", self, params ? params->BackBufferWidth : 0,

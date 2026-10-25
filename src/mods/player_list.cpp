@@ -26,10 +26,13 @@
 //   player_list=1          1 = the overlay, 0 = nothing is installed
 //   player_list_key=F9     the key that hides / shows it (F1..F12, or none)
 //   player_list_top=34     where it starts, in % of the screen height
-//   player_list_left=1.5   its distance from the left edge, in % of the screen width
+//   player_list_left=2     its distance from the left edge, in % of the screen height
+//                          (the game's interface scales with the height)
 //   language=auto          its words: auto (the game's language), en, fr
 //   trace_players=0        testing: 1 = log each change of a player's status,
 //                          2 = also raw dumps of the game's data (research)
+//   player_list_test_rows=0  testing: show N rows (copies of the real players,
+//                          in teams of two), to check the layout with 8 players
 #include "player_list.h"
 
 #include <windows.h>
@@ -54,8 +57,9 @@ bool g_early = false;    // the Direct3D import went in at DLL load
 bool g_visible = true;   // F9
 int g_key = VK_F9;
 int g_language = -1;     // -1 = auto (found on the first frame), else plist::Language
-plist::Look g_look = {1.0f, 0.34f, 0.015f, plist::kEnglish, nullptr, nullptr};
+plist::Look g_look = {1.0f, 0.34f, 0.02f, plist::kEnglish, nullptr, nullptr, nullptr};
 int g_trace = 0;
+int g_test_rows = 0;     // testing: show this many rows (copies of the real ones)
 
 // --- settings ----------------------------------------------------------------------
 float Percent(const wchar_t *path, const wchar_t *key, float fallback, float low, float high)
@@ -78,6 +82,7 @@ void ReadSettings()
 	hooklog::PathNextToExe(L"open-homm5", L".ini", path, MAX_PATH);
 	g_enabled = GetPrivateProfileIntW(L"ui", L"player_list", 1, path) != 0;
 	g_trace = static_cast<int>(GetPrivateProfileIntW(L"ui", L"trace_players", 0, path));
+	g_test_rows = static_cast<int>(GetPrivateProfileIntW(L"ui", L"player_list_test_rows", 0, path));
 	wchar_t text[32];
 	GetPrivateProfileStringW(L"ui", L"player_list_key", L"F9", text, 32, path);
 	if (_wcsicmp(text, L"none") == 0 || text[0] == L'0') {
@@ -91,7 +96,7 @@ void ReadSettings()
 		g_key = VK_F9;
 	}
 	g_look.top = Percent(path, L"player_list_top", 34.0f, 0.0f, 90.0f) / 100.0f;
-	g_look.left = Percent(path, L"player_list_left", 1.5f, 0.0f, 50.0f) / 100.0f;
+	g_look.left = Percent(path, L"player_list_left", 2.0f, 0.0f, 100.0f) / 100.0f;
 	GetPrivateProfileStringW(L"ui", L"language", L"auto", text, 32, path);
 	if (_wcsicmp(text, L"en") == 0)
 		g_language = plist::kEnglish;
@@ -162,8 +167,12 @@ ImFont *AddFont(const wchar_t *const *names, int count, float px)
 void BuildFonts(float regular_px, float bold_px)
 {
 	ImGui::GetIO().Fonts->Clear();
-	const wchar_t *regular[] = {L"\\Fonts\\segoeui.ttf", L"\\Fonts\\tahoma.ttf", L"\\Fonts\\arial.ttf"};
-	const wchar_t *bold[] = {L"\\Fonts\\segoeuib.ttf", L"\\Fonts\\tahomabd.ttf", L"\\Fonts\\arialbd.ttf"};
+	// The game's own fonts are bitmaps (UI/Fonts/*.(Texture).dds with a glyph
+	// table in Bin/Fonts, format not known yet); Tahoma Bold is the closest
+	// system font to its "System" font (the resource bar's numbers), and Wine
+	// has Tahoma too.
+	const wchar_t *regular[] = {L"\\Fonts\\tahomabd.ttf", L"\\Fonts\\segoeuib.ttf", L"\\Fonts\\arialbd.ttf"};
+	const wchar_t *bold[] = {L"\\Fonts\\tahomabd.ttf", L"\\Fonts\\segoeuib.ttf", L"\\Fonts\\arialbd.ttf"};
 	g_look.font = AddFont(regular, 3, regular_px);
 	g_look.font_bold = AddFont(bold, 3, bold_px);
 	g_font_px = regular_px;
@@ -185,7 +194,7 @@ bool EnsureImGui(IDirect3DDevice9 *device)
 	if (g_imgui_device != device) {
 		if (g_imgui_device) {
 			ImGui_ImplDX9_Shutdown();  // a new device: the old one's objects go
-			plist::ReleasePortraits();
+			plist::ReleaseGameTextures();
 		}
 		g_imgui_device = nullptr;
 		if (!ImGui_ImplDX9_Init(device))
@@ -244,6 +253,26 @@ void PollKey()
 	was_down = down;
 }
 
+// Testing the layout (player_list_test_rows=N): N rows, copies of the real
+// ones, in teams of two (the tallest list: 8 players in 4 teams).
+void AddTestRows(plist::Snapshot *s)
+{
+	const int real = s->count;
+	for (int i = 0; i < g_test_rows && i < plist::kMaxPlayers; ++i) {
+		plist::Row &r = s->rows[i];
+		if (i >= real) {
+			r = s->rows[i % real];
+			r.id = i + 1;
+			r.colour = i + 1;
+			r.status = static_cast<plist::Status>(i % 4);
+			_snprintf_s(r.name, sizeof(r.name), _TRUNCATE, i % 3 ? "Test %d" : "Test player number %d", i + 1);
+		}
+		r.team = i / 2;
+	}
+	s->count = g_test_rows < plist::kMaxPlayers ? g_test_rows : plist::kMaxPlayers;
+	s->teams = s->count > 1;
+}
+
 // --- the frame -------------------------------------------------------------------------
 // Off the adventure map for a while (main menu, a battle...): our Direct3D
 // objects go, so that we hold nothing of the game's device when it is not needed
@@ -253,7 +282,7 @@ void ReleaseDeviceObjects()
 	if (!g_imgui_device)
 		return;
 	ImGui_ImplDX9_Shutdown();
-	plist::ReleasePortraits();
+	plist::ReleaseGameTextures();
 	g_imgui_device = nullptr;
 }
 
@@ -267,12 +296,22 @@ bool DrawFrame(IDirect3DDevice9 *device)
 	float w, h;
 	if (!BackBufferSize(device, &w, &h) || !EnsureImGui(device))
 		return false;
+	if (g_test_rows > snapshot.count && snapshot.count > 0)
+		AddTestRows(&snapshot);
 	if (g_language < 0)
 		g_language = GameLanguage();
 	g_look.language = static_cast<plist::Language>(g_language);
-	int loads = 2;  // portrait files read per frame at most (each ~0.1-1 ms)
+	int loads = 2;  // picture files read per frame at most (each ~0.1-1 ms)
+	bool plain = false;
+	g_look.frame = plist::GameTexture(device, plist::kFramePicture, &loads, &plain);
+	static bool told = false;
+	if (plain && !told) {
+		told = true;
+		hooklog::Write("player list: the game's resource bar picture (%s) is not readable: plain style",
+		               plist::kFramePicture);
+	}
 	for (int i = 0; i < snapshot.count; ++i)
-		snapshot.rows[i].face_texture = plist::Portrait(device, snapshot.rows[i].face, &loads);
+		snapshot.rows[i].face_texture = plist::GameTexture(device, snapshot.rows[i].face, &loads);
 
 	ImGuiIO &io = ImGui::GetIO();
 	LARGE_INTEGER now;
@@ -301,7 +340,15 @@ bool DrawFrame(IDirect3DDevice9 *device)
 	plist::DrawPanel(snapshot, g_look, g_rect);
 	ImGui::Render();
 	if (SUCCEEDED(device->BeginScene())) {
+		// The portraits have mipmaps: use them (ImGui's renderer sets the other
+		// filters), and give the game back its own setting afterwards.
+		DWORD mip_filter = D3DTEXF_NONE;
+		const bool got = SUCCEEDED(device->GetSamplerState(0, D3DSAMP_MIPFILTER, &mip_filter));
+		if (got)  // (a "pure" device cannot tell: then leave it as it is)
+			device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
 		ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
+		if (got)
+			device->SetSamplerState(0, D3DSAMP_MIPFILTER, mip_filter);
 		device->EndScene();
 	}
 	static bool first = true;
@@ -350,7 +397,7 @@ void ApplyPlayerListFromSettings()
 	plist::SetTrace(g_trace);
 	if (!plist::InstallGameHooks())
 		return;
-	plist::InstallPortraits();
+	plist::InstallGameTextures();
 	if (!d3dhook::Install(!g_early))
 		return;
 	d3dhook::AddPresentCallback(&OnPresent, 0);

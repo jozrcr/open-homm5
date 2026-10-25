@@ -1,6 +1,6 @@
 // The player list overlay's parts (player_list.cpp), shared between its files:
 //   player_list_game.cpp       reads the game: players, teams, turn status, day;
-//   player_list_portraits.cpp  the heroes' portraits, from the game's data;
+//   player_list_textures.cpp   pictures from the game's data (portraits, frames);
 //   player_list_draw.cpp       draws the panel (all of the look and its words);
 //   player_list.cpp            settings, Direct3D and Dear ImGui, the F9 key.
 #pragma once
@@ -50,12 +50,13 @@ void SetTrace(int level);  // 1 = log status changes, 2 = also raw dumps (resear
 // The game's state now; false when no adventure map is on screen.
 bool ReadSnapshot(Snapshot *out);
 
-// player_list_portraits.cpp: the heroes' portraits, read from the game's data.
-bool InstallPortraits();  // false: no portraits (the rest works)
-// The picture of that .dds file as a texture of the device, or nullptr (not
-// readable, or not loaded yet: *loads_left files are read at most per call).
-void *Portrait(IDirect3DDevice9 *device, const char *dds_path, int *loads_left);
-void ReleasePortraits();
+// player_list_textures.cpp: pictures from the game's data (portraits, frames).
+bool InstallGameTextures();  // false: no portraits, plain style (the rest works)
+// The picture of that .dds file as a texture of the device (IDirect3DTexture9 *),
+// or nullptr: not loaded yet (*loads_left files are read at most per call), or
+// not readable (then *failed, if given, is true).
+void *GameTexture(IDirect3DDevice9 *device, const char *dds_path, int *loads_left, bool *failed = nullptr);
+void ReleaseGameTextures();
 // A file of the game's data, read through the game's own file system (false
 // before the game opened its first file, or when there is no such file).
 bool ReadGameFile(const char *path, std::string *out);
@@ -66,11 +67,14 @@ enum Language { kEnglish, kFrench };
 struct Look {
 	float alpha;     // 0..1, lower while the mouse is over the panel
 	float top;       // where it starts, fraction of the screen height (0.34)
-	float left;      // its left inset, fraction of the screen width (0.015)
+	float left;      // its left inset, fraction of the screen height (0.02)
 	Language language;
-	void *font;       // ImFont *: names (regular)
+	void *font;       // ImFont *: names
 	void *font_bold;  // ImFont *: the day, team numbers
+	void *frame;      // the game's resource bar picture (IDirect3DTexture9 *), or nullptr: plain style
 };
+// The game's picture the panels are made of (the resource bar, 1024x64, DXT3).
+extern const char kFramePicture[];
 // The font sizes the panel wants at this screen height (pixels).
 void FontSizes(float screen_height, float *regular, float *bold);
 // Draws the panel; writes the rectangle it covers (x0, y0, x1, y1, in pixels).

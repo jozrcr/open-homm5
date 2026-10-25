@@ -13,7 +13,13 @@ Robot mode (`robot*.cpp`, used by `tools/robot/`) only turns on when an `open-ho
 
 The game imports one function from `DINPUT8.dll` (`DirectInput8Create`). Windows looks for DLLs in the exe's own folder first, so a `dinput8.dll` placed next to the exe is loaded instead of the system one. Ours loads the real `dinput8.dll` from the Windows system folder and passes every call through.
 
-It **adds** one file and replaces none, it does not collide with MMH5.5 (which uses `55u.dll` in the `um.dll` import slot), and it stays away from Direct3D (on Linux, Proton/DXVK supply their own `d3d9.dll`).
+It **adds** one file and replaces none, and it does not collide with MMH5.5 (which uses `55u.dll` in the `um.dll` import slot). It does not replace `d3d9.dll` either (on Linux, Proton/DXVK supply their own): to draw the player list over the game, `d3d9_hook.cpp` only replaces the exe's `Direct3DCreate9` import entry and entries of the Direct3D objects' vtables, whichever `d3d9.dll` made them.
+
+## Drawing over the game (`d3d9_hook.cpp`)
+
+The player list overlay (`src/mods/player_list.cpp`) and the robot's screenshots share one set of Direct3D 9 hooks: `Direct3DCreate9` (the exe's import), `IDirect3D9::CreateDevice`, `IDirect3DDevice9::Present` and `Reset` (vtable entries). Each user registers a callback that runs before each frame is shown, in order: the overlay draws first, then the robot takes its screenshot, so the screenshots show the overlay. Windows' `d3d9.dll` gives **each device a vtable of its own** (on the heap): every new device's entries are checked and hooked, not only the first one's.
+
+The overlay draws with **Dear ImGui v1.91.9b** (MIT, <https://github.com/ocornut/imgui>, tag `v1.91.9b`), in `third_party/imgui/`: its core files and its DirectX 9 renderer (`backends/imgui_impl_dx9.*`), unchanged, with its `LICENSE.txt`. Its Win32 backend is not used: it would change the mouse cursor and wants the window's messages; the overlay takes no input, so it reads the mouse position itself.
 
 ## Which exes it hooks
 
@@ -85,6 +91,8 @@ On **Linux** (Wine/Proton) Wine prefers its own built-in `dinput8.dll`. Tell it 
 | `hooks.cpp/.h` | installs all hooks (honours `open-homm5.nohooks`); `InstallEarly` for the few that must be in before the game reads its data |
 | `ai_trace.cpp` | the AI turn trace |
 | `log.cpp/.h` | `open-homm5.log` writer |
+| `d3d9_hook.cpp/.h` | the shared Direct3D 9 hooks (overlay, robot screenshots) |
+| `third_party/imgui/` | Dear ImGui v1.91.9b (MIT): core + DirectX 9 renderer, for the player list overlay |
 | `robot.cpp/.h`, `robot_endturn.cpp`, `robot_input.cpp` | robot mode for unattended test runs; only active when `open-homm5-robot.ini` is next to the exe (see `tools/robot/README.md`) |
 | `test/proxy_test.cpp` | smoke test |
 | `build.ps1` | build script |

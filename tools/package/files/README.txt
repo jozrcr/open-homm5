@@ -10,6 +10,8 @@ Install on Linux (Steam / Proton): extract the zip, open a terminal in the folde
 Check that it works: start the game. A file named open-homm5.log appears in the game's bin folder. If it is there, the add-on is running.
 Everyone who plays the same co-op game should install it.
 
+Player list: on the adventure map's left edge, a small list of the players shows who is still playing, who has ended the turn, and when the computer is moving. F9 hides it or shows it again.
+
 Random map templates: the install also adds ready templates (names start with OH-) to the game's random map list. Every player of a multiplayer game needs the same ones, so everyone should install the same version.
 
 Settings (you can skip this): open-homm5.ini in the bin folder. Every line is commented out and shows the default.
