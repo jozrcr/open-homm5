@@ -4,6 +4,7 @@
 
 #include "game_build.h"
 #include "log.h"
+#include "overlay.h"
 #include "../mods/autosave.h"
 #include "../mods/coop_guard.h"
 #include "../mods/fast_paths.h"
@@ -13,6 +14,7 @@
 #include "../mods/notify.h"
 #include "../mods/original_music.h"
 #include "../mods/player_list.h"
+#include "../mods/rmg_builder.h"
 #include "../mods/rmg_teams.h"
 #include "../mods/rmg_templates.h"
 
@@ -45,6 +47,8 @@ void InstallEarly()
 		return;
 	mods::InstallOriginalMusicEarly();
 	mods::InstallPlayerListEarly();  // the Direct3D import, before the game makes its device
+	mods::InstallRmgBuilderEarly();
+	overlay::InstallTestPanelEarly();
 }
 
 void InstallAll()
@@ -64,7 +68,9 @@ void InstallAll()
 	mods::ApplyRmgTeamsFromSettings();
 	mods::ApplyRmgTemplatesFromSettings();
 	mods::ApplyOriginalMusicFromSettings();
-	mods::ApplyPlayerListFromSettings();
+	mods::ApplyPlayerListFromSettings();  // overlay clients: drawn in this order
+	mods::ApplyRmgBuilderFromSettings();
+	overlay::ApplyTestPanelFromSettings();
 }
 
 }  // namespace hooks

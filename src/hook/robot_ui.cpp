@@ -405,6 +405,45 @@ bool UiCommand(const char *screen, const char *command)
 	return handled;
 }
 
+// The random map screen (NUI::CRMGScreen). The custom game screen's "Générer
+// une carte" button posts the game message "rmg_screen" (UI/HotSeat/Menu/
+// RMGScreen.(UISSendGameMessage).xdb), but its observer
+// (CGMMemFunObserver<NUI::CHSCreate>, notify 0x0077b090) ignores a message
+// without the sender the button gives, so "msg|rmg_screen" does nothing. This
+// calls what the observer would: the handler 0x0077a6c0 (__thiscall, one
+// argument it does not read, ret 4) on the live NUI::CHSCreate. The handler sets
+// the object's flag +0x180 and calls 0x00796be0, which queues the creation of the
+// random map screen (a NUI::CCreateRMGScreen command, vtable 0x00e40e30). Without
+// a CHSCreate (the multiplayer create screen), only 0x00796be0 is called.
+bool OpenRmgScreen()
+{
+	if (!IsHookable(DetectGameBuild()))
+		return false;
+	static const BYTE kHandler[] = {0xc6, 0x81, 0x80, 0x01, 0x00, 0x00, 0x01, 0xe8, 0x14, 0xc5, 0x01, 0x00, 0xc2, 0x04, 0x00};
+	static const BYTE kCreate[] = {0x6a, 0x0c, 0xe8, 0xe9, 0x23, 0x0e, 0x00, 0x33, 0xc9};
+	if (memcmp(reinterpret_cast<const void *>(0x0077a6c0), kHandler, sizeof(kHandler)) != 0 ||
+	    memcmp(reinterpret_cast<const void *>(0x00796be0), kCreate, sizeof(kCreate)) != 0) {
+		hooklog::Write("robot: rmg: the game's code is not as expected");
+		return false;
+	}
+	void *create_screen = FindScreen("NUI::CHSCreate");
+	typedef void(__fastcall * HandlerFn)(void *self, void *edx, void *message);
+	typedef void(__cdecl * CreateFn)();
+	__try {
+		if (create_screen)
+			reinterpret_cast<HandlerFn>(0x0077a6c0)(create_screen, nullptr, nullptr);
+		else
+			reinterpret_cast<CreateFn>(0x00796be0)();
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		hooklog::Write("robot: rmg: opening the random map screen crashed (caught)");
+		return false;
+	}
+	hooklog::Write("robot: rmg: random map screen requested (%s)",
+	               create_screen ? "through NUI::CHSCreate's rmg_screen handler" : "directly");
+	return true;
+}
+
 // Windows that wait for a click a robot game cannot give. Called by the
 // end-turn helper when no AI has moved for a while, i.e. when the game seems
 // to wait for a human:

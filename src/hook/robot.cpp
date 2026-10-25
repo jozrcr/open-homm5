@@ -32,7 +32,7 @@ struct Step {
 	DWORD at_ms;
 	char kind;  // 'c' console, 'm' menu, 'u' ui, 'g' game message, 'p' pick map, 'l' pick save,
 	            // 'o' setup option, 'r' setup slider, 'j' pick game, 'k' peek, 'w' waiting-room slots, 'a' slot arrow,
-	            // 'v' memory, 's' screenshot
+	            // 'v' memory, 's' screenshot, 'y' a key of our overlay
 	char text[512];
 };
 const int kMaxSteps = 32;
@@ -69,6 +69,7 @@ bool g_net_log = false;  // robot_net.cpp
 bool g_share_udp_ports = false;
 char g_relay_ports[64] = {};
 int g_net_log_packets = -1;  // -1 = robot_net.cpp's default
+volatile LONG g_overlay_key = 0;  // a "key" step's key, until the overlay takes it
 
 // --- running a console command the way WinMain does (0x00d112a7) ---------------
 //   push L"mainmenu"; lea ecx,[str]; call 0x00456220   build a game wide string
@@ -349,6 +350,19 @@ BOOL WINAPI RobotPeekMessageA(LPMSG msg, HWND hwnd, UINT min, UINT max, UINT rem
 			}
 			else if (s.kind == 'j') {  // "<number>": a game in the LAN lobby's list
 				PickGame(atoi(s.text));
+			}
+			else if (s.kind == 'n') {  // the random map screen, from the custom game screen
+				OpenRmgScreen();
+			}
+			else if (s.kind == 'y') {  // "F1".."F12": a key of our overlay (opens the builder, the test panel...)
+				const int n = (s.text[0] == 'F' || s.text[0] == 'f') ? atoi(s.text + 1) : 0;
+				if (n >= 1 && n <= 12) {
+					InterlockedExchange(&g_overlay_key, VK_F1 + n - 1);
+					hooklog::Write("robot: key %s for the overlay", s.text);
+				}
+				else {
+					hooklog::Write("robot: key \"%s\" is not F1..F12", s.text);
+				}
 			}
 			else if (s.kind == 'k') {  // "<screen class> <hex offset> ..."
 				Peek(s.text);
@@ -680,6 +694,8 @@ bool ReadConfig(const wchar_t *path)
 				         : strcmp(kind, "slots") == 0 ? 'w'
 				         : strcmp(kind, "arrow") == 0 ? 'a'
 				         : strcmp(kind, "mem") == 0 ? 'v'
+				         : strcmp(kind, "key") == 0 ? 'y'
+				         : strcmp(kind, "rmg") == 0 ? 'n'
 				                                     : 'c';
 				lstrcpynA(s.text, text, sizeof(s.text));
 			}
@@ -823,6 +839,8 @@ void Init()
 		               : g_steps[i].kind == 'w' ? "slots"
 		               : g_steps[i].kind == 'a' ? "arrow"
 		               : g_steps[i].kind == 'v' ? "mem"
+		               : g_steps[i].kind == 'y' ? "key"
+		               : g_steps[i].kind == 'n' ? "rmg"
 		               : g_steps[i].kind == 's' ? "shot"
 		                                        : "console",
 		               g_steps[i].text);
@@ -837,6 +855,11 @@ void Init()
 bool Active()
 {
 	return g_active;
+}
+
+bool TakeOverlayKey(int vk)
+{
+	return vk && InterlockedCompareExchange(&g_overlay_key, 0, vk) == vk;
 }
 
 void OnAiTurnStart(void *ai)

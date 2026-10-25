@@ -39,6 +39,10 @@ void OnAiTurnStart(void *ai);
 void OnDirectInputCreated(void *direct_input);
 // Press and release one key (a DIK_ code, e.g. 0x1C = Enter). False if busy.
 bool PressKey(int dik_code);
+// One of our overlay's own keys (step "key|F11"): true once for the next
+// overlay::KeyPressed(vk) after the step ran (the robot's window is in the
+// background, so the overlay's GetAsyncKeyState never sees a key).
+bool TakeOverlayKey(int vk);
 
 // Robot human player (robot_endturn.cpp): ends the passive human's turns.
 void OnAiStep();               // from the AI trace, every AI step
@@ -70,6 +74,9 @@ void Peek(const char *spec);
 bool AutoCloseScreens();  // true while a battle or a box is being handled
 // Post a game message by name, like a button with an ARSendGameMessage reaction.
 bool PostGameMessage(const char *name, int param);
+// Open the random map screen from the custom game screen (step "rmg"), as its
+// "Générer une carte" button does (robot_ui.cpp: why "msg|rmg_screen" cannot).
+bool OpenRmgScreen();
 // The live object with this vftable and, at second_offset, second_vftable (last
 // one found; *count = how many), by scanning the game's memory (~0.1 s).
 void *FindLiveObject(DWORD vftable, DWORD second_offset, DWORD second_vftable, int *count);

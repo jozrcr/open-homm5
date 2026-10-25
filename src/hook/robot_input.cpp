@@ -1,40 +1,23 @@
 // Robot keyboard: lets robot mode press keys in the game through DirectInput.
 //
 // The game reads the keyboard with DirectInput 8 (window messages are ignored),
-// and DirectInput8Create goes through our proxy. In robot mode we replace three
-// entries of the real DirectInput COM vtables (data tables in the system
-// dinput8.dll, not code):
-//   IDirectInput8::CreateDevice      to notice the keyboard device being created
-//   IDirectInputDevice8::GetDeviceState / GetDeviceData
-//                                    to add our key presses to what the game reads
-// Keyboard and mouse devices share one vtable, so the hooks pass everything that
-// is not the keyboard straight through.
+// and DirectInput8Create goes through our proxy. In robot mode we filter what
+// the game reads from the keyboard (the shared DirectInput hooks,
+// dinput_hook.cpp, order 0):
+//   Acquire          always succeeds (the robot's window is in the background);
+//   GetDeviceState   our key press is added to the keys that are down;
+//   GetDeviceData    our key press and release are added to the events.
+// The mouse passes untouched.
 #define DIRECTINPUT_VERSION 0x0800
 #include <windows.h>
 #include <dinput.h>
 
+#include "dinput_hook.h"
 #include "log.h"
 #include "robot.h"
 
 namespace robot {
 namespace {
-
-// vtable slots (IUnknown first): IDirectInput8 CreateDevice = 3;
-// IDirectInputDevice8 GetDeviceState = 9, GetDeviceData = 10.
-const int kCreateDevice = 3;
-const int kGetDeviceState = 9;
-const int kGetDeviceData = 10;
-const int kAcquire = 7;
-
-typedef HRESULT(STDMETHODCALLTYPE *CreateDeviceFn)(void *self, REFGUID guid, void **device, IUnknown *outer);
-typedef HRESULT(STDMETHODCALLTYPE *GetDeviceStateFn)(void *self, DWORD size, void *data);
-typedef HRESULT(STDMETHODCALLTYPE *GetDeviceDataFn)(void *self, DWORD size, DIDEVICEOBJECTDATA *data, DWORD *count,
-                                                    DWORD flags);
-CreateDeviceFn g_real_create_device = nullptr;
-GetDeviceStateFn g_real_get_state = nullptr;
-GetDeviceDataFn g_real_get_data = nullptr;
-typedef HRESULT(STDMETHODCALLTYPE *AcquireFn)(void *self);
-AcquireFn g_real_acquire = nullptr;
 
 void *g_keyboard = nullptr;
 
@@ -60,30 +43,12 @@ void Clear()
 	InterlockedExchange(&g_phase, 0);
 }
 
-void **Vtable(void *object)
+HRESULT FilterState(dihook::DeviceKind kind, void *self, DWORD size, void *data, HRESULT hr)
 {
-	return *static_cast<void ***>(object);
-}
-
-void *PatchSlot(void *object, int slot, void *replacement)
-{
-	void **table = Vtable(object);
-	if (table[slot] == replacement)
-		return nullptr;  // already patched
-	DWORD old;
-	if (!VirtualProtect(&table[slot], sizeof(void *), PAGE_READWRITE, &old))
-		return nullptr;
-	void *original = table[slot];
-	table[slot] = replacement;
-	VirtualProtect(&table[slot], sizeof(void *), old, &old);
-	return original;
-}
-
-HRESULT STDMETHODCALLTYPE HookGetDeviceState(void *self, DWORD size, void *data)
-{
-	HRESULT hr = g_real_get_state(self, size, data);
+	if (kind != dihook::kKeyboard)
+		return hr;
 	static bool logged = false;
-	if (self == g_keyboard && !logged) {
+	if (!logged) {
 		logged = true;
 		hooklog::Write("robot: game polls the keyboard (GetDeviceState, hr=%08lx)", static_cast<unsigned long>(hr));
 	}
@@ -105,11 +70,10 @@ HRESULT STDMETHODCALLTYPE HookGetDeviceState(void *self, DWORD size, void *data)
 	return hr;
 }
 
-HRESULT STDMETHODCALLTYPE HookGetDeviceData(void *self, DWORD size, DIDEVICEOBJECTDATA *data, DWORD *count, DWORD flags)
+HRESULT FilterData(dihook::DeviceKind kind, void *self, DWORD size, DIDEVICEOBJECTDATA *data, DWORD *count,
+                   DWORD capacity, DWORD flags, HRESULT hr)
 {
-	const DWORD capacity = count ? *count : 0;
-	HRESULT hr = g_real_get_data(self, size, data, count, flags);
-	if (self != g_keyboard)
+	if (kind != dihook::kKeyboard || self != g_keyboard)
 		return hr;
 	if (!g_uses_buffer)
 		hooklog::Write("robot: game reads keyboard events (GetDeviceData, hr=%08lx)", static_cast<unsigned long>(hr));
@@ -143,10 +107,9 @@ HRESULT STDMETHODCALLTYPE HookGetDeviceData(void *self, DWORD size, DIDEVICEOBJE
 
 // The keyboard can only be "acquired" while the game window is in front. The robot
 // runs in the background, so for the keyboard we always report success.
-HRESULT STDMETHODCALLTYPE HookAcquire(void *self)
+HRESULT FilterAcquire(dihook::DeviceKind kind, void *self, HRESULT hr)
 {
-	HRESULT hr = g_real_acquire(self);
-	if (self == g_keyboard && FAILED(hr)) {
+	if (kind == dihook::kKeyboard && self == g_keyboard && FAILED(hr)) {
 		static bool logged = false;
 		if (!logged) {
 			logged = true;
@@ -158,22 +121,12 @@ HRESULT STDMETHODCALLTYPE HookAcquire(void *self)
 	return hr;
 }
 
-HRESULT STDMETHODCALLTYPE HookCreateDevice(void *self, REFGUID guid, void **device, IUnknown *outer)
+void OnDevice(dihook::DeviceKind kind, void *device)
 {
-	HRESULT hr = g_real_create_device(self, guid, device, outer);
-	if (SUCCEEDED(hr) && device && *device && IsEqualGUID(guid, GUID_SysKeyboard)) {
-		g_keyboard = *device;
-		if (void *a = PatchSlot(g_keyboard, kAcquire, reinterpret_cast<void *>(&HookAcquire)))
-			g_real_acquire = reinterpret_cast<AcquireFn>(a);
-		void *s = PatchSlot(g_keyboard, kGetDeviceState, reinterpret_cast<void *>(&HookGetDeviceState));
-		void *d = PatchSlot(g_keyboard, kGetDeviceData, reinterpret_cast<void *>(&HookGetDeviceData));
-		if (s)
-			g_real_get_state = reinterpret_cast<GetDeviceStateFn>(s);
-		if (d)
-			g_real_get_data = reinterpret_cast<GetDeviceDataFn>(d);
-		hooklog::Write("robot: keyboard device %p hooked", g_keyboard);
-	}
-	return hr;
+	if (kind != dihook::kKeyboard)
+		return;
+	g_keyboard = device;
+	hooklog::Write("robot: keyboard device %p hooked", g_keyboard);
 }
 
 }  // namespace
@@ -182,10 +135,13 @@ void OnDirectInputCreated(void *direct_input)
 {
 	if (!Active() || !direct_input)
 		return;
-	InstallMenuHooks();  // DirectInput is created before the main menu is built
-	void *orig = PatchSlot(direct_input, kCreateDevice, reinterpret_cast<void *>(&HookCreateDevice));
-	if (orig)
-		g_real_create_device = reinterpret_cast<CreateDeviceFn>(orig);
+	static bool registered = false;
+	if (!registered) {
+		registered = true;
+		InstallMenuHooks();  // DirectInput is created before the main menu is built
+		dihook::Filters filters = {&FilterState, &FilterData, &FilterAcquire, &OnDevice};
+		dihook::AddFilters(filters, 0);
+	}
 	hooklog::Write("robot: DirectInput %p hooked for the robot keyboard", direct_input);
 }
 

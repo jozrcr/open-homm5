@@ -24,9 +24,8 @@
 //                  player by the world's "give turn to next players" 0x00998060).
 //   a hero (NWorld::IHero, the CHero subobject at +0x1c; vtable 0x00e7e484):
 //     +0x6c/+0x70  its name (wide string, slot 0x268).
-//   the screens: a list at [0x00fe719c] (read by 0x008385a0), the last entry
-//     (+8) is the screen on top; its RTTI class tells whether it is the
-//     adventure map (NUI::CAdventureScreen).
+//   the screen on top (overlay::TopScreen, src/hook/overlay.cpp): its RTTI
+//     class tells whether it is the adventure map (NUI::CAdventureScreen).
 // Every object is checked by its vtable before it is read.
 #include "player_list_internal.h"
 
@@ -34,6 +33,7 @@
 #include <string.h>
 
 #include "../hook/log.h"
+#include "../hook/overlay.h"
 #include "../hook/patch.h"
 
 namespace mods {
@@ -46,9 +46,6 @@ const DWORD kWorldDay = 0x00c61ab0;  // lea eax, [ecx+0x48]; ret
 const BYTE kWorldDayBytes[] = {0x8d, 0x41, 0x48, 0xc3};
 const DWORD kPlayerVftable = 0x00e1a09c;  // NWorld::CPlayer's IPlayer
 const DWORD kHeroVftable = 0x00e7e484;    // NWorld::CHero's IHero
-const DWORD kTopScreenGetter = 0x008385a0;  // reads the screen list at [0x00fe719c]
-const BYTE kTopScreenGetterBytes[] = {0x51, 0x33, 0xd2, 0x89, 0x14, 0x24, 0xa1, 0x9c, 0x71, 0xfe, 0x00};
-const DWORD kScreenList = 0x00fe719c;
 // The getters whose offsets we read (checked at install, so a different build
 // turns the overlay off instead of showing nonsense).
 struct Getter {
@@ -193,15 +190,7 @@ void FacePath(const void *hero, char *out, int size)
 // The screen on top: the adventure map?
 bool OnAdventureMap(char *class_name, int size)
 {
-	class_name[0] = 0;
-	const DWORD *sentinel = *reinterpret_cast<const DWORD *const *>(kScreenList);
-	if (!sentinel || sentinel[0] == reinterpret_cast<DWORD>(sentinel))
-		return false;
-	const void *screen = Ptr(reinterpret_cast<const void *>(sentinel[1]), 8);
-	if (!screen)
-		return false;
-	lstrcpynA(class_name, ClassName(screen), size);
-	return strcmp(class_name, ".?AVCAdventureScreen@NUI@@") == 0;
+	return overlay::TopScreen(class_name, size) && strcmp(class_name, ".?AVCAdventureScreen@NUI@@") == 0;
 }
 
 // --- per-day bookkeeping: who has had the turn today ----------------------------
@@ -492,9 +481,7 @@ bool InstallGameHooks()
 {
 	if (g_ok)
 		return true;
-	bool ok = memcmp(reinterpret_cast<const void *>(kWorldDay), kWorldDayBytes, sizeof(kWorldDayBytes)) == 0 &&
-	          memcmp(reinterpret_cast<const void *>(kTopScreenGetter), kTopScreenGetterBytes,
-	                 sizeof(kTopScreenGetterBytes)) == 0;
+	bool ok = memcmp(reinterpret_cast<const void *>(kWorldDay), kWorldDayBytes, sizeof(kWorldDayBytes)) == 0;
 	for (const Getter &g : kGetters)
 		ok = ok && Read(reinterpret_cast<const void *>(g.slot), 0) == g.function &&
 		     memcmp(reinterpret_cast<const void *>(g.function), g.bytes, g.size) == 0;

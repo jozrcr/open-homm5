@@ -378,12 +378,22 @@ The parts sit where the game's own parts are: the zone map on the minimap, the c
    - **The lobby arrows still win.** With `lobby_teams=1` and one arrow pressed on the host: `teams already set ... keeping them`, the arrows' teams on both PCs.
    - **`recipe_teams=0`** on the host: every player on their own team, as before.
    - **The client without recipe support** (`templates=0` on the client): the client's log says `rmg join: the map's template is missing on this PC`, the lobby shows the game's "can't make the map" message (`RMG_MAP_FAIL`), and the client doesn't crash. If it crashes anyway, before or after this line, note where: the static reading may have missed a second place that uses the template.
-4. **Shared overlay and modal input.** Move ImGui setup out of the player list into `overlay.cpp`. Add the window procedure subclass, our own small mouse and keyboard feed to ImGui (we don't add ImGui's Win32 backend, which would be a download), and the DirectInput mute while a modal panel is open.
+4. [x] **Shared overlay and modal input.** Move ImGui setup out of the player list into `overlay.cpp`. Add the window procedure subclass, our own small mouse and keyboard feed to ImGui (we don't add ImGui's Win32 backend, which would be a download), and the DirectInput mute while a modal panel is open.
 
    *Test:* the player list unchanged in a robot run. By hand (the robot can't click a background window): a test panel takes clicks and Esc, and the game behind it doesn't react. **Also by the owner on Linux (Proton).**
-5. **The native button and an empty panel.** Serve the changed MainPanel and the new button files; catch `oh_builder`; draw the panel's frame from the game's pictures.
+
+   **Done (2026-10-25)**, see `src/hook/README.md` ("The overlay"). What the build found:
+   - The game draws **its own cursor** by default (`ui_use_hwcursor = 0`), kept at `0x00fe6da0`/`0x00fe6da4` by `0x00835ce0`, moved from Windows' cursor or from DirectInput's mouse axes. So the mute keeps DirectInput's mouse motion (the cursor must move over the panel) and holds back keys, buttons and the wheel; ImGui follows the game's cursor.
+   - One set of DirectInput hooks (`dinput_hook.cpp`) now serves the robot's keyboard and the mute.
+   - Safety nets: the mute holds only while the panel's screen is on top (checked every frame) and a frame was drawn in the last 2 s; Esc closes; keys held across the change are handled (`input_mute.cpp`, tested by `test/input_mute_test.cpp`).
+   - The test panel: `[ui] overlay_test_panel=1`, F10. On the adventure map F10 is also the game's menu key (`input_a2.cfg`), so the panel closes at once there: test on the main menu or the random map screen.
+   - Robot check: the player list on A1M4 with 8 test rows, old DLL vs new: same layout, header, rows and statuses; the text inside the pills is pixel-identical.
+   - Still to do: the hand test on Windows and on Linux (Proton).
+5. [ ] **The native button and an empty panel.** Serve the changed MainPanel and the new button files; catch `oh_builder`; draw the panel's frame from the game's pictures.
 
    *Test:* robot screenshot with the button; the `ui|NUI::CRMGScreen oh_builder` step opens the panel; with a wrong file, the fallback button.
+
+   **First part done (2026-10-25):** the empty panel (`src/mods/rmg_builder.cpp`, `[rmg] builder=1`): the screen's `MainBg`, its title, a Cancel button made of `Button_122_34_*`, over the main panel (649×508, centred, scaled with the height; the screen's window is `ALIGN_CENTER`). "Screen on top" works by the RTTI class `.?AVCRMGScreen@NUI@@`. For now **F11** opens it (robot step `key|F11`). Robot-checked at 1024×768 and 1920×1080: the panel covers the main panel exactly. The robot reaches the screen with the new step `rmg|` (the screen's observer ignores `msg|rmg_screen`, which has no sender; see `tools/robot/README.md`). Still to do: the native "Template..." button (served UI files), `oh_builder`, the fallback button.
 6. **The panel itself.** Every choice in the parity table, presets, the zone map, numbers and warnings, English and French (`[ui] language`).
 
    *Test:* by hand, the same choices on the page and in the game give the same name and the same numbers.

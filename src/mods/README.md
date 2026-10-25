@@ -243,7 +243,7 @@ It only shows the adventure map (not in towns, battles or menus). **F9** hides i
 
 **Where the data comes from:** the game world's players (turn order, name, colour, team, selected hero, "my turn now", "pressed End Turn"), the same on every PC; the hero's name and portrait from its game data. Details and addresses: [docs/subsystems/players.md](../../docs/subsystems/players.md). It only reads the game, so it cannot desync a game, and each player can turn it on or off.
 
-**How it draws:** the DLL sees the game's Direct3D 9 device (`src/hook/d3d9_hook.cpp`: the `Direct3DCreate9` import, then entries of the Direct3D objects' vtables; data patches only) and draws just before each frame is shown, with [Dear ImGui](https://github.com/ocornut/imgui) (`src/hook/third_party/imgui`, v1.91.9b, MIT). A device reset (fullscreen switch, alt-tab) is handled. It stays plain Direct3D 9 and Win32, so it should work under Wine/Proton (with their `d3d9.dll`), not checked there yet.
+**How it draws:** it is one client of the DLL's shared overlay (`src/hook/overlay.cpp`, see `src/hook/README.md`), with the template builder. The overlay sees the game's Direct3D 9 device (`src/hook/d3d9_hook.cpp`: the `Direct3DCreate9` import, then entries of the Direct3D objects' vtables; data patches only) and draws just before each frame is shown, with [Dear ImGui](https://github.com/ocornut/imgui) (`src/hook/third_party/imgui`, v1.91.9b, MIT); it also holds the fonts and the pictures read from the game's data. A device reset (fullscreen switch, alt-tab) is handled. It stays plain Direct3D 9 and Win32, so it should work under Wine/Proton (with their `d3d9.dll`), not checked there yet. The player list is not a modal panel: it never takes input.
 
 **Checked with the robot** (A1M4, LAN: 2 humans + 1 computer player; screenshots show the panel, see `tools/robot/README.md`):
 
@@ -398,6 +398,25 @@ rmg templates: OH-X1-321110nnxxxxxxxa.xdb built from its name: "OH-2v2v2-Lu-Norm
 - A client without recipe support got the game's message instead of a crash.
 
 Details: [the plan's robot results](../../docs/plans/in-game-generator.md#robot-results-2026-10-25). Not checked yet: the generator screen's template list.
+## Template builder (`rmg_builder.cpp`, on by default; in progress)
+
+The plan: [docs/plans/in-game-generator.md](../../docs/plans/in-game-generator.md). A panel on the game's own random map screen (`NUI::CRMGScreen`, the same screen in single player and multiplayer) with every choice of the web template maker. **Today only the empty panel exists** (build step 5, first part):
+
+- **F11** opens it, only while the random map screen is on top (a temporary key: the native "Template..." button comes later). F11 again, **Esc** or **Cancel** closes it.
+- It covers the screen's main panel exactly: 649×508 in the game's 1024×768 layout, centred, scaled with the screen height like the game's interface. It is made of the game's own pictures, read from its data: the screen's background (`UI/RMGScreen/MainBg`), the game's buttons (`UI/Common/DlgButtons/Button_122_34_*`: normal, the highlight under the mouse, pressed); the check boxes (`UI/Common/CheckBox/CheckBox_*`) are loaded for the next step. If a picture cannot be read, the log says so and that part is drawn in plain colours.
+- The game behind is dimmed and **gets no mouse or keyboard input** while it is open: it is a modal panel of the overlay (`src/hook/README.md`). It closes by itself when the random map screen is no longer on top, or when no frame was drawn for 2 s (alt-tab in fullscreen), so the game always gets its input back.
+- The log says when the random map screen is on top, when the panel opens and closes, and why (`rmg builder: ...`, `overlay: modal panel "rmg builder" closed (Esc): the game gets its input again`).
+
+```ini
+[rmg]
+builder=1   ; 0 = no panel (nothing is installed)
+
+[ui]
+overlay_test_panel=0   ; testing only: 1 = F10 opens the overlay's test panel on any screen
+overlay_test_key=F10   ; its key (F10 is also the game's menu key on the adventure map)
+```
+
+**Checking modal input by hand** (the robot cannot click: its game runs in the background): with `overlay_test_panel=1`, open the test panel on the main menu or the random map screen. Its buttons, check box and text line must react, and the game behind must not (no button of the game pressed, no hotkey, no wheel). The panel shows the mouse position, the wheel, the keys it receives and where the input comes from.
 
 ## Original music (`original_music*.cpp`, off by default)
 
