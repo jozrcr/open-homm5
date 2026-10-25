@@ -258,8 +258,13 @@ void NoteRecipe(FfaEntry *e, const BYTE *desc)
 	std::string reference, recipe;
 	rmg::Choices c;
 	try {
-		if (!desc || !TemplateLinkReference(desc + kAdvMapDescRmgProps + kRmgPropsTemplateLink, &reference) ||
-		    !rmg::RecipeOfReference(reference, &recipe) || !rmg::DecodeRecipe(recipe, &c))
+		const bool random_map = desc && !IsBadReadPtr(desc + kAdvMapDescRmgProps, 8) && desc[kAdvMapDescRmgProps + 4];
+		const bool linked = desc && TemplateLinkReference(desc + kAdvMapDescRmgProps + kRmgPropsTemplateLink, &reference);
+		static LONG logged = 0;
+		if (g_trace && random_map && InterlockedIncrement(&logged) <= 8)
+			hooklog::Write("rmg teams: setup %p is for a random map made from %s", e->info,
+			               linked ? reference.c_str() : "(a template link this PC can't read)");
+		if (!linked || !rmg::RecipeOfReference(reference, &recipe) || !rmg::DecodeRecipe(recipe, &c))
 			return;
 	} catch (...) {
 		return;
@@ -371,6 +376,9 @@ void __fastcall HostStartHook(void *logic, void *edx)
 		if (g_lobby && IsFfa(info))
 			Normalize(info);
 		const FfaEntry *e = Find(info);
+		if (g_trace && g_ctor_next)  // (without the constructor hook we know no setup)
+			hooklog::Write("rmg teams: host setup %p: %s", info,
+			               !e ? "not one we saw built" : e->recipe[0] ? e->recipe : "not from a recipe");
 		if (g_mode != kOff) {
 			Apply(info, g_mode);
 		} else if (g_recipe_teams && e && e->ffa && e->per_team > 1) {

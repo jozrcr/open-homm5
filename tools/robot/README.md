@@ -96,6 +96,22 @@ python tools\robot\run_lan_test.py --seconds 240 --turns 4 --host-rmg teams=huma
 - `--client-ui player_list_test_rows=8` makes the client show 8 rows (copies of the real players, in 4 teams of 2: the tallest list), to check that it still fits above the chat box and the minimap.
 - Not possible with the robot: F9 and the fade under the mouse (the windows are in the background).
 
+## Checking random maps from recipe templates (in-game builder, steps 2 and 3)
+
+```
+python tools\robot\run_ai_test.py --no-map --seconds 200 --turns 1 --quick-combat --rmg-setting templates_selftest=1 --step "8|console|rmg RMG/Templates/OH-X1-22001gnnxxxxxxxM.xdb -players 4 -size 2 -underground 0 start"
+python tools\robot\save_rmg_map.py OH-X1-robot-2v2              # prints the map's guid
+python tools\robot\run_lan_test.py --map <guid> --seconds 220 --turns 2 --host-step "38|arrow|3 right"
+python tools\robot\run_lan_test.py --map <guid> --seconds 150 --turns 1 --host-rmg lobby_teams=1 --host-step "38|arrow|3 right" --host-step "40|arrow|2 team left"
+python tools\robot\run_lan_test.py --map <guid> --seconds 100 --turns 1 --client-rmg templates=0 --host-step "38|arrow|3 right"
+python tools\robot\save_rmg_map.py --remove OH-X1-robot-2v2
+```
+
+- The console's `rmg` asks for the template by its name: no file is needed for a recipe (`OH-X1-...`). The DLL log says `... built from its name`.
+- `save_rmg_map.py` packs the generated map the way the generator screen's Save does, so the LAN host can pick it. The map has 4 players: `38|arrow|3 right` makes the fourth one a computer player.
+- Look for `rmg join:` and `rmg teams:` lines in both logs; `lan_report.py` checks the checksums.
+- Not possible yet: opening the generator screen. Its button sends `rmg_screen` as a `UISSendGameMessage`, and the robot's `msg|rmg_screen` is not taken (by the single-player or the multiplayer screen).
+
 ## Robot script
 
 Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--host-step` / `--client-step`), `"<seconds>|<kind>|<text>"`, seconds counted from the first main-loop call:

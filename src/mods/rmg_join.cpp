@@ -160,7 +160,24 @@ bool TemplateLinkReference(const void *link, std::string *reference)
 	if (!object || IsBadReadPtr(object, 0xc + sizeof(DbId)))
 		return false;
 	const DbId *id = reinterpret_cast<const DbId *>(object + 0xc);
-	return ReadString(&id->path, reference) || ReadString(&id->key, reference);
+	// A loaded template's id holds its path first. A link read from a map file
+	// (the host's own map, robot run 2026-10-25) holds "RMGTemplate" (the
+	// xpointer's name) there, and the file in the key. Take the one naming a file.
+	std::string path, key;
+	const bool has_path = ReadString(&id->path, &path), has_key = ReadString(&id->key, &key);
+	auto names_file = [](const std::string &s) {
+		for (size_t i = 0; i + 4 <= s.size(); i++)
+			if (s[i] == '.' && (s[i + 1] | 0x20) == 'x' && (s[i + 2] | 0x20) == 'd' && (s[i + 3] | 0x20) == 'b')
+				return true;
+		return false;
+	};
+	if (has_path && (names_file(path) || !has_key || !names_file(key)))
+		*reference = path;
+	else if (has_key)
+		*reference = key;
+	else
+		return false;
+	return true;
 }
 
 void ApplyRmgJoin(bool recipes_served)

@@ -336,7 +336,7 @@ trace_teams=1     ; log the teams each PC starts with
 recipe_teams=1    ; maps made from a recipe template get the template's teams
 ```
 
-**Teams of recipe maps** (`recipe_teams=1`, on by default, host only; the owner's choice, 2026-10-25). A map made from a recipe template (`OH-X1-...`, see [Random map templates](#random-map-templates-rmg_templatescpp-rmg_makercpp-rmg_recipecpp-on-by-default)) knows its teams: with 3 teams of 2, players 1+2, 3+4 and 5+6 start in the zones that belong together. When the host starts such a map, it sets those teams, unless `teams=` says something else or the lobby arrows (`lobby_teams=1`) already put two players together. How: the setup constructor gets the map's description, whose `sRMGProps` (`+0x254`) names the template (`+0x28`); we remember the recipe's teams per setup, as for `lobby_teams`. Not yet tested in the game.
+**Teams of recipe maps** (`recipe_teams=1`, on by default, host only; the owner's choice, 2026-10-25). A map made from a recipe template (`OH-X1-...`, see [Random map templates](#random-map-templates-rmg_templatescpp-rmg_makercpp-rmg_recipecpp-on-by-default)) knows its teams: with 3 teams of 2, players 1+2, 3+4 and 5+6 start in the zones that belong together. When the host starts such a map, it sets those teams, unless `teams=` says something else or the lobby arrows (`lobby_teams=1`) already put two players together. How: the setup constructor gets the map's description, whose `sRMGProps` (`+0x254`) names the template (`+0x28`); we remember the recipe's teams per setup, as for `lobby_teams`. **Robot test** (LAN, a 2v2 recipe map, 2 humans and 2 computer players): both PCs started with the humans on team 0 and the computer players on team 1, checksums equal; with a lobby arrow pressed (`lobby_teams=1`), the arrows' teams; with `recipe_teams=0`, one team per player.
 
 **Choosing teams in the lobby** (`lobby_teams=1`, host only). On maps without teams of their own, each row's team arrows move that player's team number up or down, instead of moving the player to another colour (the game's arrows). The pieces:
 - **Which maps:** the setup constructor (0x00ca0240) tells whether the map has teams. We remember that per setup.
@@ -392,7 +392,12 @@ rmg templates: recipe names (RMG/Templates/OH-X1-....xdb) are built when the gam
 rmg templates: OH-X1-321110nnxxxxxxxa.xdb built from its name: "OH-2v2v2-Lu-Normal*", 6 players, 13 zones, Large (176x176, with underground), 23121 bytes
 ```
 
-**Not yet tested in the game** (the robot test of step 2): see the plan.
+**Robot tests (2026-10-25):**
+- A recipe map made with the console and no file: built, generated and played.
+- In a LAN game, the client rebuilt the host's recipe map, and all world checksums were equal.
+- A client without recipe support got the game's message instead of a crash.
+
+Details: [the plan's robot results](../../docs/plans/in-game-generator.md#robot-results-2026-10-25). Not checked yet: the generator screen's template list.
 
 ## Original music (`original_music*.cpp`, off by default)
 

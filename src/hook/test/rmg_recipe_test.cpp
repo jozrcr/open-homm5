@@ -286,10 +286,20 @@ int main(int argc, char **argv)
 		Check(mods::TemplateLinkReference(link, &reference) && reference == path &&
 		          mods::rmg::RecipeOfReference(reference, &recipe) && recipe == "OH-X1-321110nnxxxxxxxa",
 		      "a template link in memory gives its path and recipe");
+		// a link read from a map file: "RMGTemplate" first, the file in the key
+		static char xpointer[] = "RMGTemplate";
+		static char key[] = "/rmg/templates/oh-x1-321110nnxxxxxxxa.xdb";
+		object.begin = xpointer;
+		object.end = xpointer + sizeof(xpointer) - 1;
+		object.key_begin = key;
+		object.key_end = key + sizeof(key) - 1;
+		Check(mods::TemplateLinkReference(link, &reference) && reference == key &&
+		          mods::rmg::RecipeOfReference(reference, &recipe) && recipe == "OH-X1-321110nnxxxxxxxa",
+		      "a link from a map file: the key names the file");
+		object.key_end = key + 10;
+		Check(mods::TemplateLinkReference(link, &reference) && reference == xpointer, "neither names a file: the first");
 		object.begin = object.end = nullptr;
-		object.key_begin = path;
-		object.key_end = path + 10;
-		Check(mods::TemplateLinkReference(link, &reference) && reference == std::string(path, 10),
+		Check(mods::TemplateLinkReference(link, &reference) && reference == std::string(key, 10),
 		      "an empty path: the key is read instead");
 		object.key_begin = object.key_end = nullptr;
 		Check(!mods::TemplateLinkReference(link, &reference), "an empty database id: nothing");
