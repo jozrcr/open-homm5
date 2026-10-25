@@ -85,11 +85,16 @@ bool ReadGameFile(const char *path, std::string *out);
 // The RTTI class name of the game's screen on top (".?AVCAdventureScreen@NUI@@",
 // ".?AVCRMGScreen@NUI@@"...), or false (no screen, or the game is not as expected).
 bool TopScreen(char *class_name, int size);
+// The screen object on top (the one TopScreen names), or nullptr.
+void *TopScreenObject();
 // The words of our panels: [ui] language=auto (the game's language), en or fr.
 enum Language { kEnglish, kFrench };
 Language PanelLanguage();
 // The mouse in back buffer pixels (Windows' cursor), or false when it is not over the game.
 bool MouseInBackBuffer(float w, float h, float *x, float *y);
+// The cursor the player sees, in back buffer pixels: the game's own cursor
+// (it draws it), else Windows'. False when the game's window is not known.
+bool CursorInBackBuffer(float w, float h, float *x, float *y);
 // The game's window (the device's), or nullptr.
 HWND GameWindow();
 

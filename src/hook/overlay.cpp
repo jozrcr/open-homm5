@@ -415,6 +415,24 @@ bool TopScreen(char *class_name, int size)
 	return ReadTopScreen(class_name, size);
 }
 
+void *TopScreenObject()
+{
+	if (g_screens_ok < 0)
+		g_screens_ok = memcmp(reinterpret_cast<const void *>(kTopScreenGetter), kTopScreenGetterBytes,
+		                      sizeof(kTopScreenGetterBytes)) == 0;
+	if (!g_screens_ok)
+		return nullptr;
+	__try {
+		const DWORD *sentinel = *reinterpret_cast<const DWORD *const *>(kScreenList);
+		if (!sentinel || sentinel[0] == reinterpret_cast<DWORD>(sentinel))
+			return nullptr;
+		return reinterpret_cast<void *>(Read(reinterpret_cast<const void *>(sentinel[1]), 8));
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		return nullptr;
+	}
+}
+
 Language PanelLanguage()
 {
 	static int language = -1;  // found once

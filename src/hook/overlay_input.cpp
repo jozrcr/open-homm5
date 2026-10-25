@@ -560,4 +560,10 @@ bool ModalOpen(const char *owner)
 	return g_open && strcmp(g_owner, owner) == 0;
 }
 
+bool CursorInBackBuffer(float w, float h, float *x, float *y)
+{
+	bool from_game = false;
+	return CursorInBackBuffer(w, h, x, y, &from_game);
+}
+
 }  // namespace overlay

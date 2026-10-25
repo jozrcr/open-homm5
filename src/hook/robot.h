@@ -43,6 +43,9 @@ bool PressKey(int dik_code);
 // overlay::KeyPressed(vk) after the step ran (the robot's window is in the
 // background, so the overlay's GetAsyncKeyState never sees a key).
 bool TakeOverlayKey(int vk);
+// A command for one of our panels (step "panel|preset 4"): true once, with the
+// step's text, for the panel that asks first (the robot cannot click).
+bool TakePanelCommand(char *out, int size);
 
 // Robot human player (robot_endturn.cpp): ends the passive human's turns.
 void OnAiStep();               // from the AI trace, every AI step
