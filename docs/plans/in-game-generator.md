@@ -347,7 +347,7 @@ The parts sit where the game's own parts are: the zone map on the minimap, the c
    - **Served templates load:** the game's database loads a template we serve with no file, through the file system's Open. **Yes.**
    - **Added while the game runs:** a recipe the game opened shows in the next listing. **Yes.**
    - **The client's order and the path in the game info:** the client reads the template when the host's game info arrives, before it lists. The path sits as in the static reading.
-   - **[ ] Still open:** the generator screen itself (our templates in "ARMG Templates", screenshots for the mockup). The robot can't open that screen yet: its button's `rmg_screen` message, posted by the robot, is ignored. This needs a check by hand, or a new robot step.
+   - **[x] The generator screen itself** (done with steps 5 to 7): the robot opens it with its step `rmg|`; our recipe template is in "ARMG Templates" (14th of the 19 that fit Large, underground, 4 players), and Create, then Save, work. Screenshots: [Notes from steps 5 to 7](#notes-from-steps-5-to-7).
 1. **C++ maker and its parity test.** Add `rmg_maker.cpp` and a test exe that compares its output with Node's for the 24 ready templates and 400 random choices. `test_template_maker.js` gets a switch that writes the expected files.
 
    *Test:* `build.ps1 -Test` passes; the bytes are equal.
@@ -389,17 +389,21 @@ The parts sit where the game's own parts are: the zone map on the minimap, the c
    - The test panel: `[ui] overlay_test_panel=1`, F10. On the adventure map F10 is also the game's menu key (`input_a2.cfg`), so the panel closes at once there: test on the main menu or the random map screen.
    - Robot check: the player list on A1M4 with 8 test rows, old DLL vs new: same layout, header, rows and statuses; the text inside the pills is pixel-identical.
    - Still to do: the hand test on Windows and on Linux (Proton).
-5. [ ] **The native button and an empty panel.** Serve the changed MainPanel and the new button files; catch `oh_builder`; draw the panel's frame from the game's pictures.
+5. [x] **The native button and an empty panel.** Serve the changed MainPanel and the new button files; catch `oh_builder`; draw the panel's frame from the game's pictures.
 
    *Test:* robot screenshot with the button; the `ui|NUI::CRMGScreen oh_builder` step opens the panel; with a wrong file, the fallback button.
 
-   **First part done (2026-10-25):** the empty panel (`src/mods/rmg_builder.cpp`, `[rmg] builder=1`): the screen's `MainBg`, its title, a Cancel button made of `Button_122_34_*`, over the main panel (649×508, centred, scaled with the height; the screen's window is `ALIGN_CENTER`). "Screen on top" works by the RTTI class `.?AVCRMGScreen@NUI@@`. For now **F11** opens it (robot step `key|F11`). Robot-checked at 1024×768 and 1920×1080: the panel covers the main panel exactly. The robot reaches the screen with the new step `rmg|` (the screen's observer ignores `msg|rmg_screen`, which has no sender; see `tools/robot/README.md`). Still to do: the native "Template..." button (served UI files), `oh_builder`, the fallback button.
-6. **The panel itself.** Every choice in the parity table, presets, the zone map, numbers and warnings, English and French (`[ui] language`).
+   **First part done (2026-10-25):** the empty panel (`src/mods/rmg_builder.cpp`, `[rmg] builder=1`): the screen's `MainBg`, its title, a Cancel button made of `Button_122_34_*`, over the main panel (649×508, centred, scaled with the height; the screen's window is `ALIGN_CENTER`). "Screen on top" works by the RTTI class `.?AVCRMGScreen@NUI@@`. For now **F11** opens it (robot step `key|F11`). Robot-checked at 1024×768 and 1920×1080: the panel covers the main panel exactly. The robot reaches the screen with the new step `rmg|` (the screen's observer ignores `msg|rmg_screen`, which has no sender; see `tools/robot/README.md`). **Rest done (2026-10-25):** the native "Template..." button (served UI files, only when the game's file is the one we know), `oh_builder`, the fallback button drawn by the panel otherwise (`src/mods/rmg_screen.cpp`). Robot-checked: the button on the screen at 1024×768 and 1920×1080, and `ui|NUI::CRMGScreen oh_builder` opens the panel. The fallback button is not robot-checked (it needs a changed game file): by hand, if ever.
+6. [x] **The panel itself.** Every choice in the parity table, presets, the zone map, numbers and warnings, English and French (`[ui] language`).
 
    *Test:* by hand, the same choices on the page and in the game give the same name and the same numbers.
-7. **"Use template".** Set the game's size, levels and players, tick "ARMG Templates", refill and select. Also "Save as file", and remember the last choices.
+
+   **Done (2026-10-25)**, the owner's approved design (version 2 of the mockup: drop-down lists like the game's own, steppers inline, check boxes; nothing overflows). `src/mods/rmg_builder.cpp`, `rmg_builder_widgets.cpp`, `rmg_builder_data.cpp` (tested by `src/hook/test/rmg_builder_test.cpp`). Robot-checked filled at 1024×768 and 1920×1080 (French). Still by hand: the clicks, and the same choices on the page and in the game.
+7. [x] **"Use template".** Set the game's size, levels and players, tick "ARMG Templates", refill and select. Also "Save as file", and remember the last choices.
 
    *Test:* robot: open, apply a preset (a robot step), Create, Save, then start the saved map; the generator log names our template.
+
+   **Done (2026-10-25)**, robot-checked: every point of the test above passed ([Notes from steps 5 to 7](#notes-from-steps-5-to-7)). "Save as file" and `builder_last=` are checked by hand only (the robot's settings file is made fresh for each run).
 8. **Release.** Docs (`src/mods/README.md`, `tools/rmg/README.md`, the install guide), and a full test by the owner's group: three PCs on GameRanger, a recipe map.
 
 **Effort:**
@@ -485,6 +489,30 @@ All runs used the test copy (MMH5.5, `MMH55_Utility_64.exe`). The commands are i
 - that our templates show in "ARMG Templates", with the `*`;
 - that Create and Save work from the screen;
 - screenshots at 1024×768 and 1920×1080 for the mockup.
+
+## Notes from steps 5 to 7
+
+Written on 2026-10-25, while building the native button, the panel and "Use" (`src/mods/rmg_builder*.cpp`, `src/mods/rmg_screen.cpp`).
+
+**The native button.** The screen's window is made of UI files from `data.pak`, read through `NVFS::CWinVFS` slot 7, the same Open that reads the paks (its entries are `CWinFileEntry` and `CZipFileEntry`), so one more hook on that slot serves changed files for any path:
+- `UI/RMGScreen/MainPanel.(WindowSimpleShared).xdb` (1,559 bytes, CRLF, fingerprint `0x92c8eafe13c2abaa`) gets one more `<Item>` after the Save button. Any other file: no native button, and the panel draws its own at the same place.
+- Our button is the game's Save button (`Save.(WindowMSButton).xdb`, fingerprint checked) with six replacements, each of a text found exactly once: the name, the tooltip, x 188 → 340, `Enabled` true (Save starts disabled until a map exists), the reaction, the label. Its reaction is Save's with `oh_builder` for `save`. The label and tooltip are UTF-16 text files like the game's (`Modèles...` / `Template...`).
+- The command reaches the screen's `IProgrammedReactionsAndChecks` (at +0x174; its one slot, cell `0x00e4110c`, holds `0x0079a650`), which returns 0 for commands it does not know. Our wrapper takes `oh_builder`; the robot's `ui|` step goes through the same cell.
+
+**"Use".** What the static reading said held, with one correction:
+- The screen list's entry (`[0x00fe719c]`, the overlay's "screen on top") points to a **part** of the screen object, not its start: the option vector at +0x1c0 is relative to the start. `overlay::TopScreenObject` now subtracts the part's offset, read from its RTTI locator (+4). The first robot run failed on this (the log listed nothing), the second worked.
+- The size, levels and players options are `CComboOption`s (vtable `0x00e41070`): slot 9 ticks the check box (one argument), the list control at +0x28, slot 6, chooses an item (one argument); their item lists are the screen's own (7 sizes, "Non"/"Oui", 2 to 8 players).
+- After "change_option" (`0x00799500`), screen +0x324/+0x328 holds one 0x20-byte database id per fitting template, in the list's order; the recipe is found by its path. Choosing it and running "change_option" again keeps the choice (the same list: the combo's "replace list", `0x0079e900`, keeps the selection when the list did not change).
+- The game then generates with our template: the generated and the saved map name `/RMG/Templates/OH-X1-221110nnxxxxxxxa.xdb`.
+
+**Robot results** (`tools/robot/README.md`, "Checking the template builder"; three runs in all):
+- The button: `rmg screen: the random map screen gets our "Template..." button (its main panel, 1641 bytes, with one more child)`; the screen shows "Modèles..." between Sauvegarder and Fermer.
+- The panel, filled, French: `builder-filled-1024.png` and `builder-filled-1920.png` (kept with the session's screenshots, not in the repository). Nothing overflows; the longest French label ("Ville en plus par équipe", "Auto : Grande (176×176)") fits.
+- `panel|preset 1` (2v2, Large with underground), `panel|use`: `size L with underground, 4 players, "ARMG Templates" ticked, OH-X1-221110nnxxxxxxxa chosen (14 of 19 that fit)`; the game's screen shows Grande (176x176), Oui, Quatre, ticked.
+- Create: `rmg teams: setup ... is for a random map made from /RMG/Templates/OH-X1-221110nnxxxxxxxa.xdb`. Save: `Maps\MMH55_RMG_Map_010.h5m`, whose `map.xdb` names the same template.
+- The saved map, started with `advmap /Maps/RMG/<guid>/map.xdb`: the same log line, and the computer players took their turns. (The robot's test maps were removed afterwards.)
+
+**Still to check by hand** (the robot cannot click): the drop-down lists, arrows, check boxes, wheel and scroll bar; Esc; "Save as file"; that the game behind gets no click; the same choices on the page and in the game give the same name and numbers; all of it on Linux (Proton) too.
 
 ## Risks
 

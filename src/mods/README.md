@@ -376,12 +376,12 @@ Step 1 of the map generator plan ([docs/plans/map-generator.md](../../docs/plans
   - **The guard:** a PC without the map's template used to crash there, because the game used the missing template without a check (`0x007012b1`). Now the game shows its own "can't make the map" message (`RMG_MAP_FAIL`). This works for any missing template, also with `templates=0`.
   - Players without our DLL still crash on templates they lack: everyone should update together.
 - **Teams on recipe maps:** see [Teams on random maps](#teams-on-random-maps-rmg_teamscpp-on-by-default-only-for-recipe-maps) (`recipe_teams=1`).
-- **Not done yet:** the builder panel (steps 4 to 7).
+- **The builder panel** (steps 4 to 7): [Template builder](#template-builder-rmg_buildercpp-rmg_screencpp-on-by-default).
 
 ```ini
 [rmg]
 templates=1     ; 0 = off: neither the folder's files nor recipe names
-recipes=        ; recipe names to offer in the list, separated by commas (for tests, before the panel)
+recipes=        ; recipe names to offer in the list, separated by commas (for tests; the builder adds its own)
 ```
 
 The log says what was served, for example:
@@ -397,26 +397,58 @@ rmg templates: OH-X1-321110nnxxxxxxxa.xdb built from its name: "OH-2v2v2-Lu-Norm
 - In a LAN game, the client rebuilt the host's recipe map, and all world checksums were equal.
 - A client without recipe support got the game's message instead of a crash.
 
-Details: [the plan's robot results](../../docs/plans/in-game-generator.md#robot-results-2026-10-25). Not checked yet: the generator screen's template list.
-## Template builder (`rmg_builder.cpp`, on by default; in progress)
+Details: [the plan's robot results](../../docs/plans/in-game-generator.md#robot-results-2026-10-25). The generator screen's template list: checked with the builder (below).
 
-The plan: [docs/plans/in-game-generator.md](../../docs/plans/in-game-generator.md). A panel on the game's own random map screen (`NUI::CRMGScreen`, the same screen in single player and multiplayer) with every choice of the web template maker. **Today only the empty panel exists** (build step 5, first part):
+## Template builder (`rmg_builder*.cpp`, `rmg_screen.cpp`, on by default)
 
-- **F11** opens it, only while the random map screen is on top (a temporary key: the native "Template..." button comes later). F11 again, **Esc** or **Cancel** closes it.
-- It covers the screen's main panel exactly: 649×508 in the game's 1024×768 layout, centred, scaled with the screen height like the game's interface. It is made of the game's own pictures, read from its data: the screen's background (`UI/RMGScreen/MainBg`), the game's buttons (`UI/Common/DlgButtons/Button_122_34_*`: normal, the highlight under the mouse, pressed); the check boxes (`UI/Common/CheckBox/CheckBox_*`) are loaded for the next step. If a picture cannot be read, the log says so and that part is drawn in plain colours.
-- The game behind is dimmed and **gets no mouse or keyboard input** while it is open: it is a modal panel of the overlay (`src/hook/README.md`). It closes by itself when the random map screen is no longer on top, or when no frame was drawn for 2 s (alt-tab in fullscreen), so the game always gets its input back.
-- The log says when the random map screen is on top, when the panel opens and closes, and why (`rmg builder: ...`, `overlay: modal panel "rmg builder" closed (Esc): the game gets its input again`).
+The plan: [docs/plans/in-game-generator.md](../../docs/plans/in-game-generator.md) (build steps 4 to 7). Every choice of the web template maker, on the game's own random map screen (`NUI::CRMGScreen`, the same screen in single player and multiplayer).
+
+**How a player uses it:**
+1. The random map screen (single player: Custom game, then "Générer une carte"; multiplayer: the same screen from the create-game screen).
+2. **Modèles... / Template...**, the new button between Save and Back (or **F11**). The builder covers the screen's main panel; the game behind is dimmed and gets no input.
+3. Pick a ready template in **Partir d'un modèle / Start from**, or change the choices. The zone map, the numbers and the warnings follow at once.
+4. **Utiliser / Use**: the panel closes and the game's own screen is set: map size, underground level, players, "ARMG Templates" ticked and our template chosen in its list (`OH-2v2v2-Lu-Normal*`). Then the game's own options if wanted, **Créer / Create**, **Sauvegarder / Save**, and play the map. In multiplayer, the other PCs rebuild the template from its name ([Random map templates](#random-map-templates-rmg_templatescpp-rmg_makercpp-rmg_recipecpp-on-by-default)).
+5. **Enregistrer / Save as file** writes the template as the web page's download gives it, to `open-homm5\templates\<name>.xdb` (listed by the game from its next start; a different file of the same name gets `-2`, `-3`...). **Annuler / Cancel** or **Esc** changes nothing.
+
+**The panel** (`rmg_builder.cpp`, drawn with the game's pictures by `rmg_builder_widgets.cpp`). Its parts sit where the screen's own parts are:
+- **Left, in the minimap's box:** the zone map, drawn from the maker's own zones and paths (`rmg_builder_data.cpp`: the page's `positions()`, checked against Node). Start zones in their team's colour with the player's number, each team's treasure zones paler, neutral zones grey, the centre gold ("C"); thicker paths for stronger guards, dashed when open; a small gold mark for a town.
+- **Under it:** players and zones, the name the game's list will show (with its `*`), the map size.
+- **Right, scrolling in the options list's box** (the wheel, or drag in the game's scroll bar track): the ready templates; teams (steppers, the teammates' path, the start mines); neutral zones (steppers, two town boxes); loot and guards, and "by distance from the bases", which shows a small table (loot and guards per distance ring, with each ring's zone count); size ("Auto" shows the size it picks) and underground; then the maker's warnings.
+- **Invalid choices are not offered:** each arrow asks the maker's own check (`rmg::CheckChoices`) first. An arrow that would make more than 8 players is greyed; clicking it shows the maker's message ("Le jeu permet 8 joueurs au plus (9 demandés).").
+- **Words:** French in a French game, English otherwise (`[ui] language`). Every text is measured; one too long for its place is cut with "…" (none is today, at 1024×768 and 1920×1080).
+- `builder_last=` in `open-homm5.ini` remembers the last choices used or saved (a recipe name); the panel opens on them.
+
+**The native button** (`rmg_screen.cpp`). The screen's window comes from UI files of the game's data. The DLL serves, through the game's file system (nothing on disk changes):
+- `UI/RMGScreen/MainPanel.(WindowSimpleShared).xdb`: the game's file with one more child, our button. **Only when the file is the one we know** (its fingerprint); otherwise the builder draws a button of its own at the same place, and the log says why.
+- `UI/RMGScreen/OpenHomm5Builder.(WindowMSButton).xdb`: the game's Save button, moved to x 340 (the free slot), enabled, with our label. `OpenHomm5Builder.(UISRunReaction).xdb` sends `oh_builder` instead of `save`. `OpenHomm5Builder.txt` and its tooltip are in the panel's language.
+- The screen's command handler (`0x0079a650`, vtable cell `0x00e4110c`) is wrapped: `oh_builder` opens the panel; every other command goes to the game.
+
+**"Use"** sets the screen's options as clicks would: the size, levels and players options are ticked and their item chosen (`NUI::CRMGScreen::CComboOption`, vtable `0x00e41070`); "ARMG Templates" (EP 6) is ticked; the screen's own "change_option" (`0x00799500`) refills its template list with the templates that fit; our recipe is chosen in it. If anything is not as expected, nothing more is changed, the panel stays open with a message, and the log says what it found.
 
 ```ini
 [rmg]
-builder=1   ; 0 = no panel (nothing is installed)
+builder=1           ; 0 = no panel and no button (nothing is installed); needs templates=1
+builder_key=F11     ; the panel's key on the random map screen (none = no key)
+builder_last=       ; written by the panel: the last choices used or saved
 
 [ui]
+language=auto          ; the panels' words: auto (the game's), en or fr
 overlay_test_panel=0   ; testing only: 1 = F10 opens the overlay's test panel on any screen
-overlay_test_key=F10   ; its key (F10 is also the game's menu key on the adventure map)
 ```
 
-**Checking modal input by hand** (the robot cannot click: its game runs in the background): with `overlay_test_panel=1`, open the test panel on the main menu or the random map screen. Its buttons, check box and text line must react, and the game behind must not (no button of the game pressed, no hotkey, no wheel). The panel shows the mouse position, the wheel, the keys it receives and where the input comes from.
+The log says what happened, for example:
+
+```
+rmg screen: the random map screen gets our "Template..." button (its main panel, 1641 bytes, with one more child)
+rmg screen: "oh_builder" (the Template... button)
+rmg builder: panel opened (the Template... button): OH-X1-321110nnxxxxxxxa, OH-2v2v2-Lu-Normal
+rmg builder: Use OH-X1-221110nnxxxxxxxa ("OH-2v2-Lu-Normal*"): size L with underground, 4 players, "ARMG Templates" ticked, OH-X1-221110nnxxxxxxxa chosen (14 of 19 that fit)
+rmg teams: setup 139D1380 is for a random map made from /RMG/Templates/OH-X1-221110nnxxxxxxxa.xdb#xpointer(/RMGTemplate)
+```
+
+**Robot tests (2026-10-25, the French test copy):** the native button on the screen; the panel opened by the button's command and by F11, filled, at 1024×768 and 1920×1080; a preset, then Use set the screen (Large, underground, 4 players, our template 14th of the 19 that fit); Create built the map from `OH-X1-221110nnxxxxxxxa`; Save wrote it to `Maps\`; the saved map started and its AI played. Commands: [tools/robot/README.md](../../tools/robot/README.md#checking-the-template-builder-a-modal-panel-of-the-overlay).
+
+**Checking by hand** (the robot cannot click: its game runs in the background): the drop-down lists, the arrows, the check boxes, the wheel and the scroll bar; Save as file; Esc; and that the game behind gets no click. On Linux (Proton) too. With `overlay_test_panel=1`, the overlay's test panel shows what input arrives.
 
 ## Original music (`original_music*.cpp`, off by default)
 

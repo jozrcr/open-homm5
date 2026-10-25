@@ -40,6 +40,7 @@
 #include "rmg_screen.h"
 
 #include <windows.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <initializer_list>
@@ -309,6 +310,27 @@ bool SafeFind(void *screen, Options *o)
 	}
 }
 
+// For the log when the options are not as expected: the screen's vftable and
+// each option's EP_* parameter and vftable.
+void DescribeOptions(void *screen, char *out, size_t size)
+{
+	out[0] = 0;
+	__try {
+		_snprintf_s(out, size, _TRUNCATE, "screen %p vftable %08lx, options:", screen, At(screen, 0));
+		void *const *begin = reinterpret_cast<void *const *>(At(screen, kOptions));
+		void *const *end = reinterpret_cast<void *const *>(At(screen, kOptions + 4));
+		for (void *const *p = begin; p && p < end && p < begin + 24; ++p) {
+			char item[32];
+			_snprintf_s(item, sizeof(item), _TRUNCATE, " %ld:%08lx", *p ? static_cast<long>(At(*p, 0xc)) : -1L,
+			            *p ? At(*p, 0) : 0UL);
+			strncat_s(out, size, item, _TRUNCATE);
+		}
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		strncat_s(out, size, " (unreadable)", _TRUNCATE);
+	}
+}
+
 // 0 ok, else the step that failed: 1 size, 2 levels, 3 players, 4 the template box, 5 a crash.
 int SafeSetOptions(void *screen, const Options &o, int size, int levels, int players)
 {
@@ -407,7 +429,9 @@ bool ApplyToRmgScreen(void *screen, const ScreenChoice &c, std::string *report)
 	}
 	Options o = {};
 	if (!SafeFind(screen, &o)) {
-		*report = "the screen's size, levels, players or template option was not found";
+		char options[600];
+		DescribeOptions(screen, options, sizeof(options));
+		*report = std::string("the screen's size, levels, players or template option was not found (") + options + ")";
 		return false;
 	}
 	const int step = SafeSetOptions(screen, o, c.size_index, c.underground ? 1 : 0, c.players - 2);

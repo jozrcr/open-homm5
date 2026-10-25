@@ -426,7 +426,18 @@ void *TopScreenObject()
 		const DWORD *sentinel = *reinterpret_cast<const DWORD *const *>(kScreenList);
 		if (!sentinel || sentinel[0] == reinterpret_cast<DWORD>(sentinel))
 			return nullptr;
-		return reinterpret_cast<void *>(Read(reinterpret_cast<const void *>(sentinel[1]), 8));
+		// The list holds a part of the screen object (one of its bases); its
+		// RTTI locator says where that part sits in the whole object.
+		const BYTE *part = reinterpret_cast<const BYTE *>(Read(reinterpret_cast<const void *>(sentinel[1]), 8));
+		if (!part)
+			return nullptr;
+		const DWORD vtable = Read(part, 0);
+		if (vtable < 0x00401000 || vtable > 0x01200000)
+			return nullptr;
+		const DWORD locator = Read(reinterpret_cast<const void *>(vtable), static_cast<DWORD>(-4));
+		if (locator < 0x00401000 || locator > 0x01200000)
+			return nullptr;
+		return const_cast<BYTE *>(part - Read(reinterpret_cast<const void *>(locator), 4));
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER) {
 		return nullptr;

@@ -112,7 +112,9 @@ Rules:
 
 **In multiplayer** (`src/mods/rmg_join.cpp`): a PC that joins a game made from a recipe builds the template from the name when it reads the host's game info, then rebuilds the map like any random map. The host gives such a map the recipe's teams by itself (`[rmg] recipe_teams=1`, the default: with 3 teams of 2, players 1+2, 3+4, 5+6). Tested by the robot on 2026-10-25: in a LAN game on a recipe map, the client rebuilt the map (checksums equal) and the teams were set ([details](../../docs/plans/in-game-generator.md#robot-results-2026-10-25)).
 
-To offer recipe templates in the game's list before the in-game builder exists, name them in `open-homm5.ini`:
+**In the game**, the template builder makes them: the random map screen's "Template..." button opens every choice of this page, and "Use" puts the recipe template in the game's list and chooses it ([src/mods/README.md](../../src/mods/README.md#template-builder-rmg_buildercpp-rmg_screencpp-on-by-default)). Its "Start from" list is the 24 ready templates above, by their recipe names.
+
+For tests, recipe templates can also be offered in the game's list by name, in `open-homm5.ini`:
 
 ```ini
 [rmg]

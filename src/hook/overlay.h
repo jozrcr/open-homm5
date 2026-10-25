@@ -85,7 +85,8 @@ bool ReadGameFile(const char *path, std::string *out);
 // The RTTI class name of the game's screen on top (".?AVCAdventureScreen@NUI@@",
 // ".?AVCRMGScreen@NUI@@"...), or false (no screen, or the game is not as expected).
 bool TopScreen(char *class_name, int size);
-// The screen object on top (the one TopScreen names), or nullptr.
+// The screen object on top (the one TopScreen names; the whole object, where
+// its main vftable is), or nullptr.
 void *TopScreenObject();
 // The words of our panels: [ui] language=auto (the game's language), en or fr.
 enum Language { kEnglish, kFrench };
