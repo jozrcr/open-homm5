@@ -54,6 +54,17 @@ The AI turn driver (`IPlayerAI` slot 0, `0x0086dd40`, see `docs/subsystems/ai-tu
 | `think=` | how long this call took (ms): the AI's thinking time |
 | `gap=` | time between this AI's previous call returning and this call starting (ms), i.e. the time the AI waited. **This is the number to look at in co-op**: if hypothesis H1 in `docs/subsystems/ai-turn.md` is right, it is about one network round trip after each command in multiplayer, and near zero in single player. |
 
+## The hang watchdog (`watchdog.cpp`)
+
+On 2026-10-25 the owner's game froze during an AI turn (the window "not responding", one core at 100% for minutes) and nothing told us where. The watchdog writes it down the next time. It is on by default (`[debug] hang_watchdog=1`); details, the suspects of that freeze and how to read a report: [`docs/subsystems/hangs.md`](../../docs/subsystems/hangs.md).
+
+- **Progress:** the exe's `PeekMessageA` / `GetMessageA` import entries go through us (data only). The game's main loop (`0x00c3b490`) calls them every frame in every screen; Windows calls a window "not responding" exactly when its thread stops taking messages. Each call from the main thread is one beat.
+- **The look:** after `hang_seconds` (20) without a beat, a background thread suspends the main thread 20 times in 2 s, each time for well under a millisecond: its registers (`GetThreadContext`) and 64 KB of its stack (`ReadProcessMemory`) are copied, and it runs again. While it is suspended, the watchdog does nothing else (no log line, no allocation, nothing that could wait for a lock the main thread holds).
+- **The report** (`watchdog:` lines): the main thread's CPU time in those 2 s (busy loop or blocked), where EIP was, the return addresses that stayed on the stack (innermost first), the mods' own state (the AI: inside its turn driver or not, its last 20 steps; the lockstep pump; Direct3D: last frame, lost device, reset), and the busiest threads. Exe addresses are vanilla 3.1 addresses (the same in `MMH55_Utility`), with the names of the functions our docs know; system DLLs get their nearest export; our DLL's offsets are names in that build's `build\hook\dinput8.map`. `python tools\hang\symbolize.py <log>` adds the names from the map and from Ghidra's `analysis/export/functions.tsv`.
+- **Once per freeze:** when the beats come back, a line says so (a long load is then visibly only slow), and the next freeze gets a new look.
+- **Hand test:** `[debug] hang_test=1`, then F12 while the game is in front freezes it on purpose for 25 s (a busy loop in `HangTestSpin`). Robot runs use `[debug] hang_test_at=<s>` instead (once, that many seconds after the game first took its messages): `run_ai_test.py --debug-setting hang_test_at=60`, `run_lan_test.py --host-debug ...`. Also for robot runs: `hang_test_frame_ms=N` (every frame N ms longer: a slow PC) and `hang_test_ai_step=N` (3 s once, instead of the first AI call that starts a turn from the N-th call on).
+- **AI pacing:** the turn driver hook first asks `src/mods/ai_pacing.cpp` whether the AI may decide now (at most once per frame in multiplayer, and only once its last commands have run); a held call is not made, and gets no `ai-step` line.
+
 ## Build
 
 Needs Visual Studio 2019 or 2022 (C++ build tools, x86). Already on the owner's PC.
@@ -69,6 +80,7 @@ This builds `build\hook\dinput8.dll` and runs these tests outside the game:
 - `test/original_music_test.cpp`: the "original music" mod's text work (`src/mods/original_music_xdb.cpp`) on small made-up data files: which music lines change and which stay.
 - `test/rmg_maker_test.cpp`: the C++ template maker (`src/mods/rmg_maker.cpp`) against the JavaScript one. First `node tools/rmg/test_template_maker.js --expected build/rmg_parity` writes what the page's maker builds for the 24 ready templates, 400 random choices and a few special ones; the test must build the same bytes, names, warnings and numbers, and refuse bad choices with the same message. Needs Node.js.
 - `test/rmg_recipe_test.cpp`: recipe names (`src/mods/rmg_recipe.cpp`): choices → `OH-X1-...` → the same choices, every bad name and path refused, reading a template link the way the game keeps it (`src/mods/rmg_join.cpp`), the teams of a recipe map, and each ready template built from its recipe name, compared with the file in `src/mods/rmg/templates/`. It also checks that 302 recorded `X1` names still build what they built when recorded (`tools/rmg/x1_fingerprints.txt`): what an `X1` name builds must never change.
+- `test/watchdog_test.cpp`: the hang watchdog on a thread that freezes on purpose, once in a busy loop and once in a long `Sleep` (1.5 s threshold instead of 20). It checks one look per freeze, 20 samples, EIP in the spinning function, the caller's return address on the stack, ~100% CPU for the busy freeze and ~0 for the blocked one, and that the thread goes on normally afterwards.
 
 The build runs in `src\hook` with relative source paths: with full paths, a deep folder (a git worktree) made the command line longer than `cmd.exe` accepts (8191 characters).
 

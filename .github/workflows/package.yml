@@ -63,6 +63,12 @@ jobs:
           name: open-homm5-${{ env.VERSION }}
           path: build/package/open-homm5-${{ env.VERSION }}.zip
 
+      # the DLL's map file: names the DLL offsets in a hang watchdog report (tools/hang/symbolize.py)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: open-homm5-${{ env.VERSION }}-map
+          path: build/hook/dinput8.map
+
       - name: Draft release (version tags only)
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
