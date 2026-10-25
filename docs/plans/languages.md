@@ -137,21 +137,37 @@ The French pack must match the MMH5.5 version the players run. A pack for an old
 | **RC19k** (latest, 2025-10-15) | 5,839 | 3 |
 
 French packs that exist:
-- **RC19i**, the closest to RC19k. On ModDB: <https://www.moddb.com/mods/might-magic-heroes-55/addons/mmh55-french-translation-rc19i>, `MMH55-Texts-FR.1.zip`, 373.6 KB, licence field "Proprietary". On GitHub it is the `RC19i` branch, open pull request #4 (2025-10-02), head commit `c33031457c3cf46c3a258377707600a46dbcb01a`, 5,876 text files.
+- **RC19i**, the closest to RC19k. On ModDB: <https://www.moddb.com/mods/might-magic-heroes-55/addons/mmh55-french-translation-rc19i>, `MMH55-Texts-FR.1.zip`, 373.6 KB, licence field "Proprietary". On GitHub it is the `RC19i` branch, open pull request #4 (2025-10-02), head commit `c33031457c3cf46c3a258377707600a46dbcb01a`, 5,875 text files (downloaded since: see below).
 - **RC19e** on ModDB (2025-02-13) and the GitHub `main` branch (RC19e plus skillwheel texts).
 - **No RC19k French pack** was found on GitHub (branches: `main`, `RC19i`) or in the search results. A ModDB comment asks whether one is coming.
 
 **The RC19i French against the RC19k English:**
 - 11 English files are missing from it (538 bytes of text: combat results lines, one rune, one spell effect);
 - 5 French files are probably out of date: their English changed after RC19d, and their French did not;
-- about 450 files are byte for byte the English. Most of these are names and numbers that read the same in both languages; the real gap needs the content to count.
+- about 450 files are byte for byte the English: names and numbers, but also real texts (counted below, from the contents).
 - So with RC19i, the MMH5.5 gaps for RC19k stay about the size they are today: some hundreds of words.
 
-**Next step on versions (needs the owner's OK to download):**
-1. get the RC19i French pack, from ModDB or GitHub's `RC19i` branch;
-2. run `inventory.py --fr-pack` against the installed RC19k;
-3. translate the MMH5.5 gaps that remain (held today: 773 words for RC19d);
-4. check the gaps again whenever MMH5.5 or its French pack changes. The DLL's "version text" log line shows when the pack and the game differ.
+**The RC19i download** (approved by the owner, 2026-10-25):
+- **Source:** the GitHub branch `RC19i`, head commit `c33031457c3cf46c3a258377707600a46dbcb01a` (dredknight, 2025-10-02), <https://github.com/Might-Magic-Heroes-5-5/MMH55-Texts-FR/tree/RC19i>.
+- **Zip:** codeload, 2,780,197 bytes, SHA-256 `d6657a0b6e5b9817e70dd8089fbae156f91e06346827c439df59a4c2f39a35bd`. It was put in a new folder, `build/lang/fr-rc19i/`, and read with `python -I`; nothing in it was run.
+- **Pack:** `build_pack.py` made `MMH55-Texts-FR-RC19i.pak` from it: 5,875 texts, 1,522,461 bytes, SHA-256 `e8df219cd5118366c5acbc2dda2667e9116782d8ec0a3cc7a97e87a1e1c8118b`.
+- **The ModDB file** (`MMH55-Texts-FR.1.zip`, 382,568 bytes, MD5 `9f445f66f2779ee1978a300deb714102`) was not fetched: ModDB refuses our requests. Whether it holds exactly the branch's texts is not checked.
+
+**Measured with the RC19i contents against RC19k's English.** The installed English is RC19d's. For a file whose English did not change from RC19d to RC19k (by the GitHub fingerprints), the installed text is RC19k's:
+- **11 files missing.** Two game texts: the Rune of Battle Rage description, and the new Master of Ice spellbook prediction. And the 9 combat results texts, which the French pack keeps under the older folder `UI/CombatReplayScreen/CombatResults/` while the English moved them to `UI/CombatResults/` ([mmh55-rc19k.md](mmh55-rc19k.md), PR #42).
+- **5 files probably out of date:** of the 141 English files that changed after RC19d, these 5 were not changed in the French since RC19d.
+- **271 files (3,637 words) still English** among the unchanged ones. **210 of them are Creaturepedia texts that RC19d's French pack had in French:** the RC19i branch has the English back. Since their English did not change, our gap pack can take their French from RC19d.
+- **So with RC19k,** the MMH5.5 gaps are measured against RC19i: about 11 files, plus whatever is still English (about 60 files once the 210 Creaturepedia texts come back from RC19d), plus the 5 out of date.
+
+**The switch works with whichever pack sits in `lang\fr`:**
+- **Any version:** RC19d, RC19i, or a later one. The log names each pack and its version text.
+- **A `.zip` is read too.** If it only wraps a `.pak` (the ModDB download), the log says to unzip it.
+- **Nothing in `data\` needs removing.** The official install puts the `.pak` in `data\` in place of `MMH55-Texts-EN.pak`, because the newer English file would win there. Our switch serves the French whatever the dates in `data\`.
+
+**Next on versions:**
+1. When the RC19k test copy exists, run `inventory.py --fr-pack` with the RC19i pack against it.
+2. Translate the MMH5.5 gaps that remain, and take the 210 Creaturepedia texts from RC19d (held today: 773 words for RC19d).
+3. Check the gaps again whenever MMH5.5 or its French pack changes. The DLL's "version text" log line shows when the pack and the game differ.
 
 The 3.1 patch's texts and Ubisoft's map texts do not depend on MMH5.5's version, except where a later MMH5.5 starts replacing one of them. `inventory.py` shows that too.
 

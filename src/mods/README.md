@@ -405,7 +405,7 @@ log_data_files=0   ; testing: log the first N files the game reads from its data
 
 **What it is for:** with MMH5.5, a French game mixes languages. The base game's texts are French, but the 3.1 patch's and MMH5.5's texts are English, and they replace many French ones. With `texts=fr`, the game takes every text it can from the French packs in `open-homm5\lang\fr\` next to the exe:
 
-- **MMH5.5's own French pack.** The MMH5.5 team publishes it on MMH5.5's ModDB page. Each player downloads the one for their MMH5.5 version and puts its `.pak` there.
+- **MMH5.5's own French pack.** The MMH5.5 team publishes it on MMH5.5's ModDB page. Each player downloads the one for their MMH5.5 version, unzips it and puts its `.pak` there. Any version works, and the log names it. A `.zip` of texts is read too; a `.zip` that only wraps the `.pak` is reported in the log.
 - **Our pack** of what that pack leaves out, shared within the group.
 
 Nothing on disk changes. `game` (the default) installs nothing. The plan, with the counts and the version question, is [docs/plans/languages.md](../../docs/plans/languages.md).

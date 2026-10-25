@@ -4,11 +4,13 @@
 // language of the install (French on a French Steam copy), the 3.1 patch's
 // and MMH5.5's are English, and the newest file of a path wins. With
 // [lang] texts=fr, every text the game reads is taken, when it exists there,
-// from the packs in bin\open-homm5\lang\fr\*.pak: MMH5.5's own French pack
-// (each player downloads it from MMH5.5's ModDB page) and our pack of what it
-// leaves out. Nothing on disk changes, and each player chooses for themselves:
-// texts are only shown, never part of the game world (the game objects keep a
-// text's path, not its words), so players with different choices play together.
+// from the packs in bin\open-homm5\lang\fr\ (*.pak, also *.zip): MMH5.5's own
+// French pack for the player's MMH5.5 version (each player downloads it from
+// MMH5.5's ModDB page; any version works, the log names it) and our pack of
+// what it leaves out. Nothing on disk changes, and each player chooses for
+// themselves: texts are only shown, never part of the game world (the game
+// objects keep a text's path, not its words), so players with different
+// choices should be able to play together (the robot LAN check is in the plan).
 //
 // How the game reads a text (docs/subsystems/texts.md): the first time a text
 // is needed, 0x004c7430 opens its .txt file through the game's file system
@@ -232,10 +234,13 @@ bool BuildIndex()
 		hooklog::Write("languages: zlib1.dll (inflate) not found in the game: the game's own texts");
 		return false;
 	}
+	// .pak (a zip, as the game's) and .zip (a pack someone did not rename)
 	std::vector<std::wstring> names;
-	WIN32_FIND_DATAW found;
-	HANDLE find = FindFirstFileW((folder + L"*.pak").c_str(), &found);
-	if (find != INVALID_HANDLE_VALUE) {
+	for (const wchar_t *pattern : {L"*.pak", L"*.zip"}) {
+		WIN32_FIND_DATAW found;
+		HANDLE find = FindFirstFileW((folder + pattern).c_str(), &found);
+		if (find == INVALID_HANDLE_VALUE)
+			continue;
 		do {
 			if (!(found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
 				names.push_back(found.cFileName);
@@ -245,7 +250,7 @@ bool BuildIndex()
 	// our own order, the same on Windows and Wine: by name, any case
 	std::sort(names.begin(), names.end(), [](const std::wstring &a, const std::wstring &b) { return _wcsicmp(a.c_str(), b.c_str()) < 0; });
 	if (names.empty()) {
-		hooklog::Write("languages: texts=fr, but no .pak in %s: the game's own texts (see docs/plans/languages.md)",
+		hooklog::Write("languages: texts=fr, but no .pak (or .zip) in %s: the game's own texts (see docs/plans/languages.md)",
 		               Narrow(folder).c_str());
 		return false;
 	}
@@ -265,11 +270,16 @@ bool BuildIndex()
 		}
 		const int pack = static_cast<int>(g_packs.size());
 		g_packs.push_back(Pack{Narrow(name), file, 0});
+		bool has_text = false;
+		std::string inner;  // a .pak inside (the download from ModDB is a zip around the .pak)
 		for (const lang::ZipEntry &e : entries) {
 			const std::string &k = e.key;
+			if (k.size() > 4 && k.compare(k.size() - 4, 4, ".pak") == 0)
+				inner = k;
 			if (!lang::IsTextPath(k.data(), k.data() + k.size()) || (e.method != 0 && e.method != 8) || e.size > kMaxText ||
 			    e.packed_size > kMaxText + 1024 || k.find(':') != std::string::npos)
 				continue;
+			has_text = true;
 			auto it = g_texts.find(k);
 			if (it == g_texts.end()) {
 				if (g_texts.size() >= kMaxTexts)
@@ -285,6 +295,9 @@ bool BuildIndex()
 				it->second = Text{pack, e};
 			}
 		}
+		if (!has_text && !inner.empty())
+			hooklog::Write("languages: %s holds %s, not texts: unzip it and put the .pak itself in open-homm5\\lang\\fr",
+			               Narrow(name).c_str(), inner.c_str());
 	}
 	if (g_texts.empty()) {
 		hooklog::Write("languages: texts=fr, but the packs in %s hold no .txt file: the game's own texts",
