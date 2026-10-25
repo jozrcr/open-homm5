@@ -86,6 +86,7 @@ def write_mod_settings(game, args, instance):
         value = getattr(args, attr, None)
         if value is not None:
             lines.append("%s=%d" % (key, value))
+    lines += getattr(args, "net_setting", None) or []  # e.g. view_delay_ms=200 (src/mods/lockstep.cpp)
     # [ai] = the fast pathfinding mod (src/mods/fast_paths.cpp), on by default
     lines += ["[ai]", "fast_paths=%d" % (1 if getattr(args, "fast_paths", "on") == "on" else 0)]
     lines += getattr(args, "ai_setting", None) or []  # e.g. port_relax=1

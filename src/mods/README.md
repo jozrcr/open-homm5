@@ -100,6 +100,34 @@ fast_segments=1   ; 0 = ask for the game's 200 ms, so nobody switches
 segment_ms=100    ; 100 or 50
 ```
 
+## Quicker lockstep (`lockstep.cpp`; the drain and the trace on by default)
+
+Why multiplayer clicks feel slow, and the measurements: [docs/plans/responsiveness.md](../../docs/plans/responsiveness.md). Each setting works on this PC only, so it needs no agreement between the PCs, and none of them changes what happens in the game world.
+
+- **Drain:** the game's message pump (transceiver slot 3, 0x007ca7c0) takes in one "segment done" report per frame. With 4 PCs or a slow frame rate, that holds everyone back. The mod calls the pump again while it still takes in a report, up to two rounds of reports per frame.
+- **View delay:** the game's "now" for the screen and the AI (slot 8, 0x007c8b00) is the timer minus 400 ms, so moves start at least 400 ms after their segment.
+- **Catch-up (experiment):** the segment timer moves at most 150 ms per frame (0x00475d80), so a PC whose frame froze stays behind.
+- **Trace:** every 10 s, one log line with the wait after this PC's own report (average and longest), who reported last (count per player), frames per second, the drain's extra reports, and the spread of the players' segment counts.
+
+**Robot results** (2 copies on one PC; one run each, the AI decides differently each run):
+
+| Setting | AI moves | AI hero moves | Checksums |
+|---|---|---|---|
+| Plain | 0.50 s | 0.61 s | all equal |
+| Drain plus `view_delay_ms=200` | 0.44 s | 0.46 s | all equal |
+| Drain plus `view_delay_ms=250` | 0.42 s | 0.57 s | all equal |
+| Drain plus `catch_up_ms=600` | 0.45 s | 0.56 s | all equal |
+
+```ini
+[net]
+drain_reports=1   ; 0 = the game's one report per frame
+view_delay_ms=150 ; 100..400, only while co-op timing is ON (else the game's 400); Q10
+trace_lockstep=1  ; 0 = no summary lines
+catch_up_ms=150   ; experiment, 150..1000 (the game: 150)
+```
+
+The robot passes them with `run_lan_test.py --net-setting KEY=VALUE`.
+
 ## Fast AI pathfinding (`fast_paths*.cpp`, on by default)
 
 **What it fixes:** long AI thinking late in a game on big maps (several seconds per AI move).
