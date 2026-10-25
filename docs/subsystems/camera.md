@@ -1,6 +1,6 @@
 # Camera: how far it may zoom out
 
-Status: **static research** (2026-10-25, Ghidra on the vanilla 3.1 exe, the game's config files and MMH5.5's files). Not yet checked in a running game. Addresses are in the vanilla 3.1 exe; they are the same in `MMH55_Utility(_64).exe` (the co-op exe: MMH5.5 changes nothing here, see below).
+Status: **checked in a running game** (2026-10-25: Ghidra on the vanilla 3.1 exe, the game's config files and MMH5.5's files, then robot runs of `MMH55_Utility_64.exe` with the camera mod, see "Robot checks" at the end). Addresses are in the vanilla 3.1 exe; they are the same in `MMH55_Utility(_64).exe` (the co-op exe: MMH5.5 changes nothing here, see below).
 
 The mod that uses this: `src/mods/camera.cpp` (`[camera] zoom_out`, `combat_zoom_out`; [src/mods/README.md](../../src/mods/README.md)).
 
@@ -78,21 +78,37 @@ The two distance functions ask the arena for its size (vtable slot `0x44`), look
 | 18, 20 | 2 × 14.4 | 2 × 28 |
 | 24 and all others | 2 × 18 | 2 × 30 |
 
-The size code is probably the battlefield's width plus 4 (the configurator's bounds use `size − 4`): 16 for the game's 12×10 field, 18 for MMH5.5's 14×12 field (below). Not checked in a running game. On screens taller than 4:3 the farthest distance also grows by √(height/width × 4/3); not on wide screens.
+The size code is probably the battlefield's width plus 4 (the configurator's bounds use `size − 4`): 16 for the game's 12×10 field, 18 for MMH5.5's 14×12 field (below). In a robot battle with MMH5.5 the game's farthest distance was 56 (2 × 28), the row of codes 18 and 20, which fits. On screens taller than 4:3 the farthest distance also grows by √(height/width × 4/3); not on wide screens.
 
 **MMH5.5 changes the battle camera.** Its `55u.dll` (loaded by the co-op exe in place of Ubisoft's `um.dll`) reads `<CombatCameraLimits>` from `MMH55Stats.xml` (in `MMH55-Stats.pak`) and patches, at run time, the operands at `0x007d3602` (nearest distance of the code-18/20 row), `0x007d36a7` (farthest distance of that row) and the four angle immediates above. MMH5.5's values: nearest 8 (the game: 14.4), farthest 28 (the game's own), tilt −1.6 to −0.3 rad (about 17° to 92°). MMH5.5 also makes the battlefield 14×12 (`<BattlefieldSize>`). So in MMH5.5's battles the camera may come closer and tilt more, and goes as far as the game's own value for that field size.
 
 ## Is it safe to zoom out farther?
 
-**Desync:** the limits are only read by the camera configurators above, which hand them to the camera objects. Cameras are not part of the game world (`NWorld`): they are not in the world checksum (the world's own slot 4, [multiplayer-sync.md](multiplayer-sync.md)), and no world command carries a camera position (the only camera-related world class is `NWorld::CScriptDialogEntry_MoveCamera`, a map script moving the camera, the other way round). So each PC may use its own zoom.
+**Desync:** the limits are only read by the camera configurators above, which hand them to the camera objects. Cameras are not part of the game world (`NWorld`): they are not in the world checksum (the world's own slot 4, [multiplayer-sync.md](multiplayer-sync.md)), and no world command carries a camera position (the only camera-related world class is `NWorld::CScriptDialogEntry_MoveCamera`, a map script moving the camera, the other way round). So each PC may use its own zoom. The robot's LAN game agrees (below).
 
 **What to watch** when the camera goes farther than the game allows:
 
-- **Map edges:** near a corner you see past the end of the map (as you already do a little at the game's 70).
-- **Performance:** the visible ground grows with the square of the distance (150% → about 2.25 times as much map on screen), so more objects are drawn. Big maps on slow PCs may lose frames. Frames do not change the game, only how smooth it is.
+- **Map edges:** near a corner you see past the end of the map (as you already do a little at the game's 70). At 200 (`zoom_out=300` with a far start position) the top of the screen showed the sky beyond the small test map's edge.
+- **Performance:** the visible ground grows with the square of the distance (150% → about 2.25 times as much map on screen), so more objects are drawn. Big maps on slow PCs may lose frames. Frames do not change the game, only how smooth it is. Not measured (the robot's test map is small and mostly unexplored).
 - **Scrolling:** `adventure_scroll_speed_zoom_factor = 0` (autoexec) means scrolling does not speed up with the distance, so far out the map seems to scroll slowly.
-- **Fog of war, the far clip plane (1000), labels:** nothing expected (the clip plane is far beyond), but not checked yet.
+- **Fog of war:** drawn as before (unexplored land stays black around the explored part); nothing else looked wrong in the robot's screenshots up to 200.
 
 ## Without the add-on
 
 The same farther zoom can be had by editing the `mission_camera_*limits` lines of `profiles\autoexec_a2.cfg` (the farthest distance is the third number). That changes a game file (Steam's "verify files" puts the original back) and works in every exe, MMH5.5's single-player exe (`MMH55_64.exe`, 3.1j) included, where the add-on installs no hooks. The battle camera has no such file.
+
+## Robot checks (2026-10-25, `MMH55_Utility_64.exe`, map A1M4, 1024×768)
+
+The robot cannot turn the mouse wheel (its windows are in the background), so it moves the camera's start position far out before the map starts (`mission_camera_def_pos 50 -53 16 200`). The game puts the camera at the farthest distance its limits allow, so the screenshots show exactly that limit. Commands: [tools/robot/README.md](../../tools/robot/README.md), "Checking the camera zoom".
+
+| Run | Camera at | What the screenshots show |
+|---|---|---|
+| no change (start position 25) | 25 | the game's usual close start view |
+| far start, the game's limits | 70 | the farthest the game allows |
+| far start, `zoom_out=150` | 105 | the same place (day 2, the same town) from half as far again: everything smaller, the minimap's view frame bigger |
+| far start, "vertically fixed" mode (`adv_camera_mode = 1`), the game's limits / `zoom_out=150` | 70 / 105 | the same, with the fixed steep angle; log: `vertically fixed camera: farthest zoom 70 -> 105 (nearest 37)` |
+| far start, `zoom_out=300` | 200 (the start position, under the limit of 210) | works; the sky shows above the small map's far edge |
+| 24 AI turns, `combat_zoom_out=150`, one battle (the AI attacked the robot's hero) | battle limit 84 | log `camera: battle: farthest zoom 56 -> 84`; the battle ran to its end with auto-combat. The battle camera starts at its usual place, so the farther limit itself is not visible without a player's mouse wheel. |
+| **LAN game** (2 copies, 2 humans + 1 AI, 4 AI turns): only the host with `zoom_out=200`, `combat_zoom_out=200` and the far start | host 140, client 25 | **698 world checksums, all equal on both copies (no desync)** |
+
+Not checked by the robot: zooming with the mouse wheel during play (a player's test), the frame rate on a big explored map, Linux.

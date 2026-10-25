@@ -422,6 +422,18 @@ camera: battle: farthest zoom 56 -> 84
 
 **Only your screen changes:** the camera is not part of the game world, so it is not in the world checksums or in the commands the PCs send each other. Each player can choose, also in co-op games.
 
+**Checked with the robot** (A1M4; the robot starts the camera far out, and the game stops it at its farthest allowed distance; details in camera.md):
+
+| Run | Camera stopped at | World checksums |
+|---|---|---|
+| the game's limits | 70 | (one PC) |
+| `zoom_out=150`, normal and "vertically fixed" camera modes | 105 | (one PC) |
+| `zoom_out=300` | 200 (the start position), the sky shows past the small map's edge | (one PC) |
+| `combat_zoom_out=150`, a battle the AI started | battle limit 56 -> 84, the battle ran to its end | (one PC) |
+| LAN game, only the host with `zoom_out=200` and `combat_zoom_out=200` | host 140, client 25 | 698, all equal |
+
+Not checked by the robot: the mouse wheel during play (the robot's windows are in the background), the frame rate on a big explored map, Linux.
+
 **What to watch** far out: near the map's corners you see past its edge; on big maps more of the map is drawn, so a slow PC may lose frames; scrolling does not speed up with the distance. It works in the vanilla exe and MMH5.5's co-op exe (`MMH55_Utility`), not in MMH5.5's single-player exe (`MMH55.exe`, another build, where the DLL installs nothing); camera.md says how to get the same there by hand.
 
 **Settings** (`open-homm5.ini`):
