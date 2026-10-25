@@ -11,6 +11,7 @@
 #include "../mods/net_tuning.h"
 #include "../mods/original_music.h"
 #include "../mods/rmg_teams.h"
+#include "../mods/rmg_templates.h"
 
 namespace hooks {
 
@@ -55,6 +56,7 @@ void InstallAll()
 	mods::ApplyCoopGuardFromSettings();
 	mods::ApplyLockstepFromSettings();
 	mods::ApplyRmgTeamsFromSettings();
+	mods::ApplyRmgTemplatesFromSettings();
 	mods::ApplyOriginalMusicFromSettings();
 }
 
