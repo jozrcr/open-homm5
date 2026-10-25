@@ -3,8 +3,11 @@
 // The XML must be well formed, every zone reachable, start zones = players,
 // teammates linked, indexes valid, and the map size must give sensible zones.
 "use strict";
+var fs = require("fs");
+var path = require("path");
 var TM = require("./template_maker.js");
-var READY = require("./make_templates.js").READY;
+var MT = require("./make_templates.js");
+var READY = MT.READY;
 
 var failures = 0, checks = 0;
 function check(ok, what) {
@@ -68,6 +71,42 @@ function verify(choices, label) {
 }
 
 READY.forEach(function (c, i) { verify(c, "ready " + (i + 1)); });
+
+// The ready set is what the install package ships: names unique, nothing warns
+// about zone sizes, the layouts we promise are all there, and the files in
+// src/mods/rmg/templates are exactly what the maker builds now.
+(function () {
+  var all = MT.buildAll();
+  var names = {}, files = {};
+  all.forEach(function (t) {
+    check(!names[t.name], "ready set: name " + t.name + " is unique");
+    check(!files[t.fileName.toLowerCase()], "ready set: file " + t.fileName + " is unique (any case)");
+    names[t.name] = files[t.fileName.toLowerCase()] = true;
+    check(/^OH-[A-Za-z0-9.-]+\.xdb$/.test(t.fileName), "ready set: " + t.fileName + " is an OH-*.xdb with a plain name");
+    check(t.warnings.every(function (w) { return !/Zones are/.test(w); }), "ready set: " + t.name + " has no zone size warning");
+    check(t.bytes[0] === 0xef && t.bytes[1] === 0xbb && t.bytes[2] === 0xbf, "ready set: " + t.name + " starts with a UTF-8 BOM");
+    check(!/(^|[^\r])\n/.test(t.xml) && t.xml.indexOf("\r\n") > 0, "ready set: " + t.name + " uses CRLF line endings only");
+  });
+  check(all.length >= 16 && all.length <= 24, "ready set: " + all.length + " templates (16 to 24 wanted)");
+
+  // Layouts: 2v2, 2v2v2, 3v3, 4v4 and free-for-all for 3, 4, 6 and 8, each in Normal and Rich.
+  [[2, 2], [3, 2], [2, 3], [2, 4], [3, 1], [4, 1], [6, 1], [8, 1]].forEach(function (l) {
+    ["normal", "rich"].forEach(function (loot) {
+      var n = all.filter(function (t) { return t.choices.teams === l[0] && t.choices.perTeam === l[1] && (t.choices.loot || "normal") === loot; }).length;
+      check(n >= 1, "ready set: layout " + l[0] + "x" + l[1] + " has a " + loot + " template");
+    });
+  });
+  var withTowns = all.filter(function (t) { return t.choices.borderTowns || t.choices.teamTowns; });
+  check(withTowns.length >= 4 && withTowns.length < all.length, "ready set: some templates have towns in the neutral zones, some do not");
+
+  // The committed files are what the maker builds now (run make_templates.js to refresh them).
+  var onDisk = fs.existsSync(MT.DEFAULT_OUT) ? fs.readdirSync(MT.DEFAULT_OUT).filter(function (f) { return /\.xdb$/i.test(f); }) : [];
+  all.forEach(function (t) {
+    var p = path.join(MT.DEFAULT_OUT, t.fileName);
+    check(fs.existsSync(p) && fs.readFileSync(p).equals(t.bytes), "ready set: src/mods/rmg/templates/" + t.fileName + " is up to date");
+  });
+  onDisk.forEach(function (f) { check(files[f.toLowerCase()], "ready set: src/mods/rmg/templates/" + f + " is in the ready set"); });
+})();
 
 // Random choices (deterministic generator, so a failure can be reproduced).
 var seed = 12345;
