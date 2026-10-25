@@ -20,7 +20,7 @@ Texts TextsChoice();
 
 // From hooks::InstallEarly (DLL load, a build recognized then): with
 // texts=fr, puts our function in the game's file system table before the
-// game reads its first text. The pack index waits for the first file opened.
+// game reads its first text. The pack index waits for the first text opened.
 void InstallLanguagesEarly();
 
 // From hooks::InstallAll: the same if it could not go in at DLL load, and the

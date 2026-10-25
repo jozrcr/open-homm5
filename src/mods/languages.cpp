@@ -20,8 +20,8 @@
 // Every other file goes on to the game unchanged. Only .txt files are ever
 // taken from a pack, so a language pack cannot change game data.
 //
-// When: the hook goes in when the DLL is loaded (the game reads texts from its
-// splash screen on), the pack index is built at the first file the game opens.
+// When: the hook goes in when the DLL is loaded, before the game reads its first
+// text; the pack index is built when the game opens its first text.
 // Among our packs the newest file of a path wins, like in the game; on equal
 // dates the pack whose name sorts last. A change of setting needs a restart
 // (the game keeps the texts it has read).
