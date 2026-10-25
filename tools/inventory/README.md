@@ -6,6 +6,7 @@ Scripts that describe the reference exe: what files exist, which compiler built 
 |---|---|
 | `pe_info.py <folder>` | Hash, version, build date, sections and imports of every exe/dll in a folder (table in `docs/reference-binaries.md`). |
 | `pe_diff.py <a.exe> <b.exe>` | Lists the byte regions where two same-size builds differ (used to find MMH5.5's patches). |
+| `mmh55_patch_sites.py <55u.dll> [--list]` | Lists the exe spots MMH5.5's `55u.dll` patches at run time, and the game functions where they meet an address our hook DLL uses (for MMH5.5 upgrades, see `docs/plans/mmh55-rc19k.md`). Needs no `pefile`. |
 | `rich_header.py <exe> [comp_id.txt]` | Decodes the MSVC Rich header: which compiler/linker builds made the exe (see `docs/toolchain.md`). |
 | `rtti_scan.py <exe> <out.tsv>` | Finds every RTTI class and vftable directly in the exe bytes, and demangles the class names with Ghidra's demangler. |
 | `build_inventory.py <export> <exe>` | Turns the Ghidra dump plus the RTTI scan into `progress/inventory.csv` and `analysis/classes.txt`, then runs `make_progress.py`. |
