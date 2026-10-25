@@ -33,17 +33,17 @@ B(a) works in the robot's LAN games. How it is built, in short (details in [src/
 |---|---|---|---|
 | The host picked Haven, where its zone was made for Inferno | 9.2 s on the host, 8.7 s on the client | the same, byte for byte | 504, all equal |
 | The client picked Inferno, where its zone was made for Dungeon | | the same | 507, all equal |
+| Setting on, no faction changed | none ("the map stays") | | 508, all equal |
 
 - **In the first test,** the host's start zone changed from Inferno ground and decorations to Haven grass and trees.
 - **In the second test,** the zone is underground: cave ground whatever the faction, so only the town changed.
 
 **Still open:**
-1. **A robot run with the setting on and no faction changed.** It should not rebuild. The attempt was cut short because the owner was using the test copy.
-2. **The lobby unlock on fixed-town maps,** which the robot cannot test yet (see the README).
-3. **Linux (Proton).**
-4. **A line on the loading screen** while the map is built.
-5. **Every rebuild leaves a package in `Maps`,** as each join does in the game itself.
-6. **After an MMH5.5 update,** an old `...-OH1-...` package of the same map and factions would be reused by the PCs that have one. Deleting old `-OH1-` packages after an update avoids that.
+1. **The lobby unlock on fixed-town maps,** which the robot cannot test yet (see the README).
+2. **Linux (Proton).**
+3. **A line on the loading screen** while the map is built.
+4. **Every rebuild leaves a package in `Maps`,** as each join does in the game itself.
+5. **After an MMH5.5 update,** an old `...-OH1-...` package of the same map and factions would be reused by the PCs that have one. Deleting old `-OH1-` packages after an update avoids that.
 
 ## Short version
 

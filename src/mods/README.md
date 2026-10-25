@@ -382,7 +382,7 @@ trace_factions=0   ; research: lobby setups, the start, map builds, map files, f
   - the host's start zone went from Inferno ground (`Dead_Land`) with lava and dirt decorations to Haven ground (`Dark_Grass`) with grass decorations;
   - **504 world checksums, all equal.**
 - **Another change** (the client picked Inferno where its zone was made for Dungeon): 507 checksums, all equal. That zone is underground, and underground zones get cave ground whatever the faction, so its ground did not change; its town did.
-- **No faction changed:** no rebuild; the game starts on the map as it was. *(To be run again: see the plan.)*
+- **No faction changed** (setting on): no rebuild; the game started on the map as it was. 508 checksums, all equal.
 
 **Not done yet:**
 - **The lobby unlock on fixed-town maps** (every slot locked to one faction) is not robot-tested: the only such saved maps use recipe templates, which this branch does not serve.
