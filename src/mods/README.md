@@ -471,6 +471,46 @@ log_music=0        ; testing: 1 = log every music file the game starts
 log_data_files=0   ; testing: log the first N files the game reads from its data
 ```
 
+## One language: French texts (`languages*.cpp`, off by default)
+
+**What it is for:** with MMH5.5, a French game mixes languages. The base game's texts are French, but the 3.1 patch's and MMH5.5's texts are English, and they replace many French ones. With `texts=fr`, the game takes every text it can from the French packs in `open-homm5\lang\fr\` next to the exe:
+
+- **MMH5.5's own French pack.** The MMH5.5 team publishes it on MMH5.5's ModDB page. Each player downloads the one for their MMH5.5 version, unzips it and puts its `.pak` there. Any version works, and the log names it. A `.zip` of texts is read too; a `.zip` that only wraps the `.pak` is reported in the log.
+- **Our pack** of what that pack leaves out, shared within the group.
+
+Nothing on disk changes. `game` (the default) installs nothing. The plan, with the counts and the version question, is [docs/plans/languages.md](../../docs/plans/languages.md).
+
+**How:** the game reads each text the first time it is shown, through its file system, and keeps it until it closes ([docs/subsystems/texts.md](../../docs/subsystems/texts.md)). The mod wraps the same "open file" function as the music mod (`CWinVFS` slot 7). When the game opens a `.txt` path that one of our packs has, it gets that file instead.
+
+- **Only `.txt` files** are ever taken from a pack. A language pack cannot change game data, only words on the screen.
+- **The `FF FE` mark** that the game needs before a text (without it the game shows an empty text) is always there. A UTF-8 text in a pack is converted.
+- **Between our packs,** the newest file of a path wins, as in the game. On equal dates, the pack whose name sorts last wins, the same on Windows and Linux.
+- **The player list** (`[ui] language=auto`) uses French words with `texts=fr`.
+
+Texts are only shown, never part of the game world: the game objects keep a text's path, not its words. So each player can choose for themselves.
+
+**Checked** with the robot (2026-10-25, MMH5.5 RC19d, its French pack and ours in the test copy):
+- **Single player, a random map:**
+  - 6,024 French texts indexed;
+  - the version line matched ("5.69d" both);
+  - 383 texts given to the game (379 from MMH5.5's pack; 4 from ours: random map settings and the Rage message);
+  - the player list in French.
+- **LAN on A1M4, only the host on `texts=fr`:** 8 AI turns, 1,465 world checksums, all equal on both copies (no desync).
+- **The same on MMH5.5 RC19k** with its closest French pack (RC19i) and our pack for RC19k: 6,083 French texts; LAN with only the host on French, 1,557 world checksums, all equal.
+- **A `.zip` that only wraps the `.pak`, and no folder at all:** the log says so, and the game keeps its own texts.
+
+**Not seen yet:** the combat log (the robot's battles resolve at once) and the random map screen's labels.
+
+The log (`open-homm5.log`) says what was found, for example (MMH5.5 RC19k, its RC19i French pack and our pack):
+
+```
+languages: texts=fr: the game's texts come from open-homm5\lang\fr\*.pak where they have them
+languages: texts=fr: 6083 French texts from open-homm5\lang\fr: MMH55-Texts-FR.pak (5603), open-homm5-fr.pak (480); 272 of them newer than another pack's; indexed in 16 ms
+languages: version text: French pack "Version: 5.69i" (MMH55-Texts-FR.pak), the game "Version: 5.69k" (another MMH5.5 version: some French descriptions may not match the game)
+```
+
+The version line compares the MMH5.5 version written in the French pack with the one the game shows in its main menu. When they differ, some French descriptions may describe another version's numbers. The menu itself keeps showing the game's own version.
+
 ## Farther camera zoom (`camera.cpp`, off by default)
 
 **What it is for:** the camera cannot zoom out far. `zoom_out=150` lets the adventure map's camera go 1.5 times as far from the ground as the game allows; `combat_zoom_out` does the same in battles. Off (the default, 100), the game's own limits.
@@ -509,6 +549,10 @@ Not checked by the robot: the mouse wheel during play (the robot's windows are i
 **Settings** (`open-homm5.ini`):
 
 ```ini
+[lang]
+texts=game     ; game (the texts as installed), fr; en (English) is planned, not built yet
+log_texts=0    ; testing: log the first N texts taken from the packs
+
 [camera]
 zoom_out=100          ; adventure map: % of the game's farthest zoom (100 = the game's; e.g. 150; up to 400)
 combat_zoom_out=100   ; battles: the same

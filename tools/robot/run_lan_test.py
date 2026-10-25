@@ -59,6 +59,7 @@ def instance_args(args, name, steps):
         save_setting=args.save_setting + (args.host_save if name == "host" else args.client_save),
         notify_setting=args.notify_setting,
         ui_setting=args.ui_setting + (args.host_ui if name == "host" else args.client_ui),
+        lang_setting=args.host_lang if name == "host" else args.client_lang,
         camera_setting=args.camera_setting + (args.host_camera if name == "host" else args.client_camera),
         debug_setting=args.host_debug if name == "host" else args.client_debug,
         resolution=args.resolution,
@@ -99,6 +100,10 @@ def main():
                    help="[audio] setting for the host copy only, e.g. original_music=1")
     p.add_argument("--client-audio", action="append", default=[], metavar="KEY=VALUE",
                    help="[audio] setting for the client copy only, e.g. log_music=1")
+    p.add_argument("--host-lang", action="append", default=[], metavar="KEY=VALUE",
+                   help="[lang] setting for the host copy only, e.g. texts=fr (src/mods/languages.cpp)")
+    p.add_argument("--client-lang", action="append", default=[], metavar="KEY=VALUE",
+                   help="[lang] setting for the client copy only")
     p.add_argument("--host-rmg", action="append", default=[], metavar="KEY=VALUE",
                    help="[rmg] setting for the host copy, e.g. teams=humans_vs_ai (src/mods/rmg_teams.cpp)")
     p.add_argument("--client-rmg", action="append", default=[], metavar="KEY=VALUE",

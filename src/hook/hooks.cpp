@@ -11,6 +11,7 @@
 #include "../mods/coop_guard.h"
 #include "../mods/fast_paths.h"
 #include "../mods/lan_discovery.h"
+#include "../mods/languages.h"
 #include "../mods/lockstep.h"
 #include "../mods/net_tuning.h"
 #include "../mods/notify.h"
@@ -46,6 +47,7 @@ void InstallEarly()
 	// one is still encrypted now, and gets them with InstallAll()).
 	if (NoHooks() || !IsHookable(DetectGameBuild()))
 		return;
+	mods::InstallLanguagesEarly();  // [lang] texts=fr, before the game reads its first text
 	mods::InstallOriginalMusicEarly();
 	mods::InstallPlayerListEarly();  // the Direct3D import, before the game makes its device
 }
@@ -68,6 +70,7 @@ void InstallAll()
 	mods::ApplyNotifyFromSettings();
 	mods::ApplyRmgTeamsFromSettings();
 	mods::ApplyRmgTemplatesFromSettings();
+	mods::ApplyLanguagesFromSettings();
 	mods::ApplyOriginalMusicFromSettings();
 	mods::ApplyPlayerListFromSettings();
 	mods::ApplyCameraFromSettings();

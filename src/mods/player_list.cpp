@@ -42,6 +42,7 @@
 
 #include <string>
 
+#include "languages.h"
 #include "player_list_internal.h"
 
 #include "../hook/d3d9_hook.h"
@@ -106,10 +107,15 @@ void ReadSettings()
 		g_language = -1;
 }
 
-// The game's language: a text of the original game, the red player's name
-// ("Joueur rouge" / "Red player"); else the language of Windows.
+// The game's language: French when the languages mod gives the game French
+// texts ([lang] texts=fr); else a text of the original game, the red player's
+// name ("Joueur rouge" / "Red player"); else the language of Windows.
 plist::Language GameLanguage()
 {
+	if (TextsChoice() == Texts::French) {
+		hooklog::Write("player list: French words, as the game's texts ([lang] texts=fr)");
+		return plist::kFrench;
+	}
 	std::string text;
 	if (plist::ReadGameFile("Text/Game/Player/Colors/red_player.txt", &text) && text.size() >= 4) {
 		const wchar_t *w = reinterpret_cast<const wchar_t *>(text.data());
