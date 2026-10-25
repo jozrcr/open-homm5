@@ -4,6 +4,8 @@
 
 #include "game_build.h"
 #include "log.h"
+#include "watchdog.h"
+#include "../mods/ai_pacing.h"
 #include "../mods/autosave.h"
 #include "../mods/coop_guard.h"
 #include "../mods/fast_paths.h"
@@ -53,12 +55,14 @@ void InstallAll()
 		hooklog::Write("open-homm5.nohooks found: hooks disabled");
 		return;
 	}
+	watchdog::Install();  // first: the others register their state for its reports
 	InstallAiTrace();
 	mods::ApplyNetTuningFromSettings();
 	mods::ApplyFastPathsFromSettings();
 	mods::ApplyLanDiscoveryFromSettings();
 	mods::ApplyCoopGuardFromSettings();
 	mods::ApplyLockstepFromSettings();
+	mods::ApplyAiPacingFromSettings();
 	mods::ApplyAutosaveFromSettings();
 	mods::ApplyNotifyFromSettings();
 	mods::ApplyRmgTeamsFromSettings();

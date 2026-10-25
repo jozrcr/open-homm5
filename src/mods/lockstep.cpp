@@ -74,6 +74,7 @@
 
 #include "../hook/log.h"
 #include "../hook/patch.h"
+#include "../hook/watchdog.h"
 
 namespace mods {
 namespace {
@@ -411,18 +412,78 @@ void __fastcall SendHook(void *self, void *edx, void *command)
 	g_send_next(self, edx, command);
 }
 
+// A new game (another transceiver, other players, counts that started again), or
+// counts the trace cannot follow: TraceLook's loops go from the counts it saw
+// last to the game's, so a count that went back or jumped by more than its ring
+// would make them long (or index outside the ring); start again from here then.
+bool TraceLost(const BYTE *t, int players)
+{
+	const Trace &s = g_trace_state;
+	if (t != s.transceiver || players != s.players)
+		return true;
+	for (int p = 0; p < players; ++p) {
+		const LONG now = Reported(t)[p];
+		if (now < s.last[p] || now - s.last[p] > kRing || now < 0)
+			return true;
+	}
+	return false;
+}
+
+// --- for the hang watchdog (src/hook/watchdog.h): the pump's state ---------------------
+// Written by the main thread; the watchdog reads our own copy, never the game's memory.
+volatile LONG g_in_pump = 0;     // 1 while the game's pump runs (from our hook)
+volatile LONG g_pump_round = 0;  // 0 = the first call this frame, 1.. = drain rounds
+volatile DWORD g_pump_tick = 0;  // GetTickCount() at the last pump
+volatile LONG g_pumps = 0;
+struct PumpView {
+	int players, me;
+	LONG reported[kMaxPlayers];
+};
+PumpView g_view;
+
+void NoteView(const BYTE *t, int players)
+{
+	g_view.players = players;
+	g_view.me = static_cast<int>(Read(t, 0x54));
+	for (int p = 0; p < players; ++p)
+		g_view.reported[p] = Reported(t)[p];
+}
+
+void ReportForWatchdog()
+{
+	if (!g_pumps) {
+		hooklog::Write("watchdog: lockstep: no multiplayer pump since the game started");
+		return;
+	}
+	char counts[120] = "";
+	for (int p = 0; p < g_view.players && p < kMaxPlayers; ++p) {
+		char one[16];
+		wsprintfA(one, "%s%ld", p ? " " : "", g_view.reported[p]);
+		lstrcatA(counts, one);
+	}
+	hooklog::Write("watchdog: lockstep: %s; the last pump %lu ms ago (%ld pumps); %d players, this PC is player %d; "
+	               "segments each player reported: %s; this PC ran %ld, %d of its commands wait for their segment; "
+	               "margin %lu ms; drain %s, trace %s",
+	               g_in_pump ? (g_pump_round ? "INSIDE the game's message pump (a drain round)" : "INSIDE the game's message pump")
+	                         : "not inside the message pump",
+	               GetTickCount() - g_pump_tick, g_pumps, g_view.players, g_view.me, counts, g_trace_state.ran,
+	               g_trace_state.queued, Margin(), g_drain ? "on" : "off", g_trace ? "on" : "off");
+}
+
 // --- the pump ---------------------------------------------------------------------
 void __fastcall PumpHook(void *self, void *edx)
 {
 	const BYTE *t = static_cast<const BYTE *>(self);
 	const int players = Players(t);
 	const bool ok = players > 0 && players <= kMaxPlayers;
+	g_pump_tick = GetTickCount();
+	g_pumps = g_pumps + 1;
+	if (ok)
+		NoteView(t, players);
 	double now = 0;
 	if (g_trace && ok) {
 		now = Ms();
-		// A new game: another transceiver, or the counts started again.
-		if (t != g_trace_state.transceiver || players != g_trace_state.players ||
-		    Reported(t)[0] < g_trace_state.last[0])
+		if (TraceLost(t, players))
 			TraceReset(t, players, now);
 		const double frame = now - g_trace_state.last_frame;
 		if (frame > g_trace_state.longest_frame)
@@ -433,7 +494,10 @@ void __fastcall PumpHook(void *self, void *edx)
 	}
 
 	LONG before = ok ? Total(t, players) : 0;
+	g_pump_round = 0;
+	g_in_pump = 1;
 	g_pump_next(self, edx);
+	g_in_pump = 0;
 	if (ok && g_drain) {
 		// The pump stops after one report; go on while it takes in one more.
 		// At most two rounds of reports per frame, so a flood can't stall a frame.
@@ -443,7 +507,10 @@ void __fastcall PumpHook(void *self, void *edx)
 			if (after == before)
 				break;
 			before = after;
+			g_pump_round = i + 1;
+			g_in_pump = 1;
 			g_pump_next(self, edx);
+			g_in_pump = 0;
 			++extra;
 		}
 		if (g_trace) {
@@ -452,6 +519,8 @@ void __fastcall PumpHook(void *self, void *edx)
 				g_trace_state.max_drain = extra;
 		}
 	}
+	if (ok)
+		NoteView(t, players);
 	if (g_trace && ok) {
 		now = Ms();
 		TraceLook(t, now);
@@ -665,6 +734,9 @@ void ApplyLockstepFromSettings()
 		g_drain = g_trace = false;
 		return;
 	}
+	watchdog::AddReporter(&ReportForWatchdog);
+	watchdog::NameFunction(&PumpHook, "lockstep PumpHook");
+	watchdog::NameFunction(&SendHook, "lockstep SendHook");
 	if (g_drain)
 		hooklog::Write("lockstep: each frame takes in every segment report that has arrived (game: one)");
 	if (g_trace) {
