@@ -97,7 +97,7 @@ The world checksums stayed equal on both PCs (no desync). When the copies disagr
 [coop]
 guard=1           ; 0 = take no part (no hello; never switch), as without the DLL
 fast_segments=1   ; 0 = ask for the game's 200 ms, so nobody switches
-segment_ms=100    ; 100 or 50
+segment_ms=50     ; 50 or 100 (50 by default since 0.2.0)
 ```
 
 ## Quicker lockstep (`lockstep.cpp`; the drain and the trace on by default)
@@ -117,13 +117,14 @@ Why multiplayer clicks feel slow, and the measurements: [docs/plans/responsivene
 | Drain plus `view_delay_ms=200` | 0.44 s | 0.46 s | all equal |
 | Drain plus `view_delay_ms=250` | 0.42 s | 0.57 s | all equal |
 | Drain plus `catch_up_ms=600` | 0.45 s | 0.56 s | all equal |
+| **0.2.0 defaults:** 50 ms segments, view 100, catch-up 600 | **0.32 s** | **0.30 s** | 825, all equal |
 
 ```ini
 [net]
 drain_reports=1   ; 0 = the game's one report per frame
-view_delay_ms=150 ; 100..400, only while co-op timing is ON (else the game's 400); Q10
+view_delay_ms=100 ; 100..400, only while co-op timing is ON (else the game's 400)
 trace_lockstep=1  ; 0 = no summary lines
-catch_up_ms=150   ; experiment, 150..1000 (the game: 150)
+catch_up_ms=600   ; 150..1000, only while co-op timing is ON (the game: 150)
 ```
 
 The robot passes them with `run_lan_test.py --net-setting KEY=VALUE`.

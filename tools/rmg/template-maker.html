@@ -182,7 +182,7 @@
           <span class="status" id="status"></span>
         </div>
         <ol class="steps">
-          <li>Extract the zip into the game's folder, the one that holds <code>bin</code> and <code>data</code>. It adds <code>data\RMG\Templates\</code> and the template file.</li>
+          <li>Extract the zip into the game's folder, the one that holds <code>bin</code> and <code>data</code>. It adds the template to <code>bin\open-homm5\templates\</code>, where the add-on (0.2.0 or later) puts it in the game's template list. The game's own files are not touched.</li>
           <li><strong>Every player</strong> of a multiplayer game needs the same file: each PC builds the map itself from it.</li>
           <li>On the generator screen, pick the map size shown above (with or without underground, as chosen), then the template in the list.</li>
         </ol>
@@ -390,7 +390,7 @@
     warnings.innerHTML = "";
     warnings.hidden = !current.warnings.length;
     current.warnings.forEach(function (w) { warnings.appendChild(el("p", {}, w)); });
-    document.getElementById("filename").textContent = "data\\RMG\\Templates\\" + current.fileName;
+    document.getElementById("filename").textContent = "bin\\open-homm5\\templates\\" + current.fileName;
     document.getElementById("xml").textContent = current.xml.replace(/^\ufeff/, "");
   }
 
@@ -401,7 +401,7 @@
     status.textContent = "Preparing the file...";
     var downloads = window.claude && window.claude.use ? window.claude.use("downloads") : Promise.resolve(null);
     var zip = new JSZip();
-    zip.file("data/RMG/Templates/" + current.fileName, current.xml);
+    zip.file("bin/open-homm5/templates/" + current.fileName, current.xml);
     Promise.all([downloads, zip.generateAsync({ type: "blob", compression: "DEFLATE" })]).then(function (r) {
       var downloads = r[0], blob = r[1];
       if (!downloads) { status.textContent = "Downloading isn't available here: use Copy the XML instead."; return; }
@@ -416,7 +416,7 @@
     var status = document.getElementById("status");
     if (!current) return;
     var text = current.xml.replace(/^\ufeff/, "");
-    var done = function () { status.textContent = "Copied. Save it as " + current.fileName + " in data\\RMG\\Templates\\."; };
+    var done = function () { status.textContent = "Copied. Save it as " + current.fileName + " in bin\\open-homm5\\templates\\."; };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done, function () {
         document.querySelector("details").open = true;

@@ -26,8 +26,8 @@ How a click becomes a move, from the code (static reading by a research agent; d
 |---|---|---|
 | `drain_reports=1` | **on** | Each frame takes in every report that has arrived. Safe: the same work in the same order, only sooner. |
 | `trace_lockstep=1` | **on** | A log line every 10 s: the wait after this PC's own report, who was last, frames per second, the spread. Then a real game tells us who everyone waits for. |
-| `view_delay_ms=150` | **150 while co-op timing is ON**, else the game's 400 | The margin of point 3. The owner's choice (Q10): everyone is on fiber, and 250 felt too slow. |
-| `catch_up_ms=150` | the game's | Experiment for point 5. |
+| `view_delay_ms=100` | **100 while co-op timing is ON** (0.2.0; 150 before), else the game's 400 | The margin of point 3. The owner's choice (Q10): everyone is on fiber, and 250 felt too slow. |
+| `catch_up_ms=600` | **600 while co-op timing is ON** (0.2.0), else the game's 150 | Point 5: a PC catches up after a freeze. |
 
 **Robot results** (2 copies on one PC, about 45 AI moves each; the AI decides differently every run, so the numbers are noisy):
 
@@ -37,6 +37,7 @@ How a click becomes a move, from the code (static reading by a research agent; d
 | Drain + `view_delay_ms=200` | 0.44 s | 0.46 s | 439, all equal |
 | Drain + `view_delay_ms=250` | 0.42 s | 0.57 s | 440, all equal |
 | Drain + `catch_up_ms=600` | 0.45 s | 0.56 s | 458, all equal |
+| **0.2.0 defaults:** `segment_ms=50`, view 100, catch-up 600 | **0.32 s** | **0.30 s** | 825, all equal |
 
 **What the trace showed:**
 - Even on one PC, the host waits **130 to 240 ms on average** (up to 700) after its own report, and the client is the last reporter almost every time. The two copies' timers run 2 to 4 segments apart.

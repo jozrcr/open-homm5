@@ -39,7 +39,7 @@
 // Settings, open-homm5.ini [coop]:
 //   guard=1          0 = take no part (no hello, never switch), as without the DLL
 //   fast_segments=1  0 = ask for the game's 200 ms, so nobody switches
-//   segment_ms=100   100 or 50
+//   segment_ms=50    50 or 100 (50 by default since 0.2.0)
 #include <windows.h>
 #include <string.h>
 
@@ -282,7 +282,7 @@ void ApplyCoopGuardFromSettings()
 		hooklog::Write("co-op timing: guard off ([coop] guard=0): this PC sends no hello and keeps the game's timing");
 		return;
 	}
-	const DWORD ms = GetPrivateProfileIntW(L"coop", L"segment_ms", 100, path);
+	const DWORD ms = GetPrivateProfileIntW(L"coop", L"segment_ms", 50, path);
 	const bool fast = GetPrivateProfileIntW(L"coop", L"fast_segments", 1, path) != 0;
 	g_asked_ms = fast && (ms == 100 || ms == 50) ? ms : 200;
 	if (fast && g_asked_ms == 200)
