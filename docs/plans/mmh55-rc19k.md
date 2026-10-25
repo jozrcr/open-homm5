@@ -1,6 +1,6 @@
 # Plan: upgrading MMH5.5 from RC19d to RC19k
 
-Status: **installer downloaded and read; not installed yet** (2026-10-25). See the [setup log](#9-setup-log-2026-10-25): the co-op exe is unchanged, `55u.dll` changed, and the installer needs a UAC click. The Steam folder was only read.
+Status: **RC19k in the test copy `C:\Games\H5_test_k`, first robot runs pass** (2026-10-25). See the [setup log](#9-setup-log-2026-10-25): the co-op exe is unchanged and our DLL recognises it. `55u.dll` now sets the network send interval to 20 ms; net tuning accepts that value and makes it 10 ms again. The Steam folder was only read.
 
 ## Short version
 
@@ -366,22 +366,46 @@ Notes:
 - The four values the owner changes, as RC19k ships them: `H55_AICheatMode = 4`, `H55_AmountExtraTownsDwellings = 1`, `H55_NegativeArtifacts = 1`, `H55_RPGPotions = 0` (the same as RC19d's defaults).
 - So the owner's RC19d edit (SHA-256 `3C986E03…`) differs from RC19k's default in exactly those 4 lines. The group's RC19k file can be made by changing those 4 lines in RC19k's pak. Its zip date must stay newer than RC19k's (2025-10-12) so it wins.
 
+### Install into the test copy (option B, chosen by the owner)
+
+- The installer was not run (it needs the UAC click). Instead the files were copied out of it:
+  ```
+  python -I tools\inventory\inno_files.py C:\Games\downloads\mmh55-rc19k\MMH55_RC19k.exe C:\Games\downloads\mmh55-rc19k\rc19k_files.csv C:\Games\H5_test_k "bin\55*" "bin\H5_AIProcess_31j.exe" "bin\ICSharpCode.SharpZipLib.dll" "bin\MMH55*" "data\*" "music\*" "UserMODs\*" "video\*" "Complete\*" "ARMG Manual V2.7.pdf"
+  ```
+- 264 files written, each **matching the installer's SHA-256** (0 bad); the log is `C:\Games\downloads\mmh55-rc19k\extract.log`.
+- `bin\H5_Game.exe` was left out on purpose: the copy's file is newer (3.1.2.99), and Inno Setup would keep it too.
+- Not done: the installer's 6 deletes of editor icon caches, shortcuts, the uninstall entry, `unins000.exe`. No admin rights, no registry change.
+
+### First robot runs (each under the robot lock)
+
+**Start-up** (`run_ai_test.py --game C:\Games\H5_test_k --turns 1`, `build/robot/20261025-193850`):
+- `game build: ToE 3.1 + MMH5.5 patches (MMH55_Utility)` and `hooked AI turn driver (CPlayerAI vftable slot 0 at 00e4c8bc)`;
+- fast paths, LAN, co-op timing and lockstep all on;
+- as predicted, `net tuning: send interval at 0047e553 is 3ca3d70a, not 3d4ccccd: left alone`;
+- 10 AI steps, stopped at the turn limit.
+
+**LAN runs** (`run_lan_test.py --seconds 400 --turns 6`, map A1M4, 2 robot humans + 1 AI; `lan_report.py`):
+
+| Run | Copy | Send interval | Wait before an AI step (median) | Per AI step | World checksums |
+|---|---|---|---|---|---|
+| A `20261025-193958-lan` | RC19k | 20 ms (MMH5.5's, ours left alone) | 479 ms | 0.46 s | 1,003, all equal |
+| B `20261025-194210-lan` | RC19d | 10 ms (ours) | 220 ms | 0.26 s | 1,086, all equal |
+| C `20261025-194423-lan` | RC19d | 20 ms (ours, `--net-send-interval-ms 20`) | 466 ms | 0.49 s | 1,012, all equal |
+| D `20261025-201016-lan` | RC19k | 10 ms (ours, after the change below) | 217 ms | 0.24 s | 991, all equal |
+
+- A ≈ C and B ≈ D: RC19k itself does not change the AI speed. MMH5.5's 20 ms alone almost doubles the wait before each AI step.
+- **No desync** in any run.
+- One try of D (`20261025-200303-lan`) never started the game: `setting option quick_combat crashed (caught)` in the lobby, after a 3 s stall. A retry passed. The same step worked in A, so it looks like a flaky robot lobby step, not RC19k. Keep an eye on it.
+
+**Change:** `src/mods/net_tuning.cpp` now accepts `0.02f` (`3ca3d70a`, MMH5.5 RC19k) as well as the game's `0.05f` before writing our value at `0x0047e553`.
+- It is still behind `send_interval_ms` (default 10; `0` keeps MMH5.5's 20 ms) and the byte check. Any other value is still left alone.
+- The log says `net tuning: links may send every 10 ms (game: 50, MMH5.5: 20)`.
+
 ### Next steps
 
-1. **Install RC19k into the copy.** Choose one:
-   - A. The owner runs the installer himself (or Claude starts it while he is at the PC) and clicks Yes on the UAC prompt:
-     ```
-     C:\Games\downloads\mmh55-rc19k\MMH55_RC19k.exe /DIR="C:\Games\H5_test_k" /SILENT /SUPPRESSMSGBOXES /NORESTART /LOG="C:\Games\downloads\mmh55-rc19k\install.log"
-     ```
-     It adds 2 desktop shortcuts, a Start menu group and an uninstall entry for the copy. Later, the real Steam upgrade overwrites that same entry. After that, do not run the copy's `unins000.exe`: it would remove the Steam install's entry. Just delete the folder.
-   - B. Claude copies the 265 files out of the installer into the copy with `inno_files.py` (each checked against the installer's SHA-256). No admin rights, no registry entry, no shortcuts, no uninstaller. The game files end up the same as with A.
-2. Start the game once with the robot (take the robot lock: other agents use the same game mutex and ports) and read `bin\open-homm5.log`:
-   ```
-   python tools\robot\run_ai_test.py --game C:\Games\H5_test_k --turns 1
-   ```
-   Expect `game build: ToE 3.1 + MMH5.5 patches (MMH55_Utility)`, the hook lines, and the `net tuning: send interval ... left alone` line above.
-3. Decide what net tuning should do with MMH5.5's new `TransmissionInterval`: keep MMH5.5's 20 ms, or accept `0.02f` as a second "original" value so our 10 ms still applies. Measure both with `run_lan_test.py`.
-4. Then the robot suite of [section 5](#5-test-plan), step 8, each with `--game C:\Games\H5_test_k`, and the same on `C:\Games\H5_test` for the RC19d baseline. Saves made in RC19d may not load in RC19k.
+1. The robot suite of [section 5](#5-test-plan), step 8, each with `--game C:\Games\H5_test_k` (with the robot lock), and the same on `C:\Games\H5_test` for the RC19d baseline. Saves made in RC19d may not load in RC19k.
+2. Make the group's settings pak (section 5, step 5): RC19k's pak with the owner's 4 lines.
+3. For the real upgrade, the installer needs a UAC click on each PC, and it adds an uninstall entry named like RC19d's. Once the group's PCs have RC19k, do not use the uninstaller of any old test copy.
 
 ## Appendix: files RC19d installed
 

@@ -39,6 +39,8 @@ batched_segments=0
 
 The DLL's log (`open-homm5.log`) says what it changed, for example `net tuning: links may send every 10 ms (game: 50)`.
 
+**MMH5.5 RC19k** sets the send interval to 20 ms itself (`<TransmissionInterval>` in `MMH55Stats.xml`, applied by `55u.dll` at start-up). The mod also accepts that value and still makes it 10 ms; the log then says `(game: 50, MMH5.5: 20)`. Measured on RC19k (A1M4, robot LAN run): 0.46 s per AI step with MMH5.5's 20 ms, 0.26 s with 10 ms (RC19d with 10 ms: 0.26 s). `send_interval_ms=0` keeps MMH5.5's 20 ms.
+
 ## LAN games over VPNs (`lan_discovery.cpp`, on by default)
 
 **What it fixes:** over a virtual network such as ZeroTier (for a friend on Linux, or without GameRanger), the host's game never shows up in the LAN list.
