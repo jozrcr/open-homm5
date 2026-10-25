@@ -171,6 +171,34 @@ max_expansions=0     ; EXPERIMENT, CHANGES THE AI'S PATHS: expand a tile at most
 
 `max_expansions` is not part of the exact speed-up: it is a first test of a faster search that may change the AI's paths (see the experiment in [ai-pathfinder.md](../../docs/subsystems/ai-pathfinder.md)). With 16 on the owner's day-50 save, AI thinking went from 16.7 s to 8.3 s; only the AI hero's giant long-range searches changed. On another save the AI then chose differently after a few moves. Off by default; not for real games until it has been tested much more.
 
+## Teams on random maps (`rmg_teams.cpp`, off by default)
+
+Step 2 of the map generator plan ([docs/plans/map-generator.md](../../docs/plans/map-generator.md)).
+
+- **Where teams live:** in the game setup (`NWorld::CPlayersStartInfo`), one slot per player with its team at +0x1c. A random map puts every player on their own team.
+- **How it works:** when the host starts the game (0x007200da → 0x0071feb0), it sends its setup to every PC, and each PC creates its players from it (0x00c9fa80). The mod changes the teams in the host's setup just before that.
+- **Results:**
+  - Every PC gets the same teams, including friends without our DLL.
+  - Only the host's setting counts.
+  - Maps with teams of their own keep them.
+  - A choice that would leave a single team is not applied.
+
+```ini
+[rmg]
+teams=            ; empty: the map's teams. humans_vs_ai, pairs, or a list like 1,1,2,2,3,3
+trace_teams=1     ; log the teams each PC starts with
+```
+
+**Robot test** (LAN, host with `teams=humans_vs_ai`, client without the setting):
+- Both PCs started with the two humans on team 0 and the computer player on team 1.
+- 352 world checksums, all equal.
+
+`run_lan_test.py --host-rmg teams=...` sets it.
+
+**Not done yet:**
+- **Choosing teams in the lobby itself** (the owner's wish). The research is in [docs/subsystems/rmg.md](../../docs/subsystems/rmg.md), "Teams in the lobby".
+- **A random map in a LAN robot game:** the robot plays A1M4, which has no teams either.
+
 ## Original music (`original_music*.cpp`, off by default)
 
 **What it is for:** MMH5.5 brings its own music (new tracks for terrains, the main menu, the credits, battles and hero themes). With this switch on, the game plays the **original Heroes V music** wherever MMH5.5 changed it. Off (the default), you hear MMH5.5's music, exactly as without the add-on.

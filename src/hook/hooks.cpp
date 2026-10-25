@@ -10,6 +10,7 @@
 #include "../mods/lockstep.h"
 #include "../mods/net_tuning.h"
 #include "../mods/original_music.h"
+#include "../mods/rmg_teams.h"
 
 namespace hooks {
 
@@ -53,6 +54,7 @@ void InstallAll()
 	mods::ApplyLanDiscoveryFromSettings();
 	mods::ApplyCoopGuardFromSettings();
 	mods::ApplyLockstepFromSettings();
+	mods::ApplyRmgTeamsFromSettings();
 	mods::ApplyOriginalMusicFromSettings();
 }
 
