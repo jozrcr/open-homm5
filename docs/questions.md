@@ -13,6 +13,27 @@ Answer: (owner fills in)
 
 ---
 
+## Q11: One language: where may translated texts live? (2026-10-25, status: open)
+
+Context: the plan is [plans/languages.md](plans/languages.md).
+- **French:** MMH5.5's team publishes an official French pack (ModDB and GitHub; the ModDB page says "Proprietary", the GitHub repo has no licence). Your RC19d has one. What it leaves out is about 5,000 words for co-op (10,000 with campaigns), mostly the 3.1 patch's English texts (Ubisoft's) and a few MMH5.5 texts. Those translations would be ours, but made from Ubisoft's and MMH5.5's texts.
+- **English:** Ubisoft's English `texts.pak`. Each player can get it from their own Steam (depot 15372).
+
+Our repo and release zip are public.
+
+Options:
+1. **(Recommended)** Nothing made from game or mod texts goes in the public repo or release. The release has the switch and the tools. Each player:
+   - downloads MMH5.5's French pack from ModDB, its official place;
+   - gets the English texts from their own Steam.
+   We share our gap translations privately among the group, for example a zip passed around or a private repo. We also offer them to the MMH5.5 team as a contribution to their French repo, so later they reach everyone through the official pack.
+2. Ask the MMH5.5 team (dredknight; Toleman71 is credited for the French) for permission to put their French pack and our gaps in our release zip: one download, everything works. Only with a written yes.
+3. Put our own gap translations in the public repo and release (not MMH5.5's pack, not Ubisoft's files). Simple for the group, but they are made from Ubisoft's and MMH5.5's texts.
+4. Everything about texts stays private: no packs in the release, and the instructions only in a private place.
+
+Also to approve: downloading the French pack for RC19d (ModDB, about 0.4 MB), getting Steam's English depot (173.5 MB, into a folder outside the game), and which MMH5.5 version the group plays (RC19d installed, RC19k is out).
+
+Answer: (owner fills in)
+
 ## Q10: Show moves sooner after a click by default? (2026-10-25, status: answered)
 
 Context: the plan is [plans/responsiveness.md](plans/responsiveness.md). In multiplayer, the game shows every move 400 ms after its step, on purpose, as a safety margin (`view_delay_ms`). With our 100 ms steps the real wait is usually 100 to 250 ms. A lower margin makes moves start sooner, for your clicks and for the AI's moves. In robot tests, AI hero moves dropped from 0.61 to 0.46 s with 200 ms, with no desync. The risk: when a step arrives later than the margin, that move starts with a small jump (the hero is already a few steps along). It never changes the game itself, only when this PC shows it, and each PC can choose.
