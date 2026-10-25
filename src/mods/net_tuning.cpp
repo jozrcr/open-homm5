@@ -34,6 +34,10 @@
 //               code, so the test is pointed at our own value instead;
 //   0x0047e553  the 0.05f in "mov dword ptr [edi+0x3e8e4], 0x3d4ccccd" at
 //               0x0047e54d, the link's send timer (per-link update 0x0047e050);
+//               MMH5.5 RC19k's 55u.dll already makes it 0.02f at start-up
+//               (MMH55Stats.xml <TransmissionInterval>), so 0.02f is accepted
+//               as an original value too (robot, A1M4: 0.46 s per AI step
+//               with 20 ms, 0.26 s with 10 ms; docs/plans/mmh55-rc19k.md);
 //   0x0040247f  the address in "mov edx, [0x00f27398]" at 0x0040247d, the only
 //               read of net_batched_segments (0x00402440, once per segment); it
 //               is pointed at our own value, because the game reloads the
@@ -50,16 +54,20 @@ namespace {
 
 const DWORD kKeepaliveOperand = 0x008fdf25;  // holds 0x00e0a7e4 (address of 1.0f)
 const DWORD kSendIntervalImm = 0x0047e553;   // holds 0x3d4ccccd (0.05f)
+const DWORD kSendIntervalGame = 0x3d4ccccd;  // 0.05f, the game's
+const DWORD kSendIntervalMmh55 = 0x3ca3d70a; // 0.02f, written by MMH5.5 RC19k's 55u.dll
 const DWORD kBatchedOperand = 0x0040247f;    // holds 0x00f27398 (net_batched_segments)
 float g_keepalive_seconds = 1.0f;
 int g_batched_segments = 3;
 
-bool Write(DWORD address, DWORD expected, DWORD value, const char *what)
+// Replaces the DWORD at address with value, only if it holds expected (or
+// also_expected, a second known original).
+bool Write(DWORD address, DWORD expected, DWORD value, const char *what, DWORD also_expected)
 {
 	DWORD *p = reinterpret_cast<DWORD *>(address);
 	if (*p == value)
 		return true;  // already set
-	if (*p != expected) {
+	if (*p != expected && *p != also_expected) {
 		hooklog::Write("net tuning: %s at %08lx is %08lx, not %08lx: left alone", what, address, *p, expected);
 		return false;
 	}
@@ -78,19 +86,23 @@ void ApplyNetTuning(DWORD keepalive_ms, DWORD send_interval_ms, int batched_segm
 {
 	if (keepalive_ms) {
 		g_keepalive_seconds = keepalive_ms / 1000.0f;
-		if (Write(kKeepaliveOperand, 0x00e0a7e4, reinterpret_cast<DWORD>(&g_keepalive_seconds), "keepalive"))
+		if (Write(kKeepaliveOperand, 0x00e0a7e4, reinterpret_cast<DWORD>(&g_keepalive_seconds), "keepalive",
+		          0x00e0a7e4))
 			hooklog::Write("net tuning: idle links send every %lu ms (game: 1000)", keepalive_ms);
 	}
 	if (send_interval_ms) {
 		const float seconds = send_interval_ms / 1000.0f;
 		DWORD bits;
 		memcpy(&bits, &seconds, sizeof(bits));
-		if (Write(kSendIntervalImm, 0x3d4ccccd, bits, "send interval"))
-			hooklog::Write("net tuning: links may send every %lu ms (game: 50)", send_interval_ms);
+		const bool by_mmh55 = *reinterpret_cast<const DWORD *>(kSendIntervalImm) == kSendIntervalMmh55;
+		if (Write(kSendIntervalImm, kSendIntervalGame, bits, "send interval", kSendIntervalMmh55))
+			hooklog::Write("net tuning: links may send every %lu ms (game: 50%s)", send_interval_ms,
+			               by_mmh55 ? ", MMH5.5: 20" : "");
 	}
 	if (batched_segments >= 0) {
 		g_batched_segments = batched_segments;
-		if (Write(kBatchedOperand, 0x00f27398, reinterpret_cast<DWORD>(&g_batched_segments), "batched segments"))
+		if (Write(kBatchedOperand, 0x00f27398, reinterpret_cast<DWORD>(&g_batched_segments), "batched segments",
+		          0x00f27398))
 			hooklog::Write("net tuning: idle PCs batch up to %d segment reports (game: net_batched_segments, 3)",
 			               batched_segments);
 	}
