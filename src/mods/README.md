@@ -186,19 +186,30 @@ Step 2 of the map generator plan ([docs/plans/map-generator.md](../../docs/plans
 ```ini
 [rmg]
 teams=            ; empty: the map's teams. humans_vs_ai, pairs, or a list like 1,1,2,2,3,3
+lobby_teams=0     ; 1 = the lobby's team arrows pick team numbers on maps without teams
 trace_teams=1     ; log the teams each PC starts with
 ```
 
-**Robot test** (LAN, host with `teams=humans_vs_ai`, client without the setting):
-- Both PCs started with the two humans on team 0 and the computer player on team 1.
-- With `teams=1,2,2`, both PCs started with player 1 alone against players 2 and 3; 466 checksums, all equal.
-- 352 world checksums, all equal.
+**Choosing teams in the lobby** (`lobby_teams=1`, host only). On maps without teams of their own, each row's team arrows move that player's team number up or down, instead of moving the player to another colour (the game's arrows). The pieces:
+- **Which maps:** the setup constructor (0x00ca0240) tells whether the map has teams. We remember that per setup.
+- **The rules:** for those maps, `CanChangeTeam` (vtable cell 0x00e92770) allows every playing slot, and `SetTeam` (cell 0x00e92774) changes the slot's team.
+- **The other lobbies:** at 0x0071e67d, a 6-byte jump to a small patch makes the host send a row's team to them also when only the team changed. The game itself never changes a team without the colour.
+- **At the start,** the teams are renumbered 0, 1, 2…
+- **Clients** need nothing: the host decides and tells them. Lobby choices win over `teams=`.
+- **Maps with teams of their own** keep the game's arrows.
 
-`run_lan_test.py --host-rmg teams=...` sets it.
+**Robot tests** (LAN; the host has the settings, the client has none):
+- `teams=humans_vs_ai`: both PCs started with the two humans on team 0 and the computer player on team 1. 352 checksums, all equal.
+- `teams=1,2,2`: both PCs started with player 1 alone against players 2 and 3. 466 checksums, all equal.
+- `lobby_teams=1`, on A1M4:
+  - The host pressed its own team arrow right, and the computer player's left; the client pressed its own right.
+  - Both PCs started with the host and the computer player together against the client. 544 checksums, all equal.
+  - AI moves were slower (1.7 s), as the AI's ally can now see its heroes walk.
+- `lobby_teams=1`, on A1M2 (a map with teams): the arrow moved the host to the other team's open seat, as in the game.
 
-**Not done yet:**
-- **Choosing teams in the lobby itself** (the owner's wish). The research is in [docs/subsystems/rmg.md](../../docs/subsystems/rmg.md), "Teams in the lobby".
-- **A random map in a LAN robot game:** the robot plays A1M4, which has no teams either.
+The robot sets these with `run_lan_test.py --host-rmg KEY=VALUE`, and presses a team arrow with the step `"38|arrow|<row> team left|right"`.
+
+**Not done yet:** a random map in a LAN robot game. The robot plays A1M4, which has no teams either.
 
 ## Original music (`original_music*.cpp`, off by default)
 

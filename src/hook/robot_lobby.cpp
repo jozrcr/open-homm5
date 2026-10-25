@@ -328,11 +328,12 @@ void LogWaitSlots()
 		            can_start, info_ok);
 		for (void **it = begin; it != end && it - begin < 16; ++it) {
 			void **slot_vt = *static_cast<void ***>(*it);
-			const DWORD state = *reinterpret_cast<PtrFn>(slot_vt[14])(*it, nullptr);
+			// The row's own copy (slot 14, also on clients): [0] state, [1] colour, [0xf] team.
+			const DWORD *row_state = reinterpret_cast<PtrFn>(slot_vt[14])(*it, nullptr);
 			const BYTE *slot_info = reinterpret_cast<InfoFn>(info_vt[8])(info, nullptr, static_cast<int>(it - begin));
-			char item[64];
-			_snprintf_s(item, sizeof(item), _TRUNCATE, " [state %lu, +24 %ld]", state,
-			            slot_info ? *reinterpret_cast<const LONG *>(slot_info + 0x24) : -99);
+			char item[80];
+			_snprintf_s(item, sizeof(item), _TRUNCATE, " [state %lu, colour %lu, team %lu, +24 %ld]", row_state[0],
+			            row_state[1], row_state[0xf], slot_info ? *reinterpret_cast<const LONG *>(slot_info + 0x24) : -99);
 			strncat_s(line, sizeof(line), item, _TRUNCATE);
 		}
 		hooklog::Write("%s", line);
@@ -342,10 +343,12 @@ void LogWaitSlots()
 	}
 }
 
-// Press a player row's "state" arrow in the waiting room: "<row> left|right".
-// The arrows (UI/MPWait/PlayersList/Item/OpenCloseLeft|Right) only record a
-// pending change on the row (CMPWaitItem, 0x00713820 / 0x00713840):
-//   +0xc4 = 1 (change the state), +0xc8 = 0 left / 1 right
+// Press a player row's arrow in the waiting room: "<row> left|right", or
+// "<row> team left|right" for the team arrows.
+// The arrows (UI/MPWait/PlayersList/Item/OpenCloseLeft|Right, TeamColorLeft|Right)
+// only record a pending change on the row (CMPWaitItem, 0x00713820 / 0x00713840,
+// team: 0x00713860 / 0x00713880):
+//   +0xc4 = 1 (change the state) or 2 (the team), +0xc8 = 0 left / 1 right
 // on the full row object; the logic's list holds a pointer to its part at +8.
 // Row states (+0x28 of that part, seen in the robot's screenshots): 0 human not
 // ready, 1 computer, 2 closed, 3 human ready, 4 open slot. The right arrow on an
@@ -355,6 +358,7 @@ bool PressSlotArrow(const char *spec)
 {
 	const int row = atoi(spec);
 	const bool right = strstr(spec, "right") != nullptr;
+	const bool team = strstr(spec, "team") != nullptr;
 	BYTE *screen = static_cast<BYTE *>(FindScreen("NUI::CMPWaitScreen"));
 	if (!screen)
 		return false;
@@ -367,14 +371,14 @@ bool PressSlotArrow(const char *spec)
 			return false;
 		}
 		BYTE *full = begin[row] - 8;
-		*reinterpret_cast<DWORD *>(full + 0xc4) = 1;
+		*reinterpret_cast<DWORD *>(full + 0xc4) = team ? 2 : 1;
 		*(full + 0xc8) = right ? 1 : 0;
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER) {
-		hooklog::Write("robot: waiting room: pressing a state arrow crashed (caught)");
+		hooklog::Write("robot: waiting room: pressing an arrow crashed (caught)");
 		return false;
 	}
-	hooklog::Write("robot: waiting room: row %d state arrow %s pressed", row, right ? "right" : "left");
+	hooklog::Write("robot: waiting room: row %d %s arrow %s pressed", row, team ? "team" : "state", right ? "right" : "left");
 	return true;
 }
 
