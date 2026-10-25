@@ -3,7 +3,7 @@
 //
 // Teams live in the game setup, NWorld::CPlayersStartInfo (vtable 0x00e92744):
 // a vector of slots at +0x10/+0x14, 0x8c bytes each, with +0 the state (0 open,
-// 1 computer, 2 human, 3 closed), +4 the player's number on the map (0 =
+// 1 computer, 2 human, 3 closed), +4 the player's number on the map (1 =
 // PLAYER_1) and +0x1c the team. A map without teams (CustomTeams false, every
 // random map) puts every slot on its own team (constructor 0x00ca0240).
 //
@@ -88,7 +88,7 @@ void LogSlots(const char *when, const BYTE *info)
 		if (state == 3)
 			continue;
 		char one[40];
-		wsprintfA(one, " player%lu:%s/team%lu", Read(s, 4) + 1,
+		wsprintfA(one, " player%lu:%s/team%lu", Read(s, 4),
 		          state == 2 ? "human" : state == 1 ? "computer" : "open", Read(s, 0x1c));
 		lstrcatA(line, one);
 	}
@@ -98,7 +98,7 @@ void LogSlots(const char *when, const BYTE *info)
 // The team each playing slot should get (1..8), or 0 when the setting has none.
 int Wanted(const BYTE *slot)
 {
-	const DWORD id = Read(slot, 4);
+	const DWORD id = Read(slot, 4) - 1;  // 0 = PLAYER_1 (the slot holds 1..8)
 	switch (g_mode) {
 	case kHumansVsAi:
 		return Read(slot, 0) == 2 ? 1 : 2;
@@ -128,7 +128,7 @@ void Apply(const BYTE *info)
 		wanted[i] = Wanted(Slot(info, i));
 		if (wanted[i] <= 0) {
 			hooklog::Write("rmg teams: no team for player %lu in the setting: keeping the map's teams",
-			               Read(Slot(info, i), 4) + 1);
+			               Read(Slot(info, i), 4));
 			return;
 		}
 	}

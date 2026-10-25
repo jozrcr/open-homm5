@@ -191,6 +191,7 @@ trace_teams=1     ; log the teams each PC starts with
 
 **Robot test** (LAN, host with `teams=humans_vs_ai`, client without the setting):
 - Both PCs started with the two humans on team 0 and the computer player on team 1.
+- With `teams=1,2,2`, both PCs started with player 1 alone against players 2 and 3; 466 checksums, all equal.
 - 352 world checksums, all equal.
 
 `run_lan_test.py --host-rmg teams=...` sets it.
