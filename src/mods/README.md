@@ -228,6 +228,51 @@ trace=0   ; testing: 1 = log every change of the players' turn states
 
 The robot keeps robot runs quiet (`sound=0`, `popup=0`; the flash and the log lines stay); `--notify-setting KEY=VALUE` changes that.
 
+## Player list (`player_list*.cpp`, on by default)
+
+**What it is for:** in co-op games with simultaneous turns, everyone wants to know who still plays and who has pressed End Turn.
+
+**What it shows:** a small panel on the adventure map's left edge, between the resource bar and the minimap (the owner's design):
+- the day and how many humans are ready ("Jour 34 - 3/4 Prêts", or "Day 34 - 3/4 ready");
+- the teams, each with a numbered round button and a thin line (none in a free-for-all);
+- one pill per player: the hero's portrait (a little bigger than the pill, on its left end, like the game's round buttons on its bars) in a ring of the player's colour, the player's name, and the turn: **green dot** = playing, **tick** = turn ended, **three blinking dots** = the computer player is moving, **ring** = waiting.
+
+It looks like the game's own interface: the pills are cut from the game's resource bar picture (its metal frame, read from the game's data), round things get the game's thin bronze rims, and the text is white with a dark shadow. If that picture cannot be read, the log says so and the panel uses plain dark capsules.
+
+It only shows the adventure map (not in towns, battles or menus). **F9** hides it or shows it again. When the mouse is over it, it turns almost invisible, so it never hides the map. It never takes a click or a key from the game. Its words follow the game's language (French or English).
+
+**Where the data comes from:** the game world's players (turn order, name, colour, team, selected hero, "my turn now", "pressed End Turn"), the same on every PC; the hero's name and portrait from its game data. Details and addresses: [docs/subsystems/players.md](../../docs/subsystems/players.md). It only reads the game, so it cannot desync a game, and each player can turn it on or off.
+
+**How it draws:** the DLL sees the game's Direct3D 9 device (`src/hook/d3d9_hook.cpp`: the `Direct3DCreate9` import, then entries of the Direct3D objects' vtables; data patches only) and draws just before each frame is shown, with [Dear ImGui](https://github.com/ocornut/imgui) (`src/hook/third_party/imgui`, v1.91.9b, MIT). A device reset (fullscreen switch, alt-tab) is handled. It stays plain Direct3D 9 and Win32, so it should work under Wine/Proton (with their `d3d9.dll`), not checked there yet.
+
+**Checked with the robot** (A1M4, LAN: 2 humans + 1 computer player; screenshots show the panel, see `tools/robot/README.md`):
+
+| Game | What the panel showed | World checksums |
+|---|---|---|
+| simultaneous turns, teams humans vs AI | both humans "playing", then a tick for each one who ended, then "thinking" for the computer; the same on the client | 501, all equal |
+| turns one after another, teams humans vs AI | host playing / client waiting, then the other way round, then the computer | 711, all equal |
+| simultaneous turns, free-for-all | no team buttons; "Ordinateur 1" for the nameless computer player | 357, all equal |
+| single player, 2560×1080 | "Player 1", "AI 2", "AI 3" (the game's names), one at a time | (one PC) |
+| simultaneous turns, teams, 1920×1080 | the same, 1.4 times bigger, as the game's own interface | 267, all equal |
+| 8 rows (the client's `player_list_test_rows=8`: 4 teams of 2, the tallest list), 1024×768 and 1920×1080 | the list starts higher and gets a little smaller, and stays above the chat box | 259 and 254, all equal |
+
+**Screen sizes:** the game's interface grows with the screen height (it is laid out for 768 lines), so the list does too: its sizes and its distance to the left edge are fractions of the height, and its fonts are made again at the new size. At 1920×1080 and 2560×1080 it keeps the same size next to the resource bar and the minimap as at 1024×768, and stays clear of the minimap and the chat box.
+
+Not checked by the robot: F9 and the fade (the robot's windows are in the background), fullscreen, and Linux.
+
+**Settings** (`open-homm5.ini`):
+
+```ini
+[ui]
+player_list=1          ; 0 = no player list (nothing is installed)
+player_list_key=F9     ; F1..F12, or none
+player_list_top=34     ; where it starts, % of the screen height
+player_list_left=2     ; its left inset, % of the screen height
+language=auto          ; auto (the game's language), en, fr
+trace_players=0        ; testing: 1 = log each change of a player's turn
+player_list_test_rows=0  ; testing: show N rows (copies of the real players, teams of two)
+```
+
 ## Fast AI pathfinding (`fast_paths*.cpp`, on by default)
 
 **What it fixes:** long AI thinking late in a game on big maps (several seconds per AI move).

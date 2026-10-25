@@ -58,6 +58,8 @@ def instance_args(args, name, steps):
         rmg_setting=args.host_rmg if name == "host" else args.client_rmg,
         save_setting=args.save_setting + (args.host_save if name == "host" else args.client_save),
         notify_setting=args.notify_setting,
+        ui_setting=args.ui_setting + (args.host_ui if name == "host" else args.client_ui),
+        resolution=args.resolution,
         fast_paths=args.fast_paths, ai_setting=args.ai_setting,
         # the client never runs the AI (the host does), so "no AI step for 4
         # turn ends" means nothing there
@@ -112,6 +114,15 @@ def main():
     p.add_argument("--autosave", action="store_true",
                    help="the host ticks the setup screen's autosave option (the checkbox named 'realtime'), so "
                         "every PC autosaves at the start of each day")
+    p.add_argument("--ui-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="[ui] setting for both copies, e.g. trace_players=1 (src/mods/player_list.cpp)")
+    p.add_argument("--host-ui", action="append", default=[], metavar="KEY=VALUE", help="[ui] setting, host only")
+    p.add_argument("--client-ui", action="append", default=[], metavar="KEY=VALUE", help="[ui] setting, client only")
+    p.add_argument("--resolution", default="1024x768", metavar="WxH",
+                   help="both game windows' size, e.g. 1920x1080 (default 1024x768)")
+    p.add_argument("--simultaneous", action="store_true",
+                   help="the host ticks the setup screen's simultaneous turns option (the checkbox named "
+                        "simultaneus): all humans play at once")
     p.add_argument("--trace-moves", action="store_true", help="log the start-move command and the instant-walk decision")
     p.add_argument("--trace-hello", action="store_true",
                    help="EXPERIMENT: both copies send co-op guard hellos and log their order")
@@ -158,7 +169,8 @@ def main():
         "%d|msg|start" % args.start_at,
         "%d|shot|host-started" % (args.start_at + 12),
     ] + (["16|option|quick_combat %d" % args.quick_combat_state] if args.quick_combat_state >= 0 else []) \
-      + (["16|option|realtime 0"] if args.autosave else []) + args.host_step
+      + (["16|option|realtime 0"] if args.autosave else []) \
+      + (["16|option|simultaneus 0"] if args.simultaneous else []) + args.host_step
     client_steps = [
         "10|menu|multi lan",
         "24|shot|client-lobby",

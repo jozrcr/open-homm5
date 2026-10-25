@@ -81,6 +81,21 @@ python tools\robot\run_lan_test.py --seconds 300 --turns 4 --notify-setting soun
 - `--host-step "16|option|simultaneus 0"` ticks the setup screen's simultaneous turns option.
 - The client's robot ends its player's turn every few seconds without knowing whose turn it is. When that end-of-turn command runs in the same frame as the turn starts, the turn is over before anyone could see it, and there is (rightly) no notification for it.
 
+## Checking the player list (the overlay)
+
+```
+python tools\robot\run_lan_test.py --seconds 240 --turns 4 --simultaneous --shot-every 6 --ui-setting trace_players=1
+python tools\robot\run_lan_test.py --seconds 240 --turns 4 --host-rmg teams=humans_vs_ai --shot-every 6 --ui-setting trace_players=1
+```
+
+- The screenshots (`frame-*.png`) are taken after the overlay has drawn, so they show the panel as a player sees it.
+- `--simultaneous`: the host ticks the setup screen's simultaneous turns option (`option|simultaneus 0`).
+- `--ui-setting KEY=VALUE` (both copies; `--host-ui` / `--client-ui` for one; `run_ai_test.py` has `--ui-setting` too): `[ui]` settings (`src/mods/README.md`). `trace_players=1` logs each change of a player's status (`players: day 3 (simultaneous turns): player 2 "Robot-client" (human, colour 2, team 0) hero "Anwen": turn ended (turn=1 ended=1)`); `trace_players=2` also dumps the game's raw player and hero data once (research).
+- `--host-rmg teams=humans_vs_ai` puts the two humans on one team (A1M4 has no teams of its own), to see the team buttons.
+- `--resolution WxH` (both runners; default 1024x768) sets the game windows' size, e.g. `1920x1080` or `2560x1080`, to see how the list scales next to the game's own interface.
+- `--client-ui player_list_test_rows=8` makes the client show 8 rows (copies of the real players, in 4 teams of 2: the tallest list), to check that it still fits above the chat box and the minimap.
+- Not possible with the robot: F9 and the fade under the mouse (the windows are in the background).
+
 ## Robot script
 
 Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--host-step` / `--client-step`), `"<seconds>|<kind>|<text>"`, seconds counted from the first main-loop call:
@@ -122,7 +137,7 @@ In robot mode the DLL:
 | Measures the AI | the AI turn trace (`src/hook/ai_trace.cpp`): one log line per AI step |
 | Stops | after `--turns` AI turns, or `--seconds` |
 | Shows what the game says | copies `printf` / `fprintf` / `OutputDebugStringA` output to the log; the console goes to `console.txt`; message boxes are logged (and plain "OK" boxes answered) |
-| Takes screenshots | hooks `IDirect3DDevice9::Present` (through the `Direct3DCreate9` import and two vtable entries of the system `d3d9.dll`) and saves the back buffer (`robot_screen.cpp`) |
+| Takes screenshots | saves the back buffer just before `IDirect3DDevice9::Present` shows it, after the player list overlay drew on it (`robot_screen.cpp`, through the shared Direct3D hooks of `src/hook/d3d9_hook.cpp`) |
 
 ## LAN games (two copies on one PC)
 

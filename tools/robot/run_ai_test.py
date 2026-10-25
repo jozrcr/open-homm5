@@ -38,8 +38,8 @@ PROFILE_DIR = pathlib.Path("My Games") / "Heroes of Might and Magic V - Tribes o
 ROBOT_SETTINGS = """
 // ---- open-homm5 robot overrides ----
 setvar gfx_fullscreen = 0
-setvar gfx_resolution = 1024x768
-setvar gfx_window_size = 1024x768
+setvar gfx_resolution = {resolution}
+setvar gfx_window_size = {resolution}
 setvar sound_musicvolume = 0
 setvar sound_sfxvolume = 0
 setvar sound_ambient_enable = 0
@@ -113,6 +113,10 @@ def write_mod_settings(game, args, instance):
         key, _, value = item.partition("=")
         notify[key.strip()] = value.strip()
     lines += ["[notify]"] + ["%s=%s" % kv for kv in notify.items()]
+    # [ui] = the player list overlay (src/mods/player_list.cpp), on by default
+    ui = getattr(args, "ui_setting", None) or []  # e.g. trace_players=1, player_list=0
+    if ui:
+        lines += ["[ui]"] + ui
     mod_settings_file(game, instance).write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
@@ -127,7 +131,11 @@ def prepare(game, args, out, instance="", net_port=None):
     (profiles / "global_a2.cfg").write_text("setvar profile_name = Robot\n" + port, encoding="ascii")
     default = game / "profiles" / "default_profile"
     base = (default / "user_a2.cfg").read_text(encoding="latin-1") if (default / "user_a2.cfg").is_file() else ""
-    extra = ROBOT_SETTINGS + "".join("setvar %s\n" % s for s in args.setvar)
+    # the game window's size (--resolution WxH; the robot's default 1024x768)
+    resolution = getattr(args, "resolution", None) or "1024x768"
+    if not re.fullmatch(r"\d{3,4}x\d{3,4}", resolution):
+        sys.exit("--resolution must look like 1920x1080, not %s" % resolution)
+    extra = ROBOT_SETTINGS.format(resolution=resolution) + "".join("setvar %s\n" % s for s in args.setvar)
     if getattr(args, "quick_combat", False):
         # battles resolve by themselves, so the robot's passive human player is
         # not stuck in the tactics phase when the AI attacks it
@@ -400,6 +408,10 @@ def main():
     p.add_argument("--notify-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="[notify] setting, e.g. sound=1, popup=1 or trace=1 (repeatable; src/mods/notify.cpp; "
                         "robot runs default to sound=0 popup=0)")
+    p.add_argument("--ui-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="[ui] setting, e.g. trace_players=1 or player_list=0 (repeatable; src/mods/player_list.cpp)")
+    p.add_argument("--resolution", default="1024x768", metavar="WxH",
+                   help="the game window's size (windowed), e.g. 1920x1080 (default 1024x768)")
     p.add_argument("--trace-moves", action="store_true", help="log what the start-move command calls (robot_trace.cpp)")
     p.add_argument("--trace-ai-busy", action="store_true",
                    help="log each change of the AI manager's 'player busy' check (robot_trace.cpp)")
