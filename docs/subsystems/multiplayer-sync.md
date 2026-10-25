@@ -39,7 +39,7 @@ The multiplayer transceiver cuts time into **segments** and only lets the world 
 | Segment records | `0x007c9d80` | Appends a record to the segment list at `this+0x38`: segment number, one command list per player, and a bit mask of players. |
 | Run complete segments | `0x007c98e0` | Takes the oldest segment record and, **only if every player has reported it** (`0x007c8c80`), collects all players' commands for it and executes them. |
 | Own step | slot 4, `0x007ca990` | Advances this PC's segment and announces it (`0x007c9d80`). |
-| Pacing | slot 5, `0x007c8dd0` | Compares this PC's segment with the slowest player's (capped at 20 segments ahead) and computes a speed factor; the formula uses 200 per segment. |
+| Pacing | slot 5, `0x007c8dd0` | Compares this PC's segment with the slowest player's (capped at 20 segments ahead) and computes a speed factor, max(1 − 0.05·lead, 0) (the 0.05 at `0x00e12f18`); the formula uses 200 per segment. At the cap the speed is 0, which is what stops a PC from running further ahead. With co-op timing ON, `src/mods/lockstep.cpp` scales the slope and the cap to the segment length. |
 | Single player | `CSinglePlayerTransceiver` slot 4, `0x007c7b20` | Executes queued commands right away and adds 200 to a time counter per step. No waiting. |
 
 So a segment is probably **200 ms of game time**, and in multiplayer **a command can only run once all PCs have confirmed its segment**. This is the mechanism behind hypothesis H1 in [ai-turn.md](ai-turn.md).
