@@ -106,6 +106,10 @@ def write_mod_settings(game, args, instance):
     save = getattr(args, "save_setting", None) or []  # e.g. autosave_host_only=0, compression=-1
     if save:
         lines += ["[save]"] + save
+    # [ui] = the player list overlay (src/mods/player_list.cpp), on by default
+    ui = getattr(args, "ui_setting", None) or []  # e.g. trace_players=1, player_list=0
+    if ui:
+        lines += ["[ui]"] + ui
     mod_settings_file(game, instance).write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
@@ -390,6 +394,8 @@ def main():
                    help="[audio] setting, e.g. original_music=1 or log_music=1 (repeatable; src/mods/original_music.cpp)")
     p.add_argument("--save-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="[save] setting, e.g. compression=-1 or autosave_every=2 (repeatable; src/mods/autosave.cpp)")
+    p.add_argument("--ui-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="[ui] setting, e.g. trace_players=1 or player_list=0 (repeatable; src/mods/player_list.cpp)")
     p.add_argument("--trace-moves", action="store_true", help="log what the start-move command calls (robot_trace.cpp)")
     p.add_argument("--trace-ai-busy", action="store_true",
                    help="log each change of the AI manager's 'player busy' check (robot_trace.cpp)")

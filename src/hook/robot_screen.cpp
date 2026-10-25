@@ -2,56 +2,30 @@
 //
 // The game draws with Direct3D 9. While its window is in the background nothing
 // reaches the screen, so screenshots of the desktop come out blank. Instead the
-// picture is taken inside the game:
-//   Direct3DCreate9 (an import of the exe)  replaced, to see the Direct3D object;
-//   IDirect3D9::CreateDevice                hooked, to see the rendering device;
-//   IDirect3DDevice9::Present               hooked: when a screenshot is due, the
-//                                           finished frame is copied to memory and
-//                                           written to a file, then shown as usual.
-// The two hooks replace entries of the vtables in the system d3d9.dll (data, not
-// code), like the DirectInput hooks in robot_input.cpp.
+// picture is taken inside the game, from the finished frame just before it is
+// shown (IDirect3DDevice9::Present, through the shared Direct3D hooks of
+// d3d9_hook.cpp): it is copied to memory and written to a file. The frame is
+// taken after the overlay drew on it (src/mods/player_list.cpp), so the
+// screenshots show what a player sees.
 #include <windows.h>
 #include <d3d9.h>
 #include <stdio.h>
 
+#include "d3d9_hook.h"
 #include "log.h"
 #include "robot.h"
 
 namespace robot {
 namespace {
 
-const int kCreateDevice = 16;  // IDirect3D9 vtable slot (IUnknown first)
-const int kPresent = 17;       // IDirect3DDevice9 vtable slot
+const int kScreenshotOrder = 100;  // after the overlay (order 0)
 
-typedef IDirect3D9 *(WINAPI *Direct3DCreate9Fn)(UINT sdk_version);
-typedef HRESULT(STDMETHODCALLTYPE *CreateDeviceFn)(IDirect3D9 *self, UINT adapter, D3DDEVTYPE type, HWND window,
-                                                   DWORD flags, D3DPRESENT_PARAMETERS *params,
-                                                   IDirect3DDevice9 **device);
-typedef HRESULT(STDMETHODCALLTYPE *PresentFn)(IDirect3DDevice9 *self, const RECT *source, const RECT *dest,
-                                              HWND window, const RGNDATA *dirty);
-Direct3DCreate9Fn g_real_create9 = nullptr;
-CreateDeviceFn g_real_create_device = nullptr;
-PresentFn g_real_present = nullptr;
-
+bool g_installed = false;
 char g_dir[MAX_PATH] = {};
 volatile LONG g_requests = 0;  // screenshots asked for and not yet taken
 volatile DWORD g_last_present = 0;
 int g_taken = 0;
 char g_label[64] = {};
-
-void *PatchSlot(void *object, int slot, void *replacement)
-{
-	void **table = *static_cast<void ***>(object);
-	if (table[slot] == replacement)
-		return nullptr;  // already patched
-	DWORD old;
-	if (!VirtualProtect(&table[slot], sizeof(void *), PAGE_READWRITE, &old))
-		return nullptr;
-	void *original = table[slot];
-	table[slot] = replacement;
-	VirtualProtect(&table[slot], sizeof(void *), old, &old);
-	return original;
-}
 
 // Writes a locked 32-bit (X8R8G8B8 / A8R8G8B8) image as a 24-bit .bmp file.
 bool WriteBmp(const char *path, const BYTE *pixels, int pitch, int width, int height)
@@ -126,8 +100,7 @@ void Capture(IDirect3DDevice9 *device)
 		back->Release();
 }
 
-HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9 *self, const RECT *source, const RECT *dest, HWND window,
-                                      const RGNDATA *dirty)
+void OnPresent(IDirect3DDevice9 *device)
 {
 	static bool logged = false;
 	if (!logged) {
@@ -138,37 +111,12 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9 *self, const RECT *source
 	if (g_requests > 0) {
 		InterlockedDecrement(&g_requests);
 		__try {
-			Capture(self);
+			Capture(device);
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER) {
 			hooklog::Write("robot: screenshot crashed (caught)");
 		}
 	}
-	return g_real_present(self, source, dest, window, dirty);
-}
-
-HRESULT STDMETHODCALLTYPE HookCreateDevice(IDirect3D9 *self, UINT adapter, D3DDEVTYPE type, HWND window, DWORD flags,
-                                           D3DPRESENT_PARAMETERS *params, IDirect3DDevice9 **device)
-{
-	const HRESULT hr = g_real_create_device(self, adapter, type, window, flags, params, device);
-	if (SUCCEEDED(hr) && device && *device) {
-		if (void *p = PatchSlot(*device, kPresent, reinterpret_cast<void *>(&HookPresent)))
-			g_real_present = reinterpret_cast<PresentFn>(p);
-		hooklog::Write("robot: Direct3D device %p hooked for screenshots (%ux%u, format %d)", *device,
-		               params ? params->BackBufferWidth : 0, params ? params->BackBufferHeight : 0,
-		               params ? static_cast<int>(params->BackBufferFormat) : 0);
-	}
-	return hr;
-}
-
-IDirect3D9 *WINAPI RobotDirect3DCreate9(UINT sdk_version)
-{
-	IDirect3D9 *d3d = g_real_create9(sdk_version);
-	if (d3d) {
-		if (void *p = PatchSlot(d3d, kCreateDevice, reinterpret_cast<void *>(&HookCreateDevice)))
-			g_real_create_device = reinterpret_cast<CreateDeviceFn>(p);
-	}
-	return d3d;
 }
 
 }  // namespace
@@ -177,9 +125,11 @@ void InstallScreenshots(const char *dir)
 {
 	lstrcpynA(g_dir, dir, MAX_PATH);
 	CreateDirectoryA(g_dir, nullptr);
-	g_real_create9 = reinterpret_cast<Direct3DCreate9Fn>(
-		PatchImport("d3d9.dll", "Direct3DCreate9", reinterpret_cast<void *>(&RobotDirect3DCreate9)));
-	hooklog::Write(g_real_create9 ? "robot: screenshots go to %s" : "robot: Direct3DCreate9 import not found (%s)", g_dir);
+	// From DllMain: only the import table entry now (see d3d9_hook.h).
+	g_installed = d3dhook::Install(false);
+	if (g_installed)
+		d3dhook::AddPresentCallback(&OnPresent, kScreenshotOrder);
+	hooklog::Write(g_installed ? "robot: screenshots go to %s" : "robot: Direct3DCreate9 import not found (%s)", g_dir);
 }
 
 DWORD LastFrameTick()
@@ -189,7 +139,7 @@ DWORD LastFrameTick()
 
 void RequestScreenshot(const char *label)
 {
-	if (!g_real_create9)
+	if (!g_installed)
 		return;
 	hooklog::Write("robot: screenshot \"%s\" requested", label ? label : "");
 	lstrcpynA(g_label, label ? label : "", sizeof(g_label));

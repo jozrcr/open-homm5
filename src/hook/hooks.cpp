@@ -11,6 +11,7 @@
 #include "../mods/lockstep.h"
 #include "../mods/net_tuning.h"
 #include "../mods/original_music.h"
+#include "../mods/player_list.h"
 #include "../mods/rmg_teams.h"
 #include "../mods/rmg_templates.h"
 
@@ -42,6 +43,7 @@ void InstallEarly()
 	if (NoHooks() || !IsHookable(DetectGameBuild()))
 		return;
 	mods::InstallOriginalMusicEarly();
+	mods::InstallPlayerListEarly();  // the Direct3D import, before the game makes its device
 }
 
 void InstallAll()
@@ -60,6 +62,7 @@ void InstallAll()
 	mods::ApplyRmgTeamsFromSettings();
 	mods::ApplyRmgTemplatesFromSettings();
 	mods::ApplyOriginalMusicFromSettings();
+	mods::ApplyPlayerListFromSettings();
 }
 
 }  // namespace hooks
