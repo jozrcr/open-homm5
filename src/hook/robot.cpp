@@ -351,6 +351,9 @@ BOOL WINAPI RobotPeekMessageA(LPMSG msg, HWND hwnd, UINT min, UINT max, UINT rem
 			else if (s.kind == 'j') {  // "<number>": a game in the LAN lobby's list
 				PickGame(atoi(s.text));
 			}
+			else if (s.kind == 'n') {  // the random map screen, from the custom game screen
+				OpenRmgScreen();
+			}
 			else if (s.kind == 'y') {  // "F1".."F12": a key of our overlay (opens the builder, the test panel...)
 				const int n = (s.text[0] == 'F' || s.text[0] == 'f') ? atoi(s.text + 1) : 0;
 				if (n >= 1 && n <= 12) {
@@ -692,6 +695,7 @@ bool ReadConfig(const wchar_t *path)
 				         : strcmp(kind, "arrow") == 0 ? 'a'
 				         : strcmp(kind, "mem") == 0 ? 'v'
 				         : strcmp(kind, "key") == 0 ? 'y'
+				         : strcmp(kind, "rmg") == 0 ? 'n'
 				                                     : 'c';
 				lstrcpynA(s.text, text, sizeof(s.text));
 			}
@@ -836,6 +840,7 @@ void Init()
 		               : g_steps[i].kind == 'a' ? "arrow"
 		               : g_steps[i].kind == 'v' ? "mem"
 		               : g_steps[i].kind == 'y' ? "key"
+		               : g_steps[i].kind == 'n' ? "rmg"
 		               : g_steps[i].kind == 's' ? "shot"
 		                                        : "console",
 		               g_steps[i].text);
