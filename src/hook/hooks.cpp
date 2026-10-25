@@ -7,6 +7,7 @@
 #include "watchdog.h"
 #include "../mods/ai_pacing.h"
 #include "../mods/autosave.h"
+#include "../mods/camera.h"
 #include "../mods/coop_guard.h"
 #include "../mods/fast_paths.h"
 #include "../mods/lan_discovery.h"
@@ -69,6 +70,7 @@ void InstallAll()
 	mods::ApplyRmgTemplatesFromSettings();
 	mods::ApplyOriginalMusicFromSettings();
 	mods::ApplyPlayerListFromSettings();
+	mods::ApplyCameraFromSettings();
 }
 
 }  // namespace hooks

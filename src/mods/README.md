@@ -470,3 +470,48 @@ original_music=0   ; 1 = the original Heroes V music where MMH5.5 changed it
 log_music=0        ; testing: 1 = log every music file the game starts
 log_data_files=0   ; testing: log the first N files the game reads from its data
 ```
+
+## Farther camera zoom (`camera.cpp`, off by default)
+
+**What it is for:** the camera cannot zoom out far. `zoom_out=150` lets the adventure map's camera go 1.5 times as far from the ground as the game allows; `combat_zoom_out` does the same in battles. Off (the default, 100), the game's own limits.
+
+**Where the limit comes from** (details in [docs/subsystems/camera.md](../../docs/subsystems/camera.md)):
+- **Adventure map:** the game's `profiles\autoexec_a2.cfg` sets it at start-up: the farthest distance is 70 in every camera mode of the options screen, with or without MMH5.5 (MMH5.5 does not change this file or this code). The "vertically fixed" mode also keeps the camera looking down steeply (65°), so it shows less of the map than the "normal" mode (30° to 55°).
+- **Battles:** the game picks the farthest distance by the battlefield's size. MMH5.5's DLL changes the closest zoom and the tilt of its bigger battlefields, and keeps the game's farthest distance.
+
+**What it does:** when the game sets up the camera (map start, camera mode change, each battle), the mod hands it the game's own limits with the farthest distance (and the "soft" limit the camera springs back to) multiplied. Nothing else changes: the closest zoom, the tilt, the game's files and its own copy of the limits stay as they are. So it follows whatever the game and MMH5.5 set, in every camera mode.
+
+The log says what it changed:
+
+```
+camera: adventure map: the camera may zoom out to 150% of the game's limit (zoom_out)
+camera: adventure map, vertically fixed camera: farthest zoom 70 -> 105 (nearest 37)
+camera: adventure map, vertically fixed camera, soft limit: farthest zoom 69 -> 103.5 (nearest 38)
+camera: battle: farthest zoom 56 -> 84
+```
+
+**Only your screen changes:** the camera is not part of the game world, so it is not in the world checksums or in the commands the PCs send each other. Each player can choose, also in co-op games.
+
+**Checked with the robot** (A1M4; the robot starts the camera far out, and the game stops it at its farthest allowed distance; details in camera.md):
+
+| Run | Camera stopped at | World checksums |
+|---|---|---|
+| the game's limits | 70 | (one PC) |
+| `zoom_out=150`, normal and "vertically fixed" camera modes | 105 | (one PC) |
+| `zoom_out=300` | 200 (the start position), the sky shows past the small map's edge | (one PC) |
+| `combat_zoom_out=150`, a battle the AI started | battle limit 56 -> 84, the battle ran to its end | (one PC) |
+| LAN game, only the host with `zoom_out=200` and `combat_zoom_out=200` | host 140, client 25 | 698, all equal |
+
+Not checked by the robot: the mouse wheel during play (the robot's windows are in the background), the frame rate on a big explored map, Linux.
+
+**What to watch** far out: near the map's corners you see past its edge; on big maps more of the map is drawn, so a slow PC may lose frames; scrolling does not speed up with the distance. It works in the vanilla exe and MMH5.5's co-op exe (`MMH55_Utility`), not in MMH5.5's single-player exe (`MMH55.exe`, another build, where the DLL installs nothing); camera.md says how to get the same there by hand.
+
+**Settings** (`open-homm5.ini`):
+
+```ini
+[camera]
+zoom_out=100          ; adventure map: % of the game's farthest zoom (100 = the game's; e.g. 150; up to 400)
+combat_zoom_out=100   ; battles: the same
+```
+
+The robot passes them with `--camera-setting KEY=VALUE` (`run_lan_test.py`: also `--host-camera` / `--client-camera`).

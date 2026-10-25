@@ -117,6 +117,10 @@ def write_mod_settings(game, args, instance):
     ui = getattr(args, "ui_setting", None) or []  # e.g. trace_players=1, player_list=0
     if ui:
         lines += ["[ui]"] + ui
+    # [camera] = the farther zoom (src/mods/camera.cpp), the game's own limits by default
+    camera = getattr(args, "camera_setting", None) or []  # e.g. zoom_out=150, combat_zoom_out=150
+    if camera:
+        lines += ["[camera]"] + camera
     # [debug] = the hang watchdog (src/hook/watchdog.cpp), on by default
     debug = getattr(args, "debug_setting", None) or []  # e.g. hang_test_at=60, hang_seconds=10
     if debug:
@@ -414,6 +418,8 @@ def main():
                         "robot runs default to sound=0 popup=0)")
     p.add_argument("--ui-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="[ui] setting, e.g. trace_players=1 or player_list=0 (repeatable; src/mods/player_list.cpp)")
+    p.add_argument("--camera-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="[camera] setting, e.g. zoom_out=150 or combat_zoom_out=150 (repeatable; src/mods/camera.cpp)")
     p.add_argument("--debug-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="[debug] setting, e.g. hang_test_at=60 or hang_seconds=10 (repeatable; src/hook/watchdog.cpp)")
     p.add_argument("--resolution", default="1024x768", metavar="WxH",
