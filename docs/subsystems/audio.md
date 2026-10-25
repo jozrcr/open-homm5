@@ -19,7 +19,7 @@ Status: **checked in a running game** (2026-10-24, robot runs with the "original
    - `Sounds/_(Music)/TableRaceMusic.xdb` (`NDb::STableRaceMusic`): per faction, the town, tavern, dwelling and siege music and a list of battle tracks (`combatMusics`).
 4. At run time small **"music calculator"** objects decide what to play next, and the **music system** streams the chosen file with FMOD (`bin\fmod.dll`, FMOD 3.x, `FSOUND_Stream_*`).
 
-The game finds every data file through its **virtual file system** (below). Later `.pak` files override earlier ones by path, which is how MMH5.5 changes the music without touching `data.pak`.
+The game finds every data file through its **virtual file system** (below). When several `.pak` files have the same file, the copy with the newest date wins (below), which is how MMH5.5 changes the music without touching `data.pak`.
 
 ## Data classes
 
@@ -76,6 +76,8 @@ Music still streams when `sound_musicvolume = 0` (the robot's muted profile), so
 | `CMemoryStream` | `0x00e0a980` | Size `0x18`: vftable, buffer begin `+4`, buffer end `+8`, data end `+0xc`, read position `+0x10`, flags `+0x14` (bit 0 = broken). Constructor `0x004034d0`, "new buffer of n bytes" `0x008c7610`. |
 
 A deflated zip entry is inflated at once into a new `CMemoryStream` (`0x008c7cf0`, zlib's `inflateBack` from `zlib1.dll`); a stored one is a mapped view (`CMemoryMappedFileFragment`, `0x0047c0e0`). Either way the whole file is in memory between `begin` and `data end` when OpenFile returns. Paths look like `Sounds/_(Music)/MainMenu/a2-MainMenu.xdb` (the game turns `/` into `\` inside).
+
+**Which paks, and which copy of a file wins** (static, 2026-10-25). The `CWinVFS` constructor (`0x009e08d0`) takes a list of folders, each with a priority, and for each folder adds every `*.pak` (then `*.h5m`, `*.h5p`, `*.h5c`) that `FindFirstFile` finds there (`0x009e01b0`; on NTFS in name order), **whatever its name**. Each archive's files go into one table by path (`0x009df790`). When a path is already there, the new copy replaces the old one (`0x009def50`) if its folder has a higher priority, or, in the same folder, if its **date inside the zip** (the entry's DOS date and time) is newer; on an equal date the first one found stays. So among the paks of `data\` the newest copy of each file wins, not the last pak. Example: the owner's `data\` holds a stray `MMH55-Settings - Copie.pak` with the same single file as `MMH55-Settings.pak` (`scripts/H55-Settings.lua`, which differs in 4 settings, `H55_AICheatMode` among them). The copy's file is dated 2024-07-14, the real one 2024-09-01, so the real one wins and the copy changes nothing; it would win if the real one were ever replaced by a file dated before 2024-07-14.
 
 Order seen in the robot (single player, `MMH55_Utility_64.exe`):
 

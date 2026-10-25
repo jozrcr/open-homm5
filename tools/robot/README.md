@@ -96,6 +96,19 @@ python tools\robot\run_lan_test.py --seconds 240 --turns 4 --host-rmg teams=huma
 - `--client-ui player_list_test_rows=8` makes the client show 8 rows (copies of the real players, in 4 teams of 2: the tallest list), to check that it still fits above the chat box and the minimap.
 - Not possible with the robot: F9 and the fade under the mouse (the windows are in the background).
 
+## Checking the camera zoom
+
+```
+python tools\robot\run_ai_test.py --turns 1 --quick-combat --shot-every 5 --step "3|console|mission_camera_def_pos 50 -53 16 200"
+python tools\robot\run_ai_test.py --turns 1 --quick-combat --shot-every 5 --step "3|console|mission_camera_def_pos 50 -53 16 200" --camera-setting zoom_out=150
+python tools\robot\run_lan_test.py --seconds 300 --turns 4 --host-camera zoom_out=200 --host-camera combat_zoom_out=200
+```
+
+- The robot cannot turn the mouse wheel (its windows are in the background), so the first two runs move the camera's start position (`mission_camera_def_pos <field of view> <tilt> <turn> <distance>`, before the map starts) far out. The camera should then stop at the farthest distance it may go: the game's 70, or 105 with `zoom_out=150` (not checked yet: compare the screenshots).
+- `--camera-setting KEY=VALUE` (both runners; `--host-camera` / `--client-camera` for one copy of a LAN game): `[camera]` settings (`src/mods/README.md`). The log lists each limit the mod changed (`camera: adventure map, normal camera: farthest zoom 70 -> 105`).
+- `--setvar "adv_camera_mode = 1"` uses the "vertically fixed" camera mode of the options screen.
+- The LAN run gives only the host the farther camera: the world checksums must stay equal.
+
 ## Robot script
 
 Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--host-step` / `--client-step`), `"<seconds>|<kind>|<text>"`, seconds counted from the first main-loop call:
