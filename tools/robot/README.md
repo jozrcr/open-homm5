@@ -69,6 +69,18 @@ python tools\robot\run_ai_test.py --load-save "Sauvegarde auto" --turns 2 --quic
 - The trace lines start with `autosave:` in both logs. Robot autosaves go to `<test copy>/robot_home-<host|client>/.../Profiles/Robot/Saves/` and stay there between runs (3 files, "Sauvegarde auto 1..3"). With `fast_save_list=0`, the time of each autosave grows with the multiplayer saves in that folder (docs/subsystems/save.md). Saves copied there whose name is an autosave's ("Sauvegarde auto 2") get overwritten: the game reuses the file of the save with the same name.
 - Multiplayer saves do not show in the single-player load list, so the load check uses a single-player autosave (`run_ai_test.py` makes one each day: the robot profile has `autosave = 1`).
 
+## Checking the "your turn" notification (the notify mod)
+
+```
+python tools\robot\run_lan_test.py --seconds 300 --turns 4 --notify-setting trace=1
+python tools\robot\run_lan_test.py --seconds 300 --turns 4 --notify-setting sound=1 --notify-setting popup=1 --host-step "16|option|simultaneus 0"
+```
+
+- The robot's windows are in the background, so each new turn of a copy's player gives a `notify: your turn (day N): ...` line (none on the first turn).
+- Robot runs are quiet by default (`[notify] sound=0 popup=0`: no sound, no pop-up on the desktop; the taskbar flash and the log lines stay). `--notify-setting KEY=VALUE` (both copies; `run_ai_test.py` has it too) changes that; `trace=1` logs every change of the players' turn states.
+- `--host-step "16|option|simultaneus 0"` ticks the setup screen's simultaneous turns option.
+- The client's robot ends its player's turn every few seconds without knowing whose turn it is. When that end-of-turn command runs in the same frame as the turn starts, the turn is over before anyone could see it, and there is (rightly) no notification for it.
+
 ## Robot script
 
 Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--host-step` / `--client-step`), `"<seconds>|<kind>|<text>"`, seconds counted from the first main-loop call:

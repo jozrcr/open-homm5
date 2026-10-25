@@ -57,6 +57,7 @@ def instance_args(args, name, steps):
         audio_setting=args.host_audio if name == "host" else args.client_audio,
         rmg_setting=args.host_rmg if name == "host" else args.client_rmg,
         save_setting=args.save_setting + (args.host_save if name == "host" else args.client_save),
+        notify_setting=args.notify_setting,
         fast_paths=args.fast_paths, ai_setting=args.ai_setting,
         # the client never runs the AI (the host does), so "no AI step for 4
         # turn ends" means nothing there
@@ -105,6 +106,9 @@ def main():
                    help="[save] setting for the host copy only")
     p.add_argument("--client-save", action="append", default=[], metavar="KEY=VALUE",
                    help="[save] setting for the client copy only")
+    p.add_argument("--notify-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="[notify] setting for both copies, e.g. sound=1 or trace=1 (src/mods/notify.cpp; robot "
+                        "runs default to sound=0 popup=0)")
     p.add_argument("--autosave", action="store_true",
                    help="the host ticks the setup screen's autosave option (the checkbox named 'realtime'), so "
                         "every PC autosaves at the start of each day")

@@ -106,6 +106,13 @@ def write_mod_settings(game, args, instance):
     save = getattr(args, "save_setting", None) or []  # e.g. autosave_host_only=0, compression=-1
     if save:
         lines += ["[save]"] + save
+    # [notify] = the "your turn" notification (src/mods/notify.cpp). Robot runs keep
+    # it quiet (no sound, no pop-up on the desktop) unless asked: --notify-setting sound=1
+    notify = {"sound": "0", "popup": "0"}
+    for item in getattr(args, "notify_setting", None) or []:  # e.g. popup=1, trace=1
+        key, _, value = item.partition("=")
+        notify[key.strip()] = value.strip()
+    lines += ["[notify]"] + ["%s=%s" % kv for kv in notify.items()]
     mod_settings_file(game, instance).write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
@@ -390,6 +397,9 @@ def main():
                    help="[audio] setting, e.g. original_music=1 or log_music=1 (repeatable; src/mods/original_music.cpp)")
     p.add_argument("--save-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="[save] setting, e.g. compression=-1 or autosave_every=2 (repeatable; src/mods/autosave.cpp)")
+    p.add_argument("--notify-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="[notify] setting, e.g. sound=1, popup=1 or trace=1 (repeatable; src/mods/notify.cpp; "
+                        "robot runs default to sound=0 popup=0)")
     p.add_argument("--trace-moves", action="store_true", help="log what the start-move command calls (robot_trace.cpp)")
     p.add_argument("--trace-ai-busy", action="store_true",
                    help="log each change of the AI manager's 'player busy' check (robot_trace.cpp)")

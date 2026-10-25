@@ -187,6 +187,47 @@ The robot passes them with `--save-setting KEY=VALUE`; `run_lan_test.py --autosa
 
 **Not built:** making only the host ask. The game already sends one request per round, from the PC of the first living human (not always the host): skipping that PC's request would lose the autosave.
 
+## "Your turn" notification (`notify.cpp`, on by default)
+
+**What it is for:** while the computer players move, the friends switch to another window and miss the moment they can play again.
+
+**What it does:** when this PC's player can play again (the computer players are done and a new day starts, or in a game without simultaneous turns the turn passes to this player) **and the game is not the window in front**:
+- the game's **taskbar button flashes** until you come back to the game;
+- a **short sound** plays: Windows' "System Notification" sound where Windows has one (Windows 8 and later), otherwise a short chime the mod makes in memory (Wine has no Windows sounds, so on Linux you hear the chime);
+- a **notification pop-up** appears from a small icon in the notification area ("Your turn (day 5)."), and the icon goes away when you are back in the game. Where there is no notification area (often under Wine/Proton), nothing shows and nothing breaks.
+
+Not on the very first turn of a game (when it starts, or after loading a save): you are at the screen then. The log has one line per turn:
+
+```
+notify: your turn (day 1): the first turn of this game, no notification
+notify: your turn (day 2): taskbar flash, the system notification sound, pop-up
+notify: your turn (day 3): the game is in front, no notification
+```
+
+**How it knows:** every player of the game world has a turn state (0 = playing now, 1 = waiting). After each frame of the adventure map, the mod looks at this PC's player: a living human whose state just became 0 can play. The game finds "the player whose turn it is" the same way. Details and addresses: [docs/subsystems/ai-turn.md](../../docs/subsystems/ai-turn.md), "Whose turn it is". It only reads the game: nothing in the game changes, so it cannot desync.
+
+**Checked with the robot** (A1M4, game windows in the background, 4 AI turns per run):
+
+| Game | Notifications | World checksums |
+|---|---|---|
+| LAN, 2 humans + 1 AI, turns one after another | host: days 2, 3, 4, 5; client: days 2, 4, 5 (on day 3 the client's robot ended the turn in the same frame it began) | 615, all equal |
+| LAN, simultaneous turns, sound and pop-up on | both: days 2, 3, 4, 5 (sound and pop-up shown, no error) | 333, all equal |
+| single player | day 2 | (one PC) |
+
+None on day 1. Not checked by the robot: the game window in front (it would take the focus from whoever uses the PC), and Linux.
+
+**Settings** (`open-homm5.ini`):
+
+```ini
+[notify]
+turn=1    ; 0 = no notification at all
+sound=1   ; 0 = no sound
+popup=1   ; 0 = no pop-up
+trace=0   ; testing: 1 = log every change of the players' turn states
+```
+
+The robot keeps robot runs quiet (`sound=0`, `popup=0`; the flash and the log lines stay); `--notify-setting KEY=VALUE` changes that.
+
 ## Fast AI pathfinding (`fast_paths*.cpp`, on by default)
 
 **What it fixes:** long AI thinking late in a game on big maps (several seconds per AI move).
