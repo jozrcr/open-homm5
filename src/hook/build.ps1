@@ -24,7 +24,7 @@ $sources = "dllmain.cpp", "log.cpp", "game_build.cpp", "hooks.cpp", "ai_trace.cp
 $flags = "/nologo /O2 /MT /W4 /WX /EHsc /std:c++17 /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN"
 # /GL + /LTCG: whole-program optimization of our own code (the AI pathfinding
 # mod calls small helpers across files thousands of times per search)
-$dll = "cl $flags /GL /LD $($sources -join ' ') /Fo`"$out\\`" /Fe`"$out\dinput8.dll`" /link /LTCG /DEF:dinput8.def /MAP:`"$out\dinput8.map`" user32.lib dxguid.lib iphlpapi.lib"
+$dll = "cl $flags /GL /LD $($sources -join ' ') /Fo`"$out\\`" /Fe`"$out\dinput8.dll`" /link /LTCG /DEF:dinput8.def /MAP:`"$out\dinput8.map`" user32.lib dxguid.lib iphlpapi.lib winmm.lib"
 $cmd = "call `"$vcvars`" x86 >nul 2>&1 && cd /d `"$src`" && $dll"
 if ($Test) {
     $cmd += " && cl $flags test\proxy_test.cpp /Fo`"$out\\`" /Fe`"$out\proxy_test.exe`" dxguid.lib"

@@ -110,7 +110,7 @@ void StartGame(const BYTE *transceiver)
 {
 	if (g_switched)
 		SetPacing(200);
-	LockstepCoopTiming(false);
+	LockstepCoopTiming(false, 200);
 	g_transceiver = transceiver;
 	g_last_reports = 0;
 	memset(g_hello, 0, sizeof(g_hello));
@@ -170,7 +170,7 @@ void Decide(const BYTE *transceiver, int me, int players)
 	g_segment_ms = g_asked_ms;
 	g_switched = true;
 	SetPacing(g_segment_ms);
-	LockstepCoopTiming(true);
+	LockstepCoopTiming(true, g_segment_ms);
 	hooklog::Write("co-op timing: ON from segment %lu: %lu ms segments (all %d PCs agree)", kDecideAt, g_segment_ms,
 	               players);
 	(void)transceiver;
