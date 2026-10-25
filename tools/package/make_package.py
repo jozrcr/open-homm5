@@ -2,8 +2,9 @@
 """Build the easy-install package: build/package/open-homm5-<version>.zip
 
 The zip holds the hook DLL (build/hook/dinput8.dll), the settings template, the
-install and uninstall scripts for Windows and Linux, and a short README.txt.
-The scripts and templates live in tools/package/files/.
+install and uninstall scripts for Windows and Linux, a short README.txt, and the
+ready random map templates (src/mods/rmg/templates/*.xdb, packed byte for byte
+as open-homm5/templates/). The scripts and text templates live in tools/package/files/.
 
     python tools/package/make_package.py                    # the version in src/hook/version.h
     python tools/package/make_package.py --version 0.1.0-test2   # a test build (with a '-')
@@ -52,6 +53,16 @@ CONTENTS = [
     ("install.sh", "install.sh"),
     ("uninstall.sh", "uninstall.sh"),
 ]
+
+# The ready random map templates (tools/rmg/make_templates.js writes them) go in
+# the zip as open-homm5/templates/*.xdb, the same layout as in the game's bin
+# folder, and are copied byte for byte (UTF-8 with BOM and CRLF: .gitattributes
+# has "*.xdb -text"). The install scripts copy exactly these names, and the
+# uninstall scripts remove exactly these names, so they must be plain names that
+# no shell or glob treats specially.
+TEMPLATES_SRC = REPO / "src" / "mods" / "rmg" / "templates"
+TEMPLATES_IN_ZIP = "open-homm5/templates"
+TEMPLATE_NAME = re.compile(r"OH-[A-Za-z0-9.-]+\.xdb")
 
 # Line endings inside the zip: Windows files get CRLF (Notepad, cmd.exe), shell
 # scripts must stay LF. The repo keeps LF (and CRLF for .bat, see .gitattributes).
@@ -125,6 +136,23 @@ def file_bytes(name, source, dll_path, version):
     return text.encode("ascii")
 
 
+def template_files():
+    """[(file name, bytes)] of every ready template, sorted by name, bytes untouched."""
+    found = sorted(p for p in TEMPLATES_SRC.glob("*.xdb") if p.is_file())
+    if not found:
+        fail(f"no templates in {TEMPLATES_SRC}: run  node tools/rmg/make_templates.js")
+    out = []
+    for p in found:
+        if not TEMPLATE_NAME.fullmatch(p.name):
+            fail(f"{p.name}: a packaged template must be called OH-<letters, digits, . or ->.xdb")
+        data = p.read_bytes()
+        # a checkout that converted line endings would change what every player gets
+        if not data.startswith(b"\xef\xbb\xbf") or b"\r\n" not in data or re.search(rb"(?<!\r)\n", data):
+            fail(f"{p.name} is not UTF-8 with BOM and CRLF only (git changed its line endings? see .gitattributes)")
+        out.append((p.name, data))
+    return out
+
+
 def zip_time():
     epoch = int(os.environ.get("SOURCE_DATE_EPOCH", time.time()))
     t = time.localtime(max(epoch, 315532800))  # a zip cannot hold dates before 1980
@@ -157,9 +185,10 @@ def main():
     zip_path = args.out_dir / f"open-homm5-{args.version}.zip"
     tmp_path = zip_path.with_suffix(".zip.tmp")
     stamp = zip_time()
+    entries = [(name, file_bytes(name, source, args.dll, args.version)) for name, source in CONTENTS]
+    entries += [(f"{TEMPLATES_IN_ZIP}/{n}", data) for n, data in template_files()]
     with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-        for name, source in CONTENTS:
-            data = file_bytes(name, source, args.dll, args.version)
+        for name, data in entries:
             info = zipfile.ZipInfo(f"open-homm5-{args.version}/{name}", stamp)  # one top folder
             info.compress_type = zipfile.ZIP_DEFLATED
             info.create_system = 3  # Unix, so that unzip on Linux honours the mode below

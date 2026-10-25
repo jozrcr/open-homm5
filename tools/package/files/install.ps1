@@ -185,8 +185,13 @@ try {
 
     $srcDll = Join-Path $PSScriptRoot "dinput8.dll"
     $srcIni = Join-Path $PSScriptRoot "open-homm5.ini"
-    if (-not (Test-Path -LiteralPath $srcDll) -or -not (Test-Path -LiteralPath $srcIni)) {
-        Write-Host "dinput8.dll and open-homm5.ini must be in the same folder as this script." -ForegroundColor Red
+    $srcTemplates = Join-Path $PSScriptRoot "open-homm5\templates"
+    $templateFiles = @()
+    if (Test-Path -LiteralPath $srcTemplates) {
+        $templateFiles = @(Get-ChildItem -LiteralPath $srcTemplates -File | Where-Object { $_.Extension -ieq ".xdb" })
+    }
+    if (-not (Test-Path -LiteralPath $srcDll) -or -not (Test-Path -LiteralPath $srcIni) -or $templateFiles.Count -eq 0) {
+        Write-Host "dinput8.dll, open-homm5.ini and the folder open-homm5\templates must be next to this script." -ForegroundColor Red
         Write-Host "Please extract the whole zip first (right-click the zip, Extract All)," -ForegroundColor Red
         Write-Host "then run install.bat from the new folder. Nothing was installed." -ForegroundColor Red
         Wait-AndExit 7
@@ -207,6 +212,7 @@ try {
 
     $dstDll = Join-Path $bin "dinput8.dll"
     $dstIni = Join-Path $bin "open-homm5.ini"
+    $dstTemplates = Join-Path $bin "open-homm5\templates"
 
     # Never overwrite a dinput8.dll that belongs to something else.
     $dllWas = "new"
@@ -232,6 +238,17 @@ try {
             Copy-Item -LiteralPath $srcIni -Destination $dstIni
             $iniWas = "new"
         }
+        # Our random map templates: overwrite our own OH-*.xdb files, leave every other file alone.
+        [void](New-Item -ItemType Directory -Path $dstTemplates -Force)
+        $ours = @{}
+        $tplReplaced = 0
+        foreach ($f in $templateFiles) {
+            $ours[$f.Name] = $true
+            $dst = Join-Path $dstTemplates $f.Name
+            if (Test-Path -LiteralPath $dst) { $tplReplaced++ }
+            Copy-Item -LiteralPath $f.FullName -Destination $dst -Force
+        }
+        $tplOthers = @(Get-ChildItem -LiteralPath $dstTemplates -File | Where-Object { -not $ours.ContainsKey($_.Name) }).Count
     } catch {
         Write-Host ""
         Write-Host "Could not copy the files into the game folder:" -ForegroundColor Red
@@ -248,6 +265,10 @@ try {
     else { Write-Host "  - replaced the older open-homm5 dinput8.dll with this version" }
     if ($iniWas -eq "new") { Write-Host "  - added open-homm5.ini (settings, all at their defaults)" }
     else { Write-Host "  - kept your existing open-homm5.ini, with your settings" }
+    Write-Host ("  - installed {0} random map templates in open-homm5\templates (they are in the game's random map list)" -f $templateFiles.Count)
+    if ($tplReplaced -gt 0) { Write-Host ("    ({0} of them replaced our files from an earlier install)" -f $tplReplaced) }
+    if ($tplOthers -gt 0) { Write-Host ("    (left the {0} other file(s) in that folder alone)" -f $tplOthers) }
+    Write-Host "    Everyone in a multiplayer game needs the same templates: install the same version."
     Write-Host "  - did not change or replace any file of the game itself"
     if (-not (Test-Path -LiteralPath (Join-Path $bin "MMH55_Utility_64.exe"))) {
         Write-Host ""

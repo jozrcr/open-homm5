@@ -53,6 +53,12 @@ def snapshot(folder):
     return {p.name: sha(p) for p in Path(folder).iterdir() if p.is_file()}
 
 
+def tree(folder):
+    """Everything below folder, files and folders: {relative path: sha256, or None for a folder}."""
+    folder = Path(folder)
+    return {p.relative_to(folder).as_posix(): (sha(p) if p.is_file() else None) for p in sorted(folder.rglob("*"))}
+
+
 def make_game(library, exes=("H5_Game.exe", "MMH55_Utility_64.exe")):
     """A fake game folder with empty-ish exes. Returns its bin folder."""
     b = Path(library) / "steamapps" / "common" / GAME / "bin"
@@ -90,6 +96,103 @@ def run(cmd, stdin="", env=None, cwd=None):
     return p.returncode, out
 
 
+# ---------------------------------------------------------------- templates
+
+TEMPLATES_SRC = REPO / "src" / "mods" / "rmg" / "templates"
+
+
+def template_dir(pkg):
+    return Path(pkg) / "open-homm5" / "templates"
+
+
+def same_bytes(folder, src_folder, names):
+    """True if every name exists in both folders with the same bytes."""
+    return all((Path(folder) / n).is_file() and (Path(folder) / n).read_bytes() == (Path(src_folder) / n).read_bytes()
+               for n in names)
+
+
+def package_checks(pkg, zip_path):
+    """The ready templates are in the package, byte for byte (UTF-8 with BOM and CRLF)."""
+    print("\nTemplates in the package")
+    wanted = sorted(p.name for p in TEMPLATES_SRC.glob("*.xdb"))
+    packed = sorted(p.name for p in template_dir(pkg).iterdir()) if template_dir(pkg).is_dir() else []
+    check(len(wanted) >= 16, f"src/mods/rmg/templates holds {len(wanted)} templates (16 or more)")
+    check(packed == wanted, "package: open-homm5/templates holds every src/mods/rmg/templates/*.xdb and nothing else", f"{packed}\n{wanted}")
+    check(same_bytes(template_dir(pkg), TEMPLATES_SRC, wanted), "package: the templates are byte for byte the source files")
+    data = [(template_dir(pkg) / n).read_bytes() for n in packed]
+    check(all(d.startswith(b"\xef\xbb\xbf") and b"\r\n" in d and b"\n" not in d.replace(b"\r\n", b"") for d in data),
+          "package: the templates keep their UTF-8 BOM and CRLF line endings")
+    with zipfile.ZipFile(zip_path) as z:
+        entries = [i for i in z.infolist() if "/open-homm5/templates/" in i.filename]
+        check(len(entries) == len(wanted) and all(i.filename.count("/") == 3 for i in entries),
+              "package: the templates sit in the zip under <top folder>/open-homm5/templates/")
+        check(all(((i.external_attr >> 16) & 0o777) == 0o644 for i in entries), "package: the templates are plain data files (mode 644)")
+
+
+def template_tests(who, pkg, game_bin, install, uninstall):
+    """The templates in a fake game folder: install, a player's own files, reinstall, uninstall.
+
+    install() and uninstall() run the scripts for game_bin and return (exit code, output)."""
+    print(f"\nRandom map templates ({who})")
+    src = template_dir(pkg)
+    ours = sorted(p.name for p in src.iterdir())
+    n = len(ours)
+    tdir = game_bin / "open-homm5" / "templates"
+    before = tree(game_bin)
+
+    def names():
+        return sorted(p.name for p in tdir.iterdir()) if tdir.is_dir() else None
+
+    code, out = install()
+    check(code == 0, "templates: fresh install: exit 0", out)
+    check(names() == ours and same_bytes(tdir, src, ours), "templates: fresh install: exactly our templates, byte for byte, in bin/open-homm5/templates")
+    check(f"installed {n} random map templates" in out, "templates: fresh install: the summary says how many were installed", out)
+
+    # a player's own files, and ours changed or missing
+    mine = {"my-own.xdb": b"my own template", "OH-mine.xdb": b"mine too, but named like ours", "notes.txt": b"notes"}
+    for name, data in mine.items():
+        (tdir / name).write_bytes(data)
+    (tdir / ours[0]).write_bytes(b"changed by hand")
+    (tdir / ours[1]).unlink()
+    code, out = install()
+    check(code == 0, "templates: reinstall: exit 0", out)
+    check(same_bytes(tdir, src, ours), "templates: reinstall overwrites ours (the changed one) and brings back the missing one")
+    check(all((tdir / k).read_bytes() == v for k, v in mine.items()), "templates: reinstall keeps the player's own files untouched")
+    check(names() == sorted(ours + list(mine)), "templates: reinstall adds nothing else", str(names()))
+    check(f"installed {n} random map templates" in out and f"{n - 1} of them replaced" in out and "left the 3 other" in out,
+          "templates: reinstall: the summary counts installed, replaced and left alone", out)
+
+    # uninstall removes only ours
+    code, out = uninstall()
+    check(code == 0 and not (game_bin / "dinput8.dll").exists(), "templates: uninstall: exit 0", out)
+    check(names() == sorted(mine) and all((tdir / k).read_bytes() == v for k, v in mine.items()),
+          "templates: uninstall removes only our templates; the player's own files stay", str(names()))
+    check(f"removed {n} random map templates" in out, "templates: uninstall says how many it removed", out)
+
+    # with nothing of the player's left, uninstall also removes the empty folders
+    for name in mine:
+        (tdir / name).unlink()
+    code, out = install()
+    code2, out2 = uninstall()
+    check(code == 0 and code2 == 0 and not (game_bin / "open-homm5").exists(), "templates: uninstall removes the empty open-homm5 folders", out2)
+    check(tree(game_bin) == before, "templates: after install and uninstall the game folder is exactly as it was")
+
+    # a folder open-homm5 that holds something else stays
+    other = game_bin / "open-homm5" / "other.txt"
+    other.parent.mkdir()
+    other.write_bytes(b"not ours")
+    install()
+    code, out = uninstall()
+    check(code == 0 and other.read_bytes() == b"not ours" and not tdir.exists(),
+          "templates: a folder open-homm5 with other things in it stays; the empty templates folder goes", out)
+    other.unlink()
+    other.parent.rmdir()
+
+    # nothing installed: nothing to do, no error
+    code, out = uninstall()
+    check(code == 0 and "no random map templates" in out and tree(game_bin) == before, "templates: uninstall with nothing installed: no error, nothing changed", out)
+
+
 # ---------------------------------------------------------------- Windows
 
 def windows_tests(pkg, work):
@@ -120,6 +223,8 @@ def windows_tests(pkg, work):
     check({k: v for k, v in after.items() if k in before} == before, "fresh install: game files unchanged")
     check(set(after) - set(before) == {"dinput8.dll", "open-homm5.ini"}, "fresh install: only our 2 files added")
     check("open-homm5.log" in out and "added dinput8.dll" in out, "fresh install: says what it did and how to check", out)
+    check(sorted(p.name for p in (bin2 / "open-homm5" / "templates").iterdir()) == sorted(p.name for p in template_dir(pkg).iterdir()),
+          "fresh install: the templates are installed in bin/open-homm5/templates")
 
     # install again over our own DLL
     code, out = install("-SteamDir", str(steam_only))
@@ -158,6 +263,7 @@ def windows_tests(pkg, work):
     code, out = uninstall("-SteamDir", str(steam_only), stdin="y\n")
     check(code == 0 and not (bin2 / "open-homm5.ini").exists(), "uninstall (answer y): ini removed", out)
     check(snapshot(bin2) == before, "uninstall: folder back to exactly how it was")
+    check(not (bin2 / "open-homm5").exists(), "uninstall: the (empty) open-homm5 folder is gone too")
 
     # the game folder or its bin folder can be given directly
     game_folder = bin2.parent
@@ -244,6 +350,19 @@ def windows_tests(pkg, work):
     check(code == 0 and "Heads-up" not in out, "ZeroTier on a Private network: no hint", out)
     uninstall("-GameDir", str(bin2), stdin="y\n")
 
+    # random map templates: install, a player's own files, reinstall, uninstall
+    tpl_bin = make_game(work / "tpl lib")
+    template_tests("Windows", pkg, tpl_bin,
+                   lambda: install("-GameDir", str(tpl_bin)),
+                   lambda: uninstall("-GameDir", str(tpl_bin), stdin="y\n"))
+
+    # a package without its templates folder is incomplete: exit 7, nothing installed
+    no_tpl = work / "pkg without templates"
+    shutil.copytree(pkg, no_tpl, ignore=shutil.ignore_patterns("open-homm5"))
+    code, out = run(bat(str(no_tpl / "install.bat"), "-NoPause", "-GameDir", str(tpl_bin)))
+    check(code == 7 and "extract the whole zip" in out and not (tpl_bin / "dinput8.dll").exists() and not (tpl_bin / "open-homm5").exists(),
+          "package without the templates folder: exit 7, nothing installed", out)
+
     # PowerShell 5.1 specifically (the script must run there)
     code, out = run(["powershell", "-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"])
     check(out.strip().startswith("5."), f"tests ran on Windows PowerShell 5.x (found {out.strip()})")
@@ -289,6 +408,8 @@ def linux_tests(pkg, work, bash):
           "fresh install: game files unchanged, only our 2 files added")
     check('WINEDLLOVERRIDES="dinput8=n,b" %command%' in out and "MMH55_Utility_64.exe" in out and "open-homm5.log" in out,
           "prints the Steam launch option, the exe to start and how to check", out)
+    check(sorted(p.name for p in (bin2 / "open-homm5" / "templates").iterdir()) == sorted(p.name for p in template_dir(pkg).iterdir()),
+          "fresh install: the templates are installed in bin/open-homm5/templates")
 
     code, out = sh("install.sh")
     check(code == 0 and "up to date" in out, "re-install over our DLL: up to date", out)
@@ -315,6 +436,7 @@ def linux_tests(pkg, work, bash):
           "uninstall (n): dll and log removed, ini kept", out)
     code, out = sh("uninstall.sh", stdin="y\n")
     check(code == 0 and snapshot(bin2) == before, "uninstall (y): folder back to how it was", out)
+    check(not (bin2 / "open-homm5").exists(), "uninstall: the (empty) open-homm5 folder is gone too")
 
     code, out = sh("install.sh", "--game-dir", posix(bin2.parent))
     check(code == 0 and (bin2 / "dinput8.dll").exists(), "--game-dir <game folder>", out)
@@ -368,6 +490,32 @@ def linux_tests(pkg, work, bash):
     code, out = run([bash, str(lone / "install.sh"), "--game-dir", posix(bin2)], "", env=env)
     check(code == 7 and not (bin2 / "dinput8.dll").exists(), "install.sh without dinput8.dll: exit 7", out)
 
+    # random map templates: install, a player's own files, reinstall, uninstall
+    tpl_bin = make_game(work / "tpl_lib")
+    template_tests("Linux", pkg, tpl_bin,
+                   lambda: sh("install.sh", "--game-dir", posix(tpl_bin)),
+                   lambda: sh("uninstall.sh", "--game-dir", posix(tpl_bin), stdin="y\n"))
+
+    # a package without its templates folder is incomplete: exit 7, nothing installed
+    no_tpl = work / "pkg_without_templates"
+    shutil.copytree(pkg, no_tpl, ignore=shutil.ignore_patterns("open-homm5"))
+    code, out = run([bash, str(no_tpl / "install.sh"), "--game-dir", posix(tpl_bin)], "", env=env)
+    check(code == 7 and not (tpl_bin / "dinput8.dll").exists() and not (tpl_bin / "open-homm5").exists(),
+          "package without the templates folder: exit 7, nothing installed", out)
+
+    # folders that exist under another spelling (Linux file names are case sensitive,
+    # Wine finds them anyway): the existing folders and files are reused, none is duplicated
+    ci_bin = make_game(work / "ci_lib")
+    old = ci_bin / "Open-Homm5" / "Templates"
+    old.mkdir(parents=True)
+    first = sorted(p.name for p in template_dir(pkg).iterdir())[0]
+    (old / first.lower()).write_bytes(b"an old copy of ours, in lower case")
+    code, out = sh("install.sh", "--game-dir", posix(ci_bin))
+    check(code == 0 and [p.name for p in ci_bin.iterdir() if p.is_dir()] == ["Open-Homm5"], "templates: an existing Open-Homm5 folder is reused", out)
+    check(sorted(p.name for p in old.iterdir()) == sorted([first.lower()] + [p.name for p in template_dir(pkg).iterdir() if p.name != first])
+          and (old / first.lower()).read_bytes() == (template_dir(pkg) / first).read_bytes(),
+          "templates: an existing file of ours under another spelling is overwritten, not duplicated")
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -386,6 +534,7 @@ def main():
     with zipfile.ZipFile(out_dir / "open-homm5-0.0.0-test.zip") as z:
         z.extractall(work / "package")
     pkg = work / "package" / "open-homm5-0.0.0-test"  # the zip's one top folder
+    package_checks(pkg, out_dir / "open-homm5-0.0.0-test.zip")
 
     if os.name == "nt":
         windows_tests(pkg, work / "win")
