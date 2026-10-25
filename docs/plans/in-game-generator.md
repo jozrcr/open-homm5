@@ -345,9 +345,21 @@ The parts sit where the game's own parts are: the zone map on the minimap, the c
 1. **C++ maker and its parity test.** Add `rmg_maker.cpp` and a test exe that compares its output with Node's for the 24 ready templates and 400 random choices. `test_template_maker.js` gets a switch that writes the expected files.
 
    *Test:* `build.ps1 -Test` passes; the bytes are equal.
+
+   **[x] Done (2026-10-25).** 435 of 435 templates equal byte for byte (24 ready, 400 random, 11 special), and the 12 refused choices give the same message. See [Notes from steps 1 and 2](#notes-from-steps-1-and-2).
 2. **Recipe names served by the DLL.** Add `rmg_recipe.cpp`, plus Open and List of recipe names in `rmg_templates.cpp`. A setting can list recipes to offer, for example `[rmg] recipes=OH-X1-...`, before any panel exists.
 
    *Test:* the robot generates a map with the console command `rmg RMG/Templates/OH-X1-....xdb ...`, then through the screen.
+
+   **[x] Code and unit tests done (2026-10-25); [ ] the robot test is still to do** (the PC was busy). `rmg_recipe_test.cpp`: the round trips, the bad names and paths, the 24 ready templates built from their recipe names, and 302 recorded `X1` names.
+
+   *The robot test, when the PC is free:*
+   - **At start**, the log says `recipe names ... are built when the game asks for them (maker self-check ok)`: the DLL's own build of the maker gives the recorded bytes (on Wine/Proton too, later).
+   - **Console, no file** (no file has a recipe name, and no `recipes=`): the step `console|rmg RMG/Templates/OH-X1-321110nnxxxxxxxa.xdb -players 6 -size 3 -underground 1 start`. The log says `OH-X1-321110nnxxxxxxxa.xdb built from its name: "OH-2v2v2-Lu-Normal*" ...`; the generator's log names the template; the map has 6 start towns; 2 AI turns play.
+   - **The same in small letters** (`rmg rmg/templates/oh-x1-321110nnxxxxxxxa.xdb ...`): served too.
+   - **The list:** `recipes=OH-X1-321110nnxxxxxxxa` and `templates_selftest=1`: the self-test line counts 1 recipe. On the random map screen (Large, underground, 6 players, "ARMG Templates" ticked), `OH-2v2v2-Lu-Normal*` is in the list next to `OH-2v2v2-Lu-Normal`, and the `*` shows in the game's font; Create, then Save, work.
+   - **Opened, then listed:** without `recipes=`, after the console test above, the screen's list also shows `OH-2v2v2-Lu-Normal*`.
+   - **Off:** `templates=0`: the console test above finds no template (expect the game's own behaviour for a missing template, maybe the crash of §2; do it last).
 3. **Clients join recipe games.** The connector hook, and the clean "template missing" message.
 
    *Test:* a LAN robot run on a recipe template: the client rebuilds the map, plays 4 AI turns, and every world checksum is equal on both copies. With the client's recipe support off: the message, no crash.
@@ -369,6 +381,32 @@ The parts sit where the game's own parts are: the zone map on the minimap, the c
 - **Steps 0 to 3** give working recipe templates in multiplayer, even before the panel: 3 sessions.
 - **Steps 4 to 7** give the panel: 3 to 4 sessions.
 - **Step 8** is release and testing: 1 session.
+
+## Notes from steps 1 and 2
+
+Written on 2026-10-25, while building the C++ maker (`src/mods/rmg_maker.cpp`) and the recipe names (`src/mods/rmg_recipe.cpp`).
+
+**Decisions.** They hold for every `X1` name, so they cannot change later:
+- **The name in the game's list is the maker's name plus `*`.** Otherwise the served file is the maker's file for the same choices. So `OH-X1-321110nnxxxxxxxa` and the ready `OH-2v2v2-Lu-Normal.xdb` differ in one line only, `<Name>OH-2v2v2-Lu-Normal*</Name>`. The ready templates' file names never look like recipe names (one is made from the layout, the other from every choice): the table in [tools/rmg/README.md](../../tools/rmg/README.md) pairs them.
+- **"X1 never changes" is enforced:** `tools/rmg/x1_fingerprints.txt` records what 302 `X1` names build; `build.ps1 -Test` fails if one changes. The DLL also checks itself at start: it builds three of those names and serves no recipe if one differs (a compiler or runtime surprise would otherwise give one PC different bytes).
+- **The format is two tables** at the top of `rmg_recipe.cpp`, by the JavaScript choice names, so the page can copy them (the owner's answer 3).
+- **A recipe name is always built from the name**, even when a file of that name is in `open-homm5\templates\` (skipped, with a log line) or in the game's data.
+- **`templates=0` turns off both** the folder's files and the recipes. With `templates=1` the file system hooks now go in even when there is no template file, so a PC without files can still serve a joined game's recipe.
+- **The list adds at most 64 recipes** (`recipes=` first, then those the game opened). Any recipe is still served when asked for.
+
+**JavaScript behaviours kept as they are in C++** (the page and the DLL must agree):
+1. `allyLink` and `startMines` are not checked: anything but "open" is a weak guard, anything but "woodore" is all six mines. The C++ maker does the same. Recipe names only hold the two words.
+2. "Towns" is in the name when `borderTowns` or `teamTowns` is on, even when no zone can hold a town (0 border or 0 team zones).
+3. A tier set to the overall level (for example `lootByDistance` "normal" with Normal loot) is not "Tiers": it builds the same template as "Same". So two recipe names build the same bytes, as do a size equal to the best fit and `a`.
+4. `guardsByDistance` 0 only changes the paths that join neighbouring teams' start zones directly, when there are no border zones (they join two distance-0 zones; teammates' paths keep their fixed guard). The page has no control for it, and `X1` names can't hold it.
+5. The guard table has a `teamBorder` strength (8) that the layout never uses.
+6. Counts are not checked: a negative number of zones acts as 0. Recipe names only hold 0 to 3 (or 4).
+7. A typed name's file name turns each run of characters other than A-Z, a-z, 0-9, `.` and `-` into one `_`. That gives the same on UTF-8 bytes (C++) as on UTF-16 (JavaScript); tested with accents.
+8. Best fit compares \|log(tiles per zone / 5,800)\| between sizes. C's `log` and JavaScript's may differ in the last bit, but two sizes never tie: a tie needs side1 × side2 × (1 or 2) = 5,800 × zones, and 5,800 = 2³ × 5² × 29 while no side has the factor 29. Near ties are about 1e-6 apart or more, far above the last bit. So both pick the same size.
+
+**One difference, for input that nobody can give:** JavaScript looks the loot and guard words up in plain objects, so words like `toString` or `constructor` pass its check and then build a template full of `NaN`. C++ refuses them as unknown words. The page, the ready list and recipe names never produce them.
+
+**A bug in the JavaScript test, fixed:** the random generator of `test_template_maker.js` (`seed * 1103515245 + 12345`, then `% n`) barely changed its low bits. Of its 400 "random" cases, 399 were free-for-all games with poor loot, no underground and open ally paths. It is now xorshift32. Its 400 cases, and the parity test's 400 wider cases (every value a recipe can hold, every size), pass every check.
 
 ## Risks
 

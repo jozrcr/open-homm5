@@ -67,6 +67,8 @@ This builds `build\hook\dinput8.dll` and runs these tests outside the game:
 - `test/proxy_test.cpp`: loads the DLL, calls `DirectInput8Create`, and checks that a real DirectInput object comes back.
 - `test/ai_trace_test.cpp`: calls the AI hook exactly the way the game calls the AI (`__thiscall`, command list then flag) on a fake AI object, built with the compiler's runtime stack check (`/RTCs`). It checks that the arguments reach the original function unchanged and that the log line is right. A calling-convention mistake here would crash the game, so this test matters.
 - `test/original_music_test.cpp`: the "original music" mod's text work (`src/mods/original_music_xdb.cpp`) on small made-up data files: which music lines change and which stay.
+- `test/rmg_maker_test.cpp`: the C++ template maker (`src/mods/rmg_maker.cpp`) against the JavaScript one. First `node tools/rmg/test_template_maker.js --expected build/rmg_parity` writes what the page's maker builds for the 24 ready templates, 400 random choices and a few special ones; the test must build the same bytes, names, warnings and numbers, and refuse bad choices with the same message. Needs Node.js.
+- `test/rmg_recipe_test.cpp`: recipe names (`src/mods/rmg_recipe.cpp`): choices → `OH-X1-...` → the same choices, every bad name and path refused, and each ready template built from its recipe name, compared with the file in `src/mods/rmg/templates/`. It also checks that 302 recorded `X1` names still build what they built when recorded (`tools/rmg/x1_fingerprints.txt`): what an `X1` name builds must never change.
 
 The build runs in `src\hook` with relative source paths: with full paths, a deep folder (a git worktree) made the command line longer than `cmd.exe` accepts (8191 characters).
 

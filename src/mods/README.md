@@ -356,6 +356,36 @@ The robot sets these with `run_lan_test.py --host-rmg KEY=VALUE`, and presses a 
 
 **Not done yet:** a random map in a LAN robot game. The robot plays A1M4, which has no teams either.
 
+## Random map templates (`rmg_templates.cpp`, `rmg_maker.cpp`, `rmg_recipe.cpp`, on by default)
+
+Step 1 of the map generator plan ([docs/plans/map-generator.md](../../docs/plans/map-generator.md)), and steps 1 and 2 of the in-game builder plan ([docs/plans/in-game-generator.md](../../docs/plans/in-game-generator.md)).
+
+- **How the game finds templates:** the random map screen asks the game's file system (`NVFS::CWinVFS`) for the files in `RMG/Templates` (List, vtable slot 10), then opens each one (Open, slot 7). The mod sits on those two slots. Nothing on disk changes.
+- **Template files:** the `.xdb` files of `open-homm5\templates\` next to the exe (the install package puts the 24 ready ones there) are added to the list and served when the game opens them.
+- **Recipe names** (new): a template named `RMG/Templates/OH-X1-<16 characters>.xdb` needs no file at all. Its name holds every choice of the template maker, for example `OH-X1-321110nnxxxxxxxa` = 2v2v2, Normal, best size, underground. When the game opens such a name, the DLL builds the template's bytes from the name with `rmg_maker.cpp`, a C++ copy of the web page's template maker. The format: [tools/rmg/README.md](../../tools/rmg/README.md#recipe-names).
+  - **Why:** in multiplayer every PC builds the random map itself from the template's path. With a recipe, every PC with the DLL has the template, and they all get the same bytes.
+  - **The list** shows every recipe this PC was asked to open (for example a joined game's), plus those of `recipes=`. In the list, a recipe template's name is the maker's name plus `*`, for example `OH-2v2v2-Lu-Normal*`, so it can't be mixed up with the ready file of the same layout.
+  - **Same bytes as the page:** `build.ps1 -Test` checks that `rmg_maker.cpp` writes exactly what `tools/rmg/template_maker.js` writes, on the 24 ready templates and 400 random choices.
+  - **Same bytes forever:** what an `X1` name builds never changes (`tools/rmg/x1_fingerprints.txt` records 302 of them; the test fails on any change). And at start, the DLL builds three recorded names itself and serves no recipe if one differs (the log says `self-check FAILED`).
+  - A file in `open-homm5\templates\` whose name is a recipe is skipped (the log says so): the name decides.
+- **Not done yet:** the client side of a multiplayer game (step 3 of the plan: the client lists the templates before it opens the one it needs), and the builder panel.
+
+```ini
+[rmg]
+templates=1     ; 0 = off: neither the folder's files nor recipe names
+recipes=        ; recipe names to offer in the list, separated by commas (for tests, before the panel)
+```
+
+The log says what was served, for example:
+
+```
+rmg templates: 24 template(s) from open-homm5\templates: OH-2v2-Lu-Normal.xdb, ...
+rmg templates: recipe names (RMG/Templates/OH-X1-....xdb) are built when the game asks for them (maker self-check ok); in the list from recipes=: OH-X1-321110nnxxxxxxxa
+rmg templates: OH-X1-321110nnxxxxxxxa.xdb built from its name: "OH-2v2v2-Lu-Normal*", 6 players, 13 zones, Large (176x176, with underground), 23121 bytes
+```
+
+**Not yet tested in the game** (the robot test of step 2): see the plan.
+
 ## Original music (`original_music*.cpp`, off by default)
 
 **What it is for:** MMH5.5 brings its own music (new tracks for terrains, the main menu, the credits, battles and hero themes). With this switch on, the game plays the **original Heroes V music** wherever MMH5.5 changed it. Off (the default), you hear MMH5.5's music, exactly as without the add-on.

@@ -13,13 +13,24 @@
 // builds the random map itself from the template's path, and a PC without the
 // file would crash there (0x0090e8db reads the template without a check).
 //
-// Setting, open-homm5.ini [rmg]: templates=1 (default; 0 = off).
+// Recipe names (docs/plans/in-game-generator.md, step 2): a template named
+// RMG/Templates/OH-X1-<16 characters>.xdb needs no file. Its name holds every
+// choice (rmg_recipe.cpp), and Open builds its bytes on the fly with the C++
+// template maker (rmg_maker.cpp): the same bytes on every PC. The listing adds
+// every recipe this PC was asked to open, and those named in the settings.
+//
+// Settings, open-homm5.ini [rmg]:
+//   templates=1  (default; 0 = off: neither the folder's files nor recipes)
+//   recipes=     recipe names to offer in the game's list, separated by commas
 #include <windows.h>
 #include <string.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
+#include "rmg_maker.h"
+#include "rmg_recipe.h"
 #include "rmg_templates.h"
 
 #include "../hook/log.h"
@@ -38,6 +49,8 @@ const DWORD kGameNew = 0x00878fd0;           // cdecl void *(size)
 const DWORD kGameDelete = 0x00879240;        // cdecl void (void *)
 const size_t kMaxFiles = 200;
 const DWORD kMaxSize = 1 << 20;
+const size_t kMaxRecipes = 64;  // in the list; any recipe name is still served when asked for
+const char kTemplatesDir[] = "rmg/templates/";
 
 struct GameString {  // nstl::string
 	char *begin;
@@ -74,6 +87,58 @@ struct Template {
 	std::string data;
 };
 std::vector<Template> g_templates;
+
+// Recipe names to list, as rmg::EncodeRecipe writes them, without ".xdb":
+// those of recipes= first, then those the game opened. Open and List may run
+// on different threads, so the list has a lock.
+std::vector<std::string> g_recipes;
+SRWLOCK g_recipes_lock = SRWLOCK_INIT;
+
+// Adds a recipe to the list; true when it was not there yet.
+bool AddRecipe(const std::string &recipe)
+{
+	bool added = false;
+	AcquireSRWLockExclusive(&g_recipes_lock);
+	try {
+		if (g_recipes.size() < kMaxRecipes && std::find(g_recipes.begin(), g_recipes.end(), recipe) == g_recipes.end()) {
+			g_recipes.push_back(recipe);
+			added = true;
+		}
+	} catch (...) {  // out of memory: not listed, still served
+	}
+	ReleaseSRWLockExclusive(&g_recipes_lock);
+	return added;
+}
+
+// Recipe names are served only when this very DLL builds what the tests
+// recorded (rmg::SelfCheck): a PC that built other bytes than its friends
+// would build another map from the same name.
+bool g_recipes_on = false;
+
+bool MakerSelfCheck()
+{
+	std::string problem;
+	try {
+		if (mods::rmg::SelfCheck(&problem))
+			return true;
+	} catch (...) {
+		problem = "out of memory";
+	}
+	hooklog::Write("rmg templates: the template maker's self-check FAILED (%s): recipe names are not served", problem.c_str());
+	return false;
+}
+
+std::vector<std::string> Recipes()
+{
+	std::vector<std::string> copy;
+	AcquireSRWLockShared(&g_recipes_lock);
+	try {
+		copy = g_recipes;
+	} catch (...) {
+	}
+	ReleaseSRWLockShared(&g_recipes_lock);
+	return copy;
+}
 
 // "/RMG\Templates/X.xdb" -> "rmg/templates/x.xdb" (the game compares paths this way)
 std::string Normalize(const char *begin, const char *end)
@@ -119,6 +184,11 @@ void LoadTemplates()
 		char name[MAX_PATH];
 		if (!WideCharToMultiByte(CP_ACP, 0, fd.cFileName, -1, name, MAX_PATH, nullptr, nullptr))
 			continue;
+		std::string recipe;
+		if (mods::rmg::CanonicalRecipe(name, &recipe)) {  // the name decides, the same on every PC
+			hooklog::Write("rmg templates: open-homm5\\templates\\%s skipped: a recipe name, built from the name itself", name);
+			continue;
+		}
 		const std::wstring path = std::wstring(dir) + L"\\templates\\" + fd.cFileName;
 		HANDLE f = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
 		if (f == INVALID_HANDLE_VALUE)
@@ -166,11 +236,16 @@ void SelfTest()
 	GameStrings out = {};  // left to the game's heap (a test, once)
 	const ListFn list = reinterpret_cast<ListFn>((*static_cast<DWORD **>(vfs))[10]);
 	list(vfs, nullptr, &out, &dir, &mask);
-	int all = 0, ours = 0;
-	for (const GameString *s = out.begin; s && s != out.end; ++s, ++all)
+	int all = 0, ours = 0, recipes = 0;
+	for (const GameString *s = out.begin; s && s != out.end; ++s, ++all) {
+		const std::string key = Normalize(s->begin, s->end);
+		std::string recipe;
 		for (const Template &t : g_templates)
-			ours += Normalize(s->begin, s->end) == t.key;
-	hooklog::Write("rmg templates: self-test: the game lists %d templates in RMG/Templates, %d of them ours", all, ours);
+			ours += key == t.key;
+		recipes += mods::rmg::RecipeOfPath(key, &recipe);
+	}
+	hooklog::Write("rmg templates: self-test: the game lists %d templates in RMG/Templates, %d of them our files, %d recipes",
+	               all, ours, recipes);
 }
 
 GameStream *__fastcall OpenHook(void *vfs, void *edx, const GameString *path)
@@ -181,6 +256,33 @@ GameStream *__fastcall OpenHook(void *vfs, void *edx, const GameString *path)
 	if (!path || !path->begin || path->end - path->begin < 14)
 		return s;
 	const std::string key = Normalize(path->begin, path->end);
+	std::string recipe;
+	if (g_recipes_on && mods::rmg::RecipeOfPath(key, &recipe)) {
+		GameStream *ours = nullptr;
+		try {
+			mods::rmg::Template t;
+			std::string error;
+			if (!mods::rmg::BuildRecipe(recipe, &t, &error)) {  // cannot happen: the name was checked
+				hooklog::Write("rmg templates: %s not built: %s", recipe.c_str(), error.c_str());
+				return s;
+			}
+			ours = NewStream(t.xml);
+			// The game opens every template each time it lists them: log each new
+			// recipe, and the first few builds of those recipes= named.
+			static LONG builds = 0;
+			if (ours && (AddRecipe(recipe) || InterlockedIncrement(&builds) <= 4))
+				hooklog::Write("rmg templates: %s.xdb built from its name: \"%s\", %d players, %d zones, %s, %u bytes",
+				               recipe.c_str(), t.name.c_str(), t.stats.players, t.stats.zones, t.stats.size.c_str(),
+				               static_cast<unsigned>(t.xml.size()));
+		} catch (...) {  // out of memory: leave the file to the game
+			return s;
+		}
+		if (!ours)
+			return s;
+		if (s)  // a file of that name in the game's data: the name wins
+			reinterpret_cast<DeleteFn>(s->vftable[0])(s, nullptr, 1);
+		return ours;
+	}
 	for (const Template &t : g_templates) {
 		if (t.key != key)
 			continue;
@@ -226,25 +328,55 @@ bool Append(GameStrings *out, const std::string &text)
 void __fastcall ListHook(void *vfs, void *edx, GameStrings *out, const GameString *dir, const GameString *mask)
 {
 	g_list_next(vfs, edx, out, dir, mask);
-	if (!out || !dir || !mask || g_templates.empty())
+	if (!out || !dir || !mask)
 		return;
 	std::string folder = Normalize(dir->begin, dir->end);
 	if (!folder.empty() && folder.back() != '/')
 		folder += '/';
+	// Everything of ours is in rmg/templates/: other folders get nothing.
+	if (std::string(kTemplatesDir).compare(0, folder.size(), folder) != 0)
+		return;
+	const std::vector<std::string> recipes = Recipes();
 	const std::string pattern(mask->begin, mask->end);
-	int added = 0;
-	for (const Template &t : g_templates) {
-		if (t.key.compare(0, folder.size(), folder) != 0 || !Matches(pattern.c_str(), t.file.c_str()))
-			continue;
-		bool known = false;
-		for (const GameString *s = out->begin; s != out->end && !known; ++s)
-			known = Normalize(s->begin, s->end) == t.key;
-		if (!known && Append(out, "RMG\\Templates\\" + t.file))
-			++added;
+	// Adds RMG\Templates\<file>, unless the mask doesn't match it or the list has it already.
+	auto offer = [out, &pattern](const std::string &key, const std::string &file) {
+		if (!Matches(pattern.c_str(), file.c_str()))
+			return false;
+		for (const GameString *s = out->begin; s != out->end; ++s)
+			if (Normalize(s->begin, s->end) == key)
+				return false;
+		return Append(out, "RMG\\Templates\\" + file);
+	};
+	int added = 0, added_recipes = 0;
+	for (const Template &t : g_templates)
+		added += offer(t.key, t.file);
+	for (const std::string &r : recipes) {
+		const std::string inside = kTemplatesDir + r + ".xdb";
+		added_recipes += offer(Normalize(inside.data(), inside.data() + inside.size()), r + ".xdb");
 	}
 	static LONG logged = 0;
-	if (added && InterlockedIncrement(&logged) <= 3)
-		hooklog::Write("rmg templates: %d of ours added to the list of %s%s", added, folder.c_str(), pattern.c_str());
+	if ((added || added_recipes) && InterlockedIncrement(&logged) <= 3)
+		hooklog::Write("rmg templates: %d of our files and %d recipes added to the list of %s%s", added, added_recipes,
+		               folder.c_str(), pattern.c_str());
+}
+
+// [rmg] recipes=OH-X1-...,OH-X1-...: recipe names to offer in the game's list
+// (for tests, and until the builder panel exists). See rmg::ParseRecipeList.
+void ReadRecipesSetting(const wchar_t *ini)
+{
+	wchar_t text[4096];
+	GetPrivateProfileStringW(L"rmg", L"recipes", L"", text, ARRAYSIZE(text), ini);
+	std::string narrow;
+	for (const wchar_t *p = text; *p; ++p)
+		narrow += *p < 0x80 ? static_cast<char>(*p) : '?';  // recipe names are plain ASCII
+	std::vector<std::string> names, bad;
+	mods::rmg::ParseRecipeList(narrow, &names, &bad);
+	for (const std::string &b : bad)
+		hooklog::Write("rmg templates: recipes=: \"%s\" is not a recipe name (%s and 16 characters), skipped", b.c_str(),
+		               mods::rmg::kRecipePrefix);
+	for (const std::string &n : names)
+		if (!AddRecipe(n))
+			hooklog::Write("rmg templates: recipes=: %s not listed (more than %u)", n.c_str(), static_cast<unsigned>(kMaxRecipes));
 }
 
 }  // namespace
@@ -256,8 +388,13 @@ void ApplyRmgTemplatesFromSettings()
 	if (!GetPrivateProfileIntW(L"rmg", L"templates", 1, path))
 		return;
 	LoadTemplates();
-	if (g_templates.empty())
+	g_recipes_on = MakerSelfCheck();
+	if (g_recipes_on)
+		ReadRecipesSetting(path);
+	if (g_templates.empty() && !g_recipes_on)
 		return;
+	// The hooks go in even with no file and no recipe to offer: any recipe name
+	// the game asks for (the template of a game this PC joins) must be served.
 	g_selftest = GetPrivateProfileIntW(L"rmg", L"templates_selftest", 0, path) ? 1 : 0;
 	g_open_next = reinterpret_cast<OpenFn>(hookpatch::PatchPointer(kWinVfsOpenSlot, kWinVfsOpen, &OpenHook));
 	g_list_next = reinterpret_cast<ListFn>(hookpatch::PatchPointer(kWinVfsListSlot, kWinVfsList, &ListHook));
@@ -268,8 +405,16 @@ void ApplyRmgTemplatesFromSettings()
 	std::string names;
 	for (size_t i = 0; i < g_templates.size() && i < 12; ++i)
 		names += (i ? ", " : "") + g_templates[i].file;
-	hooklog::Write("rmg templates: %u template(s) from open-homm5\\templates: %s%s", static_cast<unsigned>(g_templates.size()),
-	               names.c_str(), g_templates.size() > 12 ? ", ..." : "");
+	hooklog::Write("rmg templates: %u template(s) from open-homm5\\templates%s%s%s", static_cast<unsigned>(g_templates.size()),
+	               names.empty() ? "" : ": ", names.c_str(), g_templates.size() > 12 ? ", ..." : "");
+	if (!g_recipes_on)
+		return;
+	std::string offered;
+	for (const std::string &r : Recipes())
+		offered += (offered.empty() ? "" : ", ") + r;
+	hooklog::Write("rmg templates: recipe names (RMG/Templates/%s....xdb) are built when the game asks for them (maker "
+	               "self-check ok); in the list from recipes=: %s",
+	               mods::rmg::kRecipePrefix, offered.empty() ? "none" : offered.c_str());
 }
 
 }  // namespace mods
