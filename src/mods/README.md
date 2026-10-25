@@ -121,7 +121,7 @@ Why multiplayer clicks feel slow, and the measurements: [docs/plans/responsivene
 ```ini
 [net]
 drain_reports=1   ; 0 = the game's one report per frame
-view_delay_ms=400 ; 100..400 (the game: 400)
+view_delay_ms=150 ; 100..400, only while co-op timing is ON (else the game's 400); Q10
 trace_lockstep=1  ; 0 = no summary lines
 catch_up_ms=150   ; experiment, 150..1000 (the game: 150)
 ```
