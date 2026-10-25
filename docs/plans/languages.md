@@ -3,7 +3,7 @@
 The owner's request (2026-10-25, [backlog](backlog.md)): the game shows a mix of French and English. Each player should pick French or English, as a setting.
 
 Status (2026-10-25, evening):
-- **The French switch is built** (`src/mods/languages*.cpp`, `[lang] texts=fr`). Its unit tests pass. It has **not run in the game yet**: the robot waits until the PC is free (section 4).
+- **The French switch is built and checked with the robot** (`src/mods/languages*.cpp`, `[lang] texts=fr`; section 4, step 2b). In a LAN game with only the host on French, the world checksums stayed equal.
 - **What MMH5.5's pack leaves out, outside MMH5.5's own texts, is translated:** the 3.1 patch's texts and Ubisoft's English in the multiplayer maps. It is in a private pack (section 3.3).
 - **Waiting:** MMH5.5's own gaps wait for RC19k, and the campaigns come later.
 
@@ -21,7 +21,7 @@ Status (2026-10-25, evening):
   - We only translate what it leaves out: about **3,800 words** for co-op, **10,000** with the campaigns (measured with the real pack; the first estimate said 5,000 because it counted the 3.1 patch's campaign texts as co-op). Translating MMH5.5 ourselves would have been about **84,000 words**.
   - Of those 3,800 co-op words, the **~3,000 that do not depend on MMH5.5's version are done**. The ~800 MMH5.5 ones wait for RC19k. About 50 stay as they are on purpose: the product name and internal keys.
 - **The switch:** `[lang] texts=game|fr` in `open-homm5.ini`, set by each player. The DLL hands the game the French text files as it reads them, the way the music switch works. No game file changes. `game` (the default) changes nothing.
-- **Co-op:** texts look local to each PC. The game objects keep a text's path, never the text itself. A robot LAN test with only the host on `texts=fr` will confirm it before anyone relies on it.
+- **Co-op:** texts are local to each PC. The game objects keep a text's path, never the text itself, and a robot LAN game with only the host on `texts=fr` kept all 1,465 world checksums equal.
 
 ## 1. Findings
 
@@ -112,17 +112,16 @@ The result: 1,656 pairs. 442 of them are marked "low" and are not offered to tra
 
 ### 1.6 Is text local to each PC in co-op?
 
-Probably yes. Not yet tested.
+Yes, as far as tested: in a robot LAN game on A1M4 with only the host on `texts=fr` (8 AI turns), all 1,465 world checksums were equal on both copies (section 4, step 2b). The reasons it should hold in general:
 
 - **For:**
   - The game objects keep a text's path, not its words.
   - Texts are read only for display.
   - Our co-op guard only exchanges the segment length, never settings.
   - The MMH5.5 team ships each language as a separate pack and says nothing about needing the same one to play together.
-- **Unknown:**
-  - whether the world checksum (`mp_check_crc`) includes any name copied into the world, for example a hero's name;
-  - whether Lua scripts compare texts.
-- **Test before anyone relies on it:** a robot LAN game with only the host on `texts=fr` and the client on `texts=game`, 20 AI turns, world checksums compared (`tools/robot/lan_report.py`). The robot must wait until the PC is free (section 4).
+- **Still open:**
+  - a map whose scripts compare texts (none known);
+  - a longer game: the owner's first real co-op game with mixed choices will tell.
 
 ### 1.7 Versions: the group moves to RC19k
 
@@ -204,7 +203,11 @@ bin\open-homm5\lang\en\texts.pak              (not built) the English base texts
 6. **The player list** (`language=auto`) uses French words when `texts=fr`.
 7. **`texts=en` (designed, not built):** the DLL would also read the directory of the game's own `data\*.pak` and apply the game's date rule. Where the file the game would use comes from the base `texts.pak` (French), it would hand over the English `texts.pak`'s file instead.
 
-Tested so far: the byte work (paths, encodings, zip directories) in `src/hook/test/languages_test.cpp`; `build.ps1 -Test` and `tools/package/test_scripts.py` (104 of 104) pass. **Not run in the game yet.**
+Tested:
+- the byte work (paths, encodings, zip directories) in `src/hook/test/languages_test.cpp`;
+- `build.ps1 -Test` and `tools/package/test_scripts.py` (104 of 104);
+- the parser on the real packs: RC19d French, our pack, MMH5.5's own English pack;
+- **the robot runs of section 4, step 2b.**
 
 Not covered: maps made by others (`.h5m`) keep their own texts, the few sentences written inside MMH5.5's scripts or the exe stay as they are, and the voices don't change.
 
@@ -296,14 +299,24 @@ Done:
 
 Next:
 
-2b. **Robot checks, when the coordinator says the PC is free** (the test copy, `C:\Games\H5_test`, never the Steam folder):
-   - put the RC19d pack (`build/lang/fr-rc19d/MMH55-Texts-FR-RC19d.pak`) and `open-homm5-fr.pak` into the test copy's `bin\open-homm5\lang\fr\`, with `texts=fr` and `log_texts=200` in the robot's ini;
-   - **French texts in the menus:** the log has `languages: texts=fr: 6024 French texts ...`, the version line, and served texts from `UI/...`. Screenshots of the main menu and of the random map screen (the 3.1 texts: the faction and player labels, the map sizes);
-   - **French on the adventure map:** served texts from `Text/Game/...` (heroes, creatures, buildings); a screenshot of a hero or creature tooltip;
-   - **the 3.1 texts:** the random map screen and its settings, a combat log line (`Text/CombatLog/...`) after a fight;
-   - **the player list:** the log says `player list: French words, as the game's texts`;
-   - **a LAN run with only the host on `texts=fr`** (client `texts=game`): about 20 AI turns. The world checksums must stay equal on both copies (`tools/robot/lan_report.py`);
-   - **nothing breaks with the folder empty or missing:** the log says so, and the game keeps its own texts.
+2b. ~~**Robot checks**~~ (done 2026-10-25, 17:18 to 17:25, robot lock held). Test copy `C:\Games\H5_test` with MMH5.5 RC19d; the RC19d pack and `open-homm5-fr.pak` in its `bin\open-homm5\lang\fr\`, removed afterwards. Results in `build/robot/` of this worktree:
+   - **Single player, a random map** (`20261025-171842`: `--no-map`, `rmg RMG/Templates/2P-Duel-T.xdb`, 1 AI turn, `log_texts=600`):
+     - the log has `6024 French texts from open-homm5\lang\fr: MMH55-Texts-FR-RC19d.pak (5841), open-homm5-fr.pak (183)`, installed at DLL load;
+     - the version line matches: `"Version: 5.69d"` for the pack and for the game;
+     - 383 texts given to the game: 366 `Text/Game/...` (heroes, creatures, skills, ...), 8 `GameMechanics/RefTables`, 4 from our pack (3 random map settings `RMG/Params/...`, the Rage message);
+     - `player list: French words, as the game's texts ([lang] texts=fr)`;
+     - the main menu screenshot shows the French menu and MMH5.5's version text.
+   - **LAN on A1M4, only the host on `texts=fr`** (`20261025-172024-lan`, client `texts=game`):
+     - 8 AI turns, 93 AI steps;
+     - **1,465 world checksums, all equal on both copies (no desync)**;
+     - the host gave the game French texts (300 logged) and its player list is in French; the client logged `texts=game`.
+   - **A `.zip` that only wraps the `.pak`** (`20261025-172324`): the log says `... holds mmh55-texts-fr.pak, not texts: unzip it ...`, and the game keeps its own texts.
+   - **No `lang\fr` folder** (`20261025-172404`, again `20261025-172510` with the clearer log line): the log says so, and the game keeps its own texts.
+   - **Not seen yet:**
+     - the combat log: the robot's battles resolve at once;
+     - the random map screen's labels: the robot starts random maps from the console;
+     - a tooltip screenshot.
+     The owner will see these in a real game.
 3b. **MMH5.5's gaps for RC19k** (needs the owner's OK to download the RC19i French pack, section 1.7): measure against the installed RC19k, translate what remains (one short session), then add it to `open-homm5-fr.pak`.
 3c. **Campaigns** (6,263 words), whenever the group wants them: the same steps.
 3. **Night batch "lang-fr-gaps"** (the method, for 3b, 3c or a bigger job):

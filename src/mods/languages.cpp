@@ -499,6 +499,10 @@ void ApplyLanguagesFromSettings()
 	Install(false);
 	if (!g_installed)
 		return;
+	if (g_state == 2) {  // the index was tried at the first text and found nothing usable (logged then)
+		hooklog::Write("languages: texts=fr, but no French pack could be used (see above): the game's own texts");
+		return;
+	}
 	hooklog::Write("languages: texts=fr: the game's texts come from open-homm5\\lang\\fr\\*.pak where they have them%s",
 	               g_early ? "" : " (installed late: texts read before now stay as they were)");
 }

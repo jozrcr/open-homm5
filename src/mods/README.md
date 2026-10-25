@@ -417,7 +417,18 @@ Nothing on disk changes. `game` (the default) installs nothing. The plan, with t
 - **Between our packs,** the newest file of a path wins, as in the game. On equal dates, the pack whose name sorts last wins, the same on Windows and Linux.
 - **The player list** (`[ui] language=auto`) uses French words with `texts=fr`.
 
-Texts are only shown, never part of the game world: the game objects keep a text's path, not its words. So each player should be able to choose for themselves. **Not checked yet:** a LAN robot game with only the host on `texts=fr`, world checksums compared.
+Texts are only shown, never part of the game world: the game objects keep a text's path, not its words. So each player can choose for themselves.
+
+**Checked** with the robot (2026-10-25, MMH5.5 RC19d, its French pack and ours in the test copy):
+- **Single player, a random map:**
+  - 6,024 French texts indexed;
+  - the version line matched ("5.69d" both);
+  - 383 texts given to the game (379 from MMH5.5's pack; 4 from ours: random map settings and the Rage message);
+  - the player list in French.
+- **LAN on A1M4, only the host on `texts=fr`:** 8 AI turns, 1,465 world checksums, all equal on both copies (no desync).
+- **A `.zip` that only wraps the `.pak`, and no folder at all:** the log says so, and the game keeps its own texts.
+
+**Not seen yet:** the combat log (the robot's battles resolve at once) and the random map screen's labels.
 
 The log (`open-homm5.log`) says what was found, for example (counts of MMH5.5's RC19d French pack and of our pack):
 
