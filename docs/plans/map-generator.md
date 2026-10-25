@@ -66,7 +66,7 @@ Heroes III players solved this with templates and template editors (HotA's edito
       - what the arrows do;
       - that the teams reach the other PC without a desync;
       - which player gets which start zone of our templates.
-3. **Step 3, the generator's code (C):**
+3. **Step 3, the generator's code (C).** The first target is now known: **zone placement**. The robot found that the game's generator does not put linked zones side by side, so teammates can start far apart even on MMH5.5's team templates. Placing teammates and their zones together needs that code ([../subsystems/rmg.md](../subsystems/rmg.md), "Zone placement"). Then:
    - Point the decompilation pipeline at the generator instead of the network code.
    - Then add options to the generator screen, such as sliders for loot and neutral zones.
    - This is where it becomes a "proper" generator, like HotA's.
