@@ -37,6 +37,22 @@
 // change_option, find our recipe in the list, choose it, run change_option
 // again (the same list: it keeps the choice). The game then generates with our
 // template as if the player had clicked.
+//
+// The screen's other options change what the generator makes of a template
+// (docs/subsystems/rmg.md, "The screen's own options"), so "Use" sets them too,
+// ticked, at the values that keep the template as it was designed:
+//   water (EP 2): "none" (item 0). Unticked, the generator draws it at random,
+//     and half the time makes an island map (0x0090cba4); our templates are
+//     land maps (CanBeWater false);
+//   resources (EP 9) and experience (EP 10): "normal" (item 2), x1. They
+//     multiply each zone's treasure and chest amounts (0x00905e60: x0.2, 0.5,
+//     1, 2, 4); unticked, the screen still passes its shown item, the first
+//     one ("miserable", x0.2);
+//   monsters (EP 3): the level whose guard multiplier is x1 (0x00ba7690). In
+//     MMH5.5's exes that is the first, "weak" (x1.0, 1.9, 2.7, 3.5, 7.0); the
+//     original game has none (x0.4, 0.9, 1.7, 4, 12): there, "medium" (x0.9),
+//     the closest. Unticked, the generator draws weak, medium or strong at
+//     random (0x0090cb8b). The player can still change all four after "Use".
 #include "rmg_screen.h"
 
 #include <windows.h>
@@ -71,7 +87,35 @@ const BYTE kChangeOptionBytes[] = {0x81, 0xec, 0xa8, 0x00, 0x00, 0x00, 0x56, 0x5
                                    0x8b, 0xf1, 0x8d, 0xbe, 0x64, 0x02, 0x00, 0x00};
 const DWORD kOptions = 0x1c0;    // vector of option pointers: begin, end
 const DWORD kTemplates = 0x324;  // vector of 0x20-byte database ids: begin, end
-enum { kEpSize = 1, kEpPlayers = 4, kEpLevels = 5, kEpCustomTemplate = 6 };
+enum { kEpSize = 1, kEpWater = 2, kEpMonsters = 3, kEpPlayers = 4, kEpLevels = 5, kEpCustomTemplate = 6, kEpResources = 9,
+       kEpExperience = 10 };
+const int kWaterNone = 0, kMultiplierNormal = 2;  // items of the screen's lists (rmg.md)
+
+// The monster level whose guard multiplier is x1 (0x00ba7690's switch on the
+// level): MMH5.5's exes multiply by constants of their own, at 0x00ba77ea.
+const DWORD kMonsterCoefCode = 0x00ba779d;
+const BYTE kMonsterCoefMmh55[] = {0x8b, 0x46, 0x34, 0x83, 0xf8, 0x04, 0x0f, 0x87, 0xd0, 0x00, 0x00, 0x00, 0xdb, 0x44, 0x24, 0x48,
+                                  0xd9, 0x7c, 0x24, 0x48, 0xff, 0x24, 0x85, 0xd4, 0x79, 0xba, 0x00, 0xd8, 0x0d, 0xea, 0x77, 0xba};
+const DWORD kMonsterCoefTable = 0x00ba77ea;  // 1.0, 1.9, 2.7, 3.5, 7.0
+const BYTE kMonsterCoefVanilla[] = {0x8b, 0x46, 0x34, 0x83, 0xf8, 0x04, 0x0f, 0x87, 0xd0, 0x00, 0x00, 0x00,
+                                    0xff, 0x24, 0x85, 0xd4, 0x79, 0xba, 0x00, 0xdb, 0x44, 0x24, 0x48};
+
+// The item of the monster list that keeps the template's guards, and its
+// multiplier; -1 when the code is not one we know.
+int NeutralMonsterLevel(float *multiplier)
+{
+	const void *code = reinterpret_cast<const void *>(kMonsterCoefCode);
+	if (memcmp(code, kMonsterCoefMmh55, sizeof(kMonsterCoefMmh55)) == 0 &&
+	    *reinterpret_cast<const float *>(kMonsterCoefTable) == 1.0f) {
+		*multiplier = 1.0f;
+		return 0;
+	}
+	if (memcmp(code, kMonsterCoefVanilla, sizeof(kMonsterCoefVanilla)) == 0) {
+		*multiplier = 0.9f;
+		return 1;
+	}
+	return -1;
+}
 
 struct GameString {  // nstl::string
 	const char *begin;
@@ -292,6 +336,7 @@ bool Set(void *option, int index)
 // The game's calls, apart (__try cannot sit with C++ objects).
 struct Options {
 	void *size, *levels, *players, *custom;
+	void *water, *monsters, *resources, *experience;
 };
 
 bool SafeFind(void *screen, Options *o)
@@ -303,7 +348,12 @@ bool SafeFind(void *screen, Options *o)
 		o->levels = FindOption(screen, kEpLevels);
 		o->players = FindOption(screen, kEpPlayers);
 		o->custom = FindOption(screen, kEpCustomTemplate);
-		return o->size && o->levels && o->players && o->custom;
+		o->water = FindOption(screen, kEpWater);
+		o->monsters = FindOption(screen, kEpMonsters);
+		o->resources = FindOption(screen, kEpResources);
+		o->experience = FindOption(screen, kEpExperience);
+		return o->size && o->levels && o->players && o->custom && o->water && o->monsters && o->resources &&
+		       o->experience;
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER) {
 		return false;
@@ -331,8 +381,9 @@ void DescribeOptions(void *screen, char *out, size_t size)
 	}
 }
 
-// 0 ok, else the step that failed: 1 size, 2 levels, 3 players, 4 the template box, 5 a crash.
-int SafeSetOptions(void *screen, const Options &o, int size, int levels, int players)
+// 0 ok, else the step that failed: 1 size, 2 levels, 3 players, 4 the template
+// box, 5 a crash, 6 water, 7 monsters, 8 resources, 9 experience.
+int SafeSetOptions(void *screen, const Options &o, int size, int levels, int players, int monsters)
 {
 	__try {
 		if (!Set(o.size, size))
@@ -341,6 +392,14 @@ int SafeSetOptions(void *screen, const Options &o, int size, int levels, int pla
 			return 2;
 		if (!Set(o.players, players))
 			return 3;
+		if (!Set(o.water, kWaterNone))
+			return 6;
+		if (monsters >= 0 && !Set(o.monsters, monsters))
+			return 7;
+		if (!Set(o.resources, kMultiplierNormal))
+			return 8;
+		if (!Set(o.experience, kMultiplierNormal))
+			return 9;
 		if (!Set(o.custom, -1))
 			return 4;
 		reinterpret_cast<ChangeOptionFn>(kChangeOption)(screen, nullptr);
@@ -422,7 +481,7 @@ bool RmgScreenHasNativeButton()
 
 bool ApplyToRmgScreen(void *screen, const ScreenChoice &c, std::string *report)
 {
-	char line[256];
+	char line[512];
 	if (!screen || memcmp(reinterpret_cast<const void *>(kChangeOption), kChangeOptionBytes, sizeof(kChangeOptionBytes)) != 0) {
 		*report = "the random map screen's code is not as expected";
 		return false;
@@ -431,13 +490,17 @@ bool ApplyToRmgScreen(void *screen, const ScreenChoice &c, std::string *report)
 	if (!SafeFind(screen, &o)) {
 		char options[600];
 		DescribeOptions(screen, options, sizeof(options));
-		*report = std::string("the screen's size, levels, players or template option was not found (") + options + ")";
+		*report = std::string("the screen's size, levels, players, template, water, monster, resource or experience option "
+		                      "was not found (") + options + ")";
 		return false;
 	}
-	const int step = SafeSetOptions(screen, o, c.size_index, c.underground ? 1 : 0, c.players - 2);
+	float monster_multiplier = 0.0f;
+	const int monsters = NeutralMonsterLevel(&monster_multiplier);
+	const int step = SafeSetOptions(screen, o, c.size_index, c.underground ? 1 : 0, c.players - 2, monsters);
 	if (step) {
-		static const char *const kWhat[] = {"", "the size", "the levels", "the players", "the template box", "a crash (caught)"};
-		*report = std::string("the screen did not take ") + kWhat[step < 6 ? step : 5];
+		static const char *const kWhat[] = {"",           "the size",    "the levels", "the players", "the template box",
+		                                    "a crash (caught)", "no water", "the monster level", "the resources", "the experience"};
+		*report = std::string("the screen did not take ") + kWhat[step < 10 ? step : 5];
 		return false;
 	}
 	int count = 0;
@@ -453,10 +516,14 @@ bool ApplyToRmgScreen(void *screen, const ScreenChoice &c, std::string *report)
 		*report = "the screen did not take our template";
 		return false;
 	}
+	char monster_text[80] = "monsters left as they were (their code is not one we know)";
+	if (monsters >= 0)
+		_snprintf_s(monster_text, sizeof(monster_text), _TRUNCATE, "monsters item %d (x%.1f)", monsters + 1, monster_multiplier);
 	_snprintf_s(line, sizeof(line), _TRUNCATE,
-	            "size %s%s, %d players, \"ARMG Templates\" ticked, %s chosen (%d of %d that fit)",
-	            rmg::kSizes[c.size_index].key, c.underground ? " with underground" : "", c.players, c.recipe.c_str(),
-	            index + 1, count);
+	            "size %s%s, %d players, no water, %s, resources and experience normal (x1), \"ARMG Templates\" ticked, %s "
+	            "chosen (%d of %d that fit)",
+	            rmg::kSizes[c.size_index].key, c.underground ? " with underground" : "", c.players, monster_text,
+	            c.recipe.c_str(), index + 1, count);
 	*report = line;
 	return true;
 }

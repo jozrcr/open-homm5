@@ -514,6 +514,13 @@ Written on 2026-10-25, while building the native button, the panel and "Use" (`s
 
 **Still to check by hand** (the robot cannot click): the drop-down lists, arrows, check boxes, wheel and scroll bar; Esc; "Save as file"; that the game behind gets no click; the same choices on the page and in the game give the same name and numbers; all of it on Linux (Proton) too.
 
+**The owner's hand test (2026-10-25) and the fixes.** The button and the panel worked. Three problems, fixed the same evening:
+1. **Water on a land template.** "Use" left the screen's water option unticked, and unticked means random: half the time an island map. "Use" now ticks water "none".
+2. **No teams in the lobby.** `recipe_teams` only acted at the host's start, and the arrows were locked (`lobby_teams=0`). The recipe's teams are now set when the game builds the setup, so the lobby shows them from the start. On recipe maps the arrows choose teams by default (`src/mods/rmg_teams.cpp`).
+3. **"Are monster level and riches kept from the template?"** No: the screen's monster level, resources and experience multiply the template's guards, treasure and chests. Unticked, the monsters are random and the resources and experience use the list's first item (×0.2). "Use" now ticks the values that keep the template as written: resources and experience normal, monsters at the ×1 level ("weak" in MMH5.5). The facts are in [rmg.md](../subsystems/rmg.md#the-screens-own-options-and-the-template-static-reading-2026-10-25-robot-checked).
+
+Robot-checked: the saved map records `WATER_NONE`, `MONSTER_LEVEL_WEAK`, `RESOURCE_NORMAL` and `EXP_NORMAL`. A LAN host and client showed teams 1, 1, 2, 2 in the lobby, an arrow changed a team, and both PCs started 1+2 against 3+4.
+
 ## Risks
 
 - **Input under Wine/Proton.** The modal design keeps it simple, but ImGui drawing and the window procedure subclass haven't been checked on Linux yet (the player list hasn't either). That's why step 4 asks for an early Linux test.

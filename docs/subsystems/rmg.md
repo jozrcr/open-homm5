@@ -61,7 +61,7 @@ These steps come from the generator's log strings.
   - The list of options is data: `InfoRMGScreen` in `UI/UIGameRoot.xdb`.
   - Their meanings are a closed enum of 20 `EP_*` IDs in the exe. So **a new option needs code**.
   - A slider control type (`ECT_SLIDER`) exists in the format, but nothing uses it.
-- **Step values:** the numeric effect of the 5 steps is compiled into the exe. Two 5-entry float tables in the RMG code (vanilla `0.2, 0.5, 1.0, 2.0, 4.0` at `0x0090760a`) were rewritten by MMH5.5's exe patch. Which options they scale is not yet known.
+- **Step values:** the numeric effect of the 5 steps is compiled into the exe, and MMH5.5's exe patch rewrote two of the tables: see [The screen's own options and the template](#the-screens-own-options-and-the-template-static-reading-2026-10-25-robot-checked).
 - **Console:** `rmg RMG/Templates/<file>.xdb [-players N] [-underground 0|1] [-size 0..6] [start]`, and `generatemap` is the same (handler `0x00833c60`). It cannot set water, monsters, resources, experience or factions. The robot uses it ([tools/robot/README.md](../../tools/robot/README.md)).
 
 ## Teams: not set by the generator
@@ -113,6 +113,8 @@ These steps come from the generator's log strings.
   - which player gets which start zone of a template;
   - the single-player screen's request path.
 
+**Done since (robot, 2026-10-25):** free team numbers on the arrows (`[rmg] lobby_teams=1`, `src/mods/rmg_teams.cpp`). And for maps made from a recipe template (`OH-X1-...`), the recipe's teams go into the setup as soon as its constructor has built it, by each slot's player number. So the lobby shows them from the start on the host and on the clients: a 2v2 shows teams 1, 1, 2, 2. The team arrows work on those maps without `lobby_teams` (`recipe_teams=1`, the default). In a LAN robot run, both PCs started with players 1+2 on one team and 3+4 on the other; with an arrow pressed, the arrow's team. The single-player custom game screen builds its setup with the same constructor (`0x00ca0240`), so it gets the same teams (not robot-checked: the robot cannot pick a map there).
+
 ## Zone placement: links are not neighbours (robot test, 2026-10-25)
 
 - **Player N always starts in zone N:** we checked town positions against the generator log's `Zone #N, started at x:y`.
@@ -129,6 +131,40 @@ These steps come from the generator's log strings.
   - Every player needs the same templates and data, and our DLL wherever it changes anything.
   - Editing a generated map breaks this: the message is "multiplayer regeneration won't work", and `RMG_MAP_FAIL` appears if the flag is still set.
 - **Seeds** look like the Unix time. The editor has a seed field; the game screen doesn't.
+
+## The screen's own options and the template (static reading, 2026-10-25; robot-checked)
+
+The generator screen's options are not only filters: four of them change what the generator makes of a template. Read from the reference exe and checked in `MMH55_Utility.exe` / `MMH55_Utility_64.exe` (the exes that generate maps; `MMH55.exe` and `MMH55_64.exe` are wrapped and can't be read statically).
+
+**How a screen option reaches the generator.** Each option has a check box and a list (`NUI::CRMGScreen::CComboOption`). `0x00799230` turns the screen's values into the generator's parameters. For each option it writes the shown item and a "random" flag = the box is **not** ticked. The generator (`NRMG::CRandomMapGenerator`) copies the parameters to its own `+0x10` (`0x00910880`). It then honours the random flags for some options only:
+
+| Option | Unticked means | Code |
+|---|---|---|
+| Size, levels, players | Random among the values the template allows | `0x0090e7e0` |
+| Water | `rand(2)`: half the time **an island map** (`WATER_ISLAND_MAP`), else none | `0x0090cba4` |
+| Monster level | `rand(3)`: weak, medium or strong | `0x0090cb8b` |
+| Resources, experience | **Not random:** the item the list shows is used. Untouched, that is the first, "miserable" | the flags are never read |
+
+**What each one does to the template.** Indexes are the lists' items, which are also the enums' values: `WATER_NONE`, `_PRESENT`, `_ISLAND_MAP`; `MONSTER_LEVEL_WEAK`..`_IMPOSSIBLE`; `RESOURCE_MISERABLE`, `_LITTLE`, `_NORMAL`, `_LOTS`, `_MUCH`; `EXP_` likewise.
+- **Water:** item 0 none, item 1 islands (the screen's item 1 becomes `WATER_ISLAND_MAP`).
+- **Monster level** multiplies every guard's power: the template's connection and zone guards, through `NRMG::CMonsterSetter` (`0x00ba7690`, the level kept at setter `+0x34`, from `CRandomMap +0x64`).
+  - Original game: ×0.4, 0.9, 1.7, 4.0, 12.0 (floats at `0x00e12fe4`, `0x00e1a704`, `0x00e826fc`, `0x00e11c80`, `0x00e57d34`).
+  - **MMH5.5** rewrote that switch (its patch at `0x00ba77a9`/`0x00ba79d4`): ×**1.0**, 1.9, 2.7, 3.5, 7.0 (floats at `0x00ba77ea`). So in MMH5.5, "weak" leaves the template's guards exactly as written.
+  - `RMG/Params/Default.xdb` has a `MonsterLevelCoef` list, but it is empty in MMH5.5's copy: the exe's numbers decide.
+- **Resources** multiply the zone field at `+0x40` (`0x00905e60`, logged as "treasures in zone set": by the log and the fields' order, `TreasureDensity`): ×0.2, 0.5, **1.0**, 2.0, 4.0. The same in both exes. "Normal" keeps the template's value.
+- **Experience** multiplies two zone fields:
+  - the zone field at `+0x44` ("chests in zone set": `TreasureChestDensity`): ×0.2, 0.5, **1.0**, 2.0, 4.0 in both exes;
+  - the zone field at `+0x3c` (`0x00907150`, "upgrade buildings in zone set": `UpgBuildingsDensity`). Original: ×0.2, 0.5, 1.0, 2.0, 4.0. **MMH5.5** (the patched table at `0x0090760a`): ×1.0, 1.2, **1.4**, 1.6, 2.0, and also 1.4 for a value out of range.
+  - So in MMH5.5 no experience level keeps both fields: "normal" keeps the chests and makes upgrade buildings ×1.4, which is MMH5.5's own baseline (its default).
+
+**What the builder's "Use" sets** (`src/mods/rmg_screen.cpp`). All four are ticked, so nothing is random:
+- **Water:** none. Our templates are land maps (`CanBeWater` false).
+- **Resources:** normal (×1).
+- **Experience:** normal. Chests ×1; upgrade buildings ×1.4 in MMH5.5, as with MMH5.5's own templates.
+- **Monsters:** the level with ×1. That is "weak" in MMH5.5's exes; the original game has none, so there "medium" (×0.9), the closest. The DLL tells the two exes apart by the switch's bytes. If the bytes are neither, it leaves monsters as they are.
+- The player can change any of them after "Use". A map made that way records `WATER_NONE`, `MONSTER_LEVEL_WEAK`, `RESOURCE_NORMAL`, `EXP_NORMAL` in its `sRMGProps` (robot, 2026-10-25).
+
+**Options for the owner.** "Weak" may read oddly on the screen, but it is the only level that keeps the template's guards as written. A tougher default, "medium" in MMH5.5 (×1.9), would be one line to change.
 
 ## The code
 
@@ -148,7 +184,6 @@ These steps come from the generator's log strings.
 
 - That a new template file shows up in the template list, and where it may live (pak, loose file, `.h5u`).
 - Whether the lobby lets the host change teams on a random map, and whether a team change keeps multiplayer regeneration working.
-- What the two float tables scale.
 - The format of `GroundTerrain.bin`: the only unknown for writing whole maps ourselves; `map.xdb` is fully described by `types.xml`.
 - Why generated maps record `RMGversion` 34 while `Default.xdb` says 37.
 - MMH5.5's ARMG manual says to generate maps only with `MMH55_Utility` or the editor, not `MMH55.exe`.
