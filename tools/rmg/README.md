@@ -94,6 +94,7 @@ Loot scales the treasure values and the treasure and shrine points, and guards s
 
 Tools:
 - `python tools/rmg/map_towns.py <map.xdb>` lists a generated map's towns, owners and floors.
+- `python tools/rmg/terrain_layers.py <GroundTerrain.bin> [x,y ...]` lists the map's ground layers (tile, share of the map, weight near the given tiles). Format: [../../docs/subsystems/rmg.md](../../docs/subsystems/rmg.md), "The terrain file".
 - Teams on the map stay as the generator writes them (`Team` 0, `CustomTeams` false); setting them is step 2.
 
 Still to check:
