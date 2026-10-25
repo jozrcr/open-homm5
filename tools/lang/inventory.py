@@ -65,9 +65,11 @@ def main():
     md = []
     md.append("# Text inventory (counts only)")
     md.append("")
-    md.append("Made by `python tools/lang/inventory.py` on %s from the owner's install (read only). "
+    where = "the owner's install" if os.path.normcase(args.game) == os.path.normcase(h5texts.DEFAULT_GAME) \
+        else "the game copy `%s`" % args.game
+    md.append("Made by `python tools/lang/inventory.py` on %s from %s (read only). "
               "No game text is in this file. Plan: [../../docs/plans/languages.md](../../docs/plans/languages.md)."
-              % datetime.date.today().isoformat())
+              % (datetime.date.today().isoformat(), where))
     md.append("")
     md.append("Words are counted without the markup tags. The language is a guess from common words and accents; "
               "\"neutral\" means names, numbers or too short to tell (a name like a hero's is often the same in both).")
@@ -306,7 +308,7 @@ def main():
         md.append("## 9. The French pack %s" % os.path.basename(args.fr_pack))
         md.append("")
         md.append("- %d text files; it has %d of the %d English files the player sees; %d of those are still the "
-                  "English text. Left to translate: %d files, %d words (list: build/lang/gaps.txt)."
+                  "English text. Left to translate: %d files, %d words (list: gaps.txt in the --detail folder)."
                   % (len(fr), len(covered), len(keys), len(same), len(gaps), gap_words))
         md.append("")
         os.makedirs(args.detail, exist_ok=True)

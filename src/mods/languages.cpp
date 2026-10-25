@@ -389,24 +389,26 @@ std::string ForLog(const std::string &game_bytes)
 	return Narrow(plain);
 }
 
-// MMH5.5's version line in the main menu: which version our French was made
-// for, and which version the game has, side by side in the log.
-void LogVersions(void *vfs, void *edx, const GameString *path, const std::string &ours)
+// MMH5.5's version line in the main menu (UI/MainMenu2/Version.txt): the log
+// puts the version our French pack was made for next to the game's, and the
+// game keeps showing its own (a pack for RC19i must not make an RC19k game say
+// "5.69i"). Returns the game's own stream.
+GameStream *VersionText(void *vfs, void *edx, const GameString *path, const Text &pack_text)
 {
 	std::string game;
 	GameStream *s = g_open_next(vfs, edx, path);
-	if (s) {
-		if (!(s->flags & 1) && s->begin && s->end > s->begin) {
-			std::string raw(s->begin, s->end), bytes;
-			if (lang::ToGameText(raw, &bytes))
-				game = ForLog(bytes);
-		}
-		reinterpret_cast<DeleteFn>(s->vftable[0])(s, nullptr, 1);
+	if (s && !(s->flags & 1) && s->begin && s->end > s->begin) {
+		std::string raw(s->begin, s->end), bytes;
+		if (lang::ToGameText(raw, &bytes))
+			game = ForLog(bytes);
 	}
-	const std::string mine = ForLog(ours);
-	hooklog::Write("languages: version text: French pack \"%s\", the game \"%s\"%s", mine.c_str(), game.c_str(),
+	std::string ours;
+	const std::string mine = ReadText(pack_text, &ours) ? ForLog(ours) : std::string("?");
+	hooklog::Write("languages: version text: French pack \"%s\" (%s), the game \"%s\"%s", mine.c_str(),
+	               g_packs[pack_text.pack].name.c_str(), game.c_str(),
 	               mine == game || game.empty() ? ""
 	                                            : " (another MMH5.5 version: some French descriptions may not match the game)");
+	return s;
 }
 
 volatile LONG g_served = 0;
@@ -419,6 +421,8 @@ GameStream *__fastcall OpenFileHook(void *vfs, void *edx, const GameString *path
 	const auto it = g_texts.find(lang::NormalizePath(path->begin, path->end));
 	if (it == g_texts.end())
 		return g_open_next(vfs, edx, path);
+	if (it->first == "ui/mainmenu2/version.txt")
+		return VersionText(vfs, edx, path, it->second);
 	std::string data;
 	GameStream *ours = ReadText(it->second, &data) ? NewStream(data) : nullptr;
 	if (!ours) {
@@ -427,8 +431,6 @@ GameStream *__fastcall OpenFileHook(void *vfs, void *edx, const GameString *path
 			               g_packs[it->second.pack].name.c_str());
 		return g_open_next(vfs, edx, path);
 	}
-	if (it->first == "ui/mainmenu2/version.txt")
-		LogVersions(vfs, edx, path, data);
 	const LONG n = InterlockedIncrement(&g_served);
 	if (n <= g_log_texts)
 		hooklog::Write("languages: [%ld] %s from %s: \"%s\"", n, it->first.c_str(), g_packs[it->second.pack].name.c_str(),

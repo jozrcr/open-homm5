@@ -4,8 +4,11 @@ The owner's request (2026-10-25, [backlog](backlog.md)): the game shows a mix of
 
 Status (2026-10-25, evening):
 - **The French switch is built and checked with the robot** (`src/mods/languages*.cpp`, `[lang] texts=fr`; section 4, step 2b). In a LAN game with only the host on French, the world checksums stayed equal.
-- **What MMH5.5's pack leaves out, outside MMH5.5's own texts, is translated:** the 3.1 patch's texts and Ubisoft's English in the multiplayer maps. It is in a private pack (section 3.3).
-- **Waiting:** MMH5.5's own gaps wait for RC19k, and the campaigns come later.
+- **What MMH5.5's French pack leaves out for co-op is translated, for RC19k** (the group's next version), in a private pack (section 3.3):
+  - the 3.1 patch's texts and Ubisoft's English in the multiplayer maps;
+  - MMH5.5 RC19k's texts that the RC19i French pack lacks or left in English.
+- **Checked with the robot on RC19k too**, with the RC19i pack: a random map, and a LAN game with only the host on French (1,557 world checksums, all equal).
+- **Later:** the campaigns and single maps (6,263 words).
 
 ## The owner's decisions (2026-10-25)
 
@@ -19,7 +22,7 @@ Status (2026-10-25, evening):
 - **Why the mix:** the base game's texts are French (your Steam copy is French). The 3.1 patch's texts and MMH5.5's texts are English, and they replace many of the French ones. Ubisoft also left about 300 texts of its own maps in English inside the French files.
 - **Good news:** MMH5.5 already has an official French translation, made by the community and published by the MMH5.5 team. So French mostly means "use their pack".
   - We only translate what it leaves out: about **3,800 words** for co-op, **10,000** with the campaigns (measured with the real pack; the first estimate said 5,000 because it counted the 3.1 patch's campaign texts as co-op). Translating MMH5.5 ourselves would have been about **84,000 words**.
-  - Of those 3,800 co-op words, the **~3,000 that do not depend on MMH5.5's version are done**. The ~800 MMH5.5 ones wait for RC19k. About 50 stay as they are on purpose: the product name and internal keys.
+  - **All co-op gaps are done.** Of the 3,800 words, about 3,000 do not depend on MMH5.5's version. For RC19k with the RC19i pack, MMH5.5's part became 3,000 words: 962 translated, and 2,040 taken from the RC19d French pack (section 3.3). About 50 words stay as they are on purpose: the product name, internal keys, and proper names.
 - **The switch:** `[lang] texts=game|fr` in `open-homm5.ini`, set by each player. The DLL hands the game the French text files as it reads them, the way the music switch works. No game file changes. `game` (the default) changes nothing.
 - **Co-op:** texts are local to each PC. The game objects keep a text's path, never the text itself, and a robot LAN game with only the host on `texts=fr` kept all 1,465 world checksums equal.
 
@@ -163,10 +166,17 @@ French packs that exist:
 - **A `.zip` is read too.** If it only wraps a `.pak` (the ModDB download), the log says to unzip it.
 - **Nothing in `data\` needs removing.** The official install puts the `.pak` in `data\` in place of `MMH55-Texts-EN.pak`, because the newer English file would win there. Our switch serves the French whatever the dates in `data\`.
 
-**Next on versions:**
-1. When the RC19k test copy exists, run `inventory.py --fr-pack` with the RC19i pack against it.
-2. Translate the MMH5.5 gaps that remain, and take the 210 Creaturepedia texts from RC19d (held today: 773 words for RC19d).
-3. Check the gaps again whenever MMH5.5 or its French pack changes. The DLL's "version text" log line shows when the pack and the game differ.
+**Measured on the RC19k test copy** (`C:\Games\H5_test_k`, menu "Version: 5.69k"), with the RC19i pack. Counts in [../../tools/lang/inventory-rc19k.md](../../tools/lang/inventory-rc19k.md):
+- the pack has 3,677 of the 4,162 English files the player sees, and 271 of those are still English;
+- left: 756 files, 12,072 words.
+- **MMH5.5's part: 296 files, 2,815 words.**
+  - **210 files (2,040 words)** are the Creaturepedia texts that RC19d's French had: same English in RC19d and RC19k, so that French is reused as it is (batch `b5`).
+  - **86 files (775 words) are translated** (batch `b4`). They are the 11 missing files, the 70 interface texts in `MMH55-Data.pak` and the other MMH5.5 paks, and texts still English.
+  - Plus **5 files whose English changed after RC19d** while the French did not: retranslated from RC19k's English.
+- **None of our 3.1 or Ubisoft-map translations** sits on a path that RC19k's MMH5.5 now replaces.
+- **With both packs on RC19k, nothing left for co-op** but texts kept on purpose (proper names, keys, the generated map name pattern). The campaigns stay (6,263 words).
+
+**Next on versions:** check the gaps again whenever MMH5.5 or its French pack changes (`inventory.py --game <copy> --fr-pack <pack>`). The DLL's "version text" log line shows when the pack and the game differ.
 
 The 3.1 patch's texts and Ubisoft's map texts do not depend on MMH5.5's version, except where a later MMH5.5 starts replacing one of them. `inventory.py` shows that too.
 
@@ -199,7 +209,7 @@ bin\open-homm5\lang\en\texts.pak              (not built) the English base texts
 2. **At the first text the game opens,** it reads the zip directory of each `.pak` in `lang\fr`, in name order (case ignored, the same on Wine). It keeps only the `.txt` files: a language pack can never change an `.xdb`, a script or anything else that decides gameplay. The newest file of a path wins; on equal dates the pack that sorts last wins. Inflating uses the game's own `zlib1.dll`.
 3. **`texts=fr`:** when the game opens a `.txt` path that one of these packs has, the game gets a new memory stream with that file. Every other file goes on to the game unchanged.
 4. **Safety:** the stream always starts with `FF FE`. A pack's UTF-8 text is converted to UTF-16 with CRLF line ends; UTF-16 big endian and broken UTF-8 are refused. A file that cannot be read falls back to the game's own (logged, at most 20 lines). `texts=game` installs nothing.
-5. **Log:** the setting, the packs and their counts, and the version line. When the main menu reads `UI/MainMenu2/Version.txt`, the log puts the pack's version text next to the game's, with a warning if they differ. `log_texts=N` lists the first N texts given; counts follow at 100, 1,000 and every 5,000.
+5. **Log:** the setting, the packs and their counts, and the version line. When the main menu reads `UI/MainMenu2/Version.txt`, the log puts the pack's version text next to the game's, with a warning if they differ. The menu keeps the game's own version: a pack for RC19i must not make an RC19k game say "5.69i". `log_texts=N` lists the first N texts given; counts follow at 100, 1,000 and every 5,000.
 6. **The player list** (`language=auto`) uses French words when `texts=fr`.
 7. **`texts=en` (designed, not built):** the DLL would also read the directory of the game's own `data\*.pak` and apply the game's date rule. Where the file the game would use comes from the base `texts.pak` (French), it would hand over the English `texts.pak`'s file instead.
 
@@ -244,21 +254,24 @@ Measured with the real RC19d pack:
 | 3.1 patch texts used in co-op (random map screen, combat log, creatures, credits, multiplayer maps) | 1,796 | **done** |
 | Ubisoft's English in its multiplayer maps, and a few base texts | 1,160 | **done** |
 | Product names and internal keys (`OBJECTIVE_KIND_...`), left as they are on purpose | ~50 | kept |
-| MMH5.5 texts its French pack lacks (RC19d: 86 files) | 773 | **held for RC19k** (section 1.7) |
+| MMH5.5 RC19k texts the RC19i pack lacks or left in English (86 files + 5 out of date) | 962 | **done** |
+| MMH5.5 Creaturepedia texts the RC19i pack has in English, French taken from the RC19d pack (210 files) | 2,040 | **done** (reused) |
 | Campaigns and single maps (Ubisoft's English, 3.1 campaign texts) | 6,263 | later |
 | Without any pack: all of MMH5.5 + 3.1 + Ubisoft's English | ~84,000 | not needed |
 | English option | 0 (Steam's English texts) | not built (owner: French only) |
 
 ### 3.3 The gap translation (done 2026-10-25)
 
-Done by me (Opus) in this session, in 3 batches with `batch.py`. The glossary was rebuilt with `--fr-pack`, so the names come from MMH5.5's own French: 2,602 pairs, 1,720 of them exact.
+Done by me (Opus) in this session, in 5 batches with `batch.py`. The glossary was rebuilt with `--fr-pack`, so the names come from MMH5.5's own French: 2,602 pairs (1,720 exact) with RC19d, 2,638 (1,755 exact) with RC19i on RC19k.
 
 | Batch | Texts | English words | French words | `check` |
 |---|---:|---:|---:|---|
 | `b1-maps-base`: Ubisoft's English in the multiplayer maps LS2MC2, LS2MC6, LSMC1 | 73 | 1,105 | 1,095 | 0 errors, 1 length warning (a briefing line) |
 | `b2-toe31`: the 3.1 patch (random map screen and its settings, combat log, creature abilities, towns, week texts, multiplayer maps A2M2 to A2M11) | 106 | 1,175 | 1,339 | 0 errors, 14 length warnings |
 | `b3-credits-ui`: the 3.1 credits (headings only, names kept), two ability texts, a tooltip | 4 | 676 | 713 | 0 errors |
-| **Total** | **183** | **2,956** | **3,147** | **0 tag or placeholder errors** |
+| `b4-mmh55-rc19k`: MMH5.5 RC19k texts the RC19i pack lacks (combat results, Academy creature artifacts, Chess/Duel mode screens, difficulty tooltips, random map screen, combat log), plus 5 out of date | 87 | 962 | 1,112 | 0 errors, 8 length warnings |
+| `b5-creaturepedia-rc19d`: RC19d's French for 210 Creaturepedia texts (not translated by us, reused) | 210 | 2,040 | 2,309 | 0 errors |
+| **Total** | **480** | **5,958** | **6,568** | **0 tag or placeholder errors** |
 
 Notes:
 - **The length warnings** are on the combat log (a scrolling list), on map goals and names, and on short labels. Where the old French text on the same path was as long, it fits (a map goal, the quicksave name). One label was shortened (the random map screen's faction label). The rest needs a look in game.
@@ -268,7 +281,15 @@ Notes:
   - the product name;
   - `ORIGINAL_GAME_NOT_FOUND.txt`, already French (the language guess took it for English).
 - **Reused:** the old official French text on the same path, where it says what the new English says (Shagnakh, week of the Angel, the Rage message, map names).
-- **Cost:** about 3,000 words in about 20 minutes of this session, with reading, lookups and checks. That fits the estimate of section 3.1.
+- **Kept as they are in `b4`:**
+  - the generated random map name pattern (`UI/CustomTemplateMapNamePattern.txt`): each PC names the map it generates, so it stays the same on every PC;
+  - three Skillwheel "faction" labels that read the same in French;
+  - "Dark Messiah" and "Crag Hack", proper names.
+- **Names in `b4`:**
+  - "Chess Mode" is called "Mode Duel", as in MMH5.5's own French and the base game;
+  - the new artifacts (the Orbs, the Journeyman's Notebook, the Golden Goose) got French names of ours, since the RC19i pack left them in English.
+- **Still English on RC19k's random maps:** the player names "Player 1", "AI 2", made by the map generator, not from a text file we serve.
+- **Cost:** about 4,000 words translated (b1 to b4) in about 35 minutes of session time, with reading, lookups and checks. That fits the estimate of section 3.1.
 
 ### 3.4 The private files (never in git)
 
@@ -276,13 +297,15 @@ Kept in `build/lang/` of this worktree and copied to the main checkout's `build/
 
 | Path | What |
 |---|---|
-| `build/lang/private-fr/open-homm5-fr.pak` | **Our gap pack**: 183 texts, 51,754 bytes, SHA-256 `d02b4d784844a2e5810fb86f7a87c777dcb220578cde1c1a8ddceceb2acb5b28` |
+| `build/lang/private-fr/open-homm5-fr.pak` | **Our gap pack for RC19k** (to use with the RC19i French pack): 480 texts (b1 to b5), 124,880 bytes, SHA-256 `9dc700fd9387e300268a2706c1a9249395281703fb70a921cd0160b7174a442a` |
+| `build/lang/private-fr/open-homm5-fr-rc19d.pak` | The first gap pack, for RC19d with the RC19d French pack: 183 texts (b1 to b3), SHA-256 `d02b4d784844a2e5810fb86f7a87c777dcb220578cde1c1a8ddceceb2acb5b28` |
 | `build/lang/private-fr/LISEZMOI-fr.txt` | The install note for the group, in French |
-| `build/lang/gap-batches/b1..b3/` | The batches: `en.txt`, `context.txt`, `fr.txt` (the source of the pack) |
-| `build/lang/fr-rc19d/` | The RC19d snapshot from GitHub and the pack made from it (for tests) |
+| `build/lang/gap-batches/b1..b5/` | The batches: `en.txt`, `context.txt`, `fr.txt` (the source of the packs) |
+| `build/lang/fr-rc19d/`, `build/lang/fr-rc19i/` | The GitHub snapshots and the packs made from them (for tests) |
+| `build/lang/rc19k/` | The RC19k inventory, gap lists and the lists of reused and translated paths |
 
 **Install, in short** (the note has the details):
-1. Put MMH5.5's French `.pak`, from the ModDB add-on for the player's version, unzipped, in `bin\open-homm5\lang\fr\`.
+1. Put MMH5.5's French `.pak` in `bin\open-homm5\lang\fr\`. Take the ModDB add-on for RC19i (the closest to RC19k), unzipped.
 2. Put `open-homm5-fr.pak` there too.
 3. Set `texts=fr` under `[lang]` in `open-homm5.ini`.
 4. Restart the game.
@@ -317,7 +340,17 @@ Next:
      - the random map screen's labels: the robot starts random maps from the console;
      - a tooltip screenshot.
      The owner will see these in a real game.
-3b. **MMH5.5's gaps for RC19k** (needs the owner's OK to download the RC19i French pack, section 1.7): measure against the installed RC19k, translate what remains (one short session), then add it to `open-homm5-fr.pak`.
+3b. ~~**MMH5.5's gaps for RC19k**~~ (done: section 1.7 and 3.3; batches `b4`, `b5`).
+2c. ~~**Robot checks on RC19k**~~ (done 2026-10-25, 21:14 to 21:24, robot lock held; RC19i pack and the new gap pack in `C:\Games\H5_test_k\bin\open-homm5\lang\fr\`, removed afterwards):
+   - **random map** (`20261025-211432`):
+     - 6,083 French texts (RC19i 5,603, ours 480, 272 of ours replacing RC19i's English);
+     - 375 texts given to the game, 10 of them from our pack;
+     - the version line warns "5.69i" against "5.69k";
+     - the adventure map screenshot shows French interface texts.
+   - **LAN on A1M4, only the host on `texts=fr`** (`20261025-211619-lan`):
+     - 8 AI turns;
+     - **1,557 world checksums, all equal**;
+     - the host's main menu shows the game's own "Version: 5.69k".
 3c. **Campaigns** (6,263 words), whenever the group wants them: the same steps.
 3. **Night batch "lang-fr-gaps"** (the method, for 3b, 3c or a bigger job):
    - **Coordinator** (Opus, short): splits `gaps.txt` by area into batches of about 1,200 words. It decides the new names once, into `build/lang/terms.tsv`: the names neither pack nor glossary has. Then it starts the workers.
