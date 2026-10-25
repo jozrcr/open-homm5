@@ -38,6 +38,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 
+
 #include "player_list_internal.h"
 
 #include "../hook/log.h"

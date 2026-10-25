@@ -96,6 +96,20 @@ python tools\robot\run_lan_test.py --seconds 240 --turns 4 --host-rmg teams=huma
 - `--client-ui player_list_test_rows=8` makes the client show 8 rows (copies of the real players, in 4 teams of 2: the tallest list), to check that it still fits above the chat box and the minimap.
 - Not possible with the robot: F9 and the fade under the mouse (the windows are in the background).
 
+## Checking the camera zoom
+
+```
+python tools\robot\run_ai_test.py --turns 1 --quick-combat --shot-every 5 --step "3|console|mission_camera_def_pos 50 -53 16 200"
+python tools\robot\run_ai_test.py --turns 1 --quick-combat --shot-every 5 --step "3|console|mission_camera_def_pos 50 -53 16 200" --camera-setting zoom_out=150
+python tools\robot\run_lan_test.py --seconds 300 --turns 4 --host-camera zoom_out=200 --host-camera combat_zoom_out=200
+```
+
+- The robot cannot turn the mouse wheel (its windows are in the background), so the first two runs move the camera's start position (`mission_camera_def_pos <field of view> <tilt> <turn> <distance>`, before the map starts) far out. The game then puts the camera at the farthest distance it may go: the game's 70, or 105 with `zoom_out=150` (compare the screenshots of day 2: same place, the minimap's view frame grows). Results: [docs/subsystems/camera.md](../../docs/subsystems/camera.md), "Robot checks".
+- Battles: without `--quick-combat`, a long run (`--turns 24 --seconds 480`) usually gets one battle where the AI attacks the robot's hero; with `--camera-setting combat_zoom_out=150` the log then has `camera: battle: farthest zoom 56 -> 84`.
+- `--camera-setting KEY=VALUE` (both runners; `--host-camera` / `--client-camera` for one copy of a LAN game): `[camera]` settings (`src/mods/README.md`). The log lists each limit the mod changed (`camera: adventure map, normal camera: farthest zoom 70 -> 105`).
+- `--setvar "adv_camera_mode = 1"` uses the "vertically fixed" camera mode of the options screen.
+- The LAN run gives only the host the farther camera: the world checksums must stay equal (2026-10-25: 698, all equal). Add `--host-step "3|console|mission_camera_def_pos 50 -53 16 200"` to have the host's camera really far out during the game.
+
 ## Checking random maps from recipe templates (in-game builder, steps 2 and 3)
 
 ```

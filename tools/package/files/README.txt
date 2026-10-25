@@ -12,6 +12,8 @@ Everyone who plays the same co-op game should install it.
 
 Player list: on the adventure map's left edge, a small list of the players shows who is still playing, who has ended the turn, and when the computer is moving. F9 hides it or shows it again.
 
+Camera: to let the camera zoom out farther than the game allows, open open-homm5.ini and, in its [camera] part, set zoom_out=150 (adventure map) or combat_zoom_out=150 (battles). Off by default.
+
 Random map templates: the install also adds ready templates (names start with OH-) to the game's random map list. Every player of a multiplayer game needs the same ones, so everyone should install the same version.
 
 Settings (you can skip this): open-homm5.ini in the bin folder. Every line is commented out and shows the default.

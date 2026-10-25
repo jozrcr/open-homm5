@@ -59,6 +59,9 @@ def instance_args(args, name, steps):
         save_setting=args.save_setting + (args.host_save if name == "host" else args.client_save),
         notify_setting=args.notify_setting,
         ui_setting=args.ui_setting + (args.host_ui if name == "host" else args.client_ui),
+        lang_setting=args.host_lang if name == "host" else args.client_lang,
+        camera_setting=args.camera_setting + (args.host_camera if name == "host" else args.client_camera),
+        debug_setting=args.host_debug if name == "host" else args.client_debug,
         resolution=args.resolution,
         fast_paths=args.fast_paths, ai_setting=args.ai_setting,
         # the client never runs the AI (the host does), so "no AI step for 4
@@ -97,6 +100,10 @@ def main():
                    help="[audio] setting for the host copy only, e.g. original_music=1")
     p.add_argument("--client-audio", action="append", default=[], metavar="KEY=VALUE",
                    help="[audio] setting for the client copy only, e.g. log_music=1")
+    p.add_argument("--host-lang", action="append", default=[], metavar="KEY=VALUE",
+                   help="[lang] setting for the host copy only, e.g. texts=fr (src/mods/languages.cpp)")
+    p.add_argument("--client-lang", action="append", default=[], metavar="KEY=VALUE",
+                   help="[lang] setting for the client copy only")
     p.add_argument("--host-rmg", action="append", default=[], metavar="KEY=VALUE",
                    help="[rmg] setting for the host copy, e.g. teams=humans_vs_ai (src/mods/rmg_teams.cpp)")
     p.add_argument("--client-rmg", action="append", default=[], metavar="KEY=VALUE",
@@ -117,7 +124,16 @@ def main():
     p.add_argument("--ui-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="[ui] setting for both copies, e.g. trace_players=1 (src/mods/player_list.cpp)")
     p.add_argument("--host-ui", action="append", default=[], metavar="KEY=VALUE", help="[ui] setting, host only")
+    p.add_argument("--host-debug", action="append", default=[], metavar="KEY=VALUE",
+                   help="[debug] setting, host only, e.g. hang_test_at=120 (src/hook/watchdog.cpp)")
+    p.add_argument("--client-debug", action="append", default=[], metavar="KEY=VALUE", help="[debug] setting, client only")
     p.add_argument("--client-ui", action="append", default=[], metavar="KEY=VALUE", help="[ui] setting, client only")
+    p.add_argument("--camera-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="[camera] setting for both copies, e.g. zoom_out=150 (src/mods/camera.cpp)")
+    p.add_argument("--host-camera", action="append", default=[], metavar="KEY=VALUE",
+                   help="[camera] setting, host only")
+    p.add_argument("--client-camera", action="append", default=[], metavar="KEY=VALUE",
+                   help="[camera] setting, client only")
     p.add_argument("--resolution", default="1024x768", metavar="WxH",
                    help="both game windows' size, e.g. 1920x1080 (default 1024x768)")
     p.add_argument("--simultaneous", action="store_true",

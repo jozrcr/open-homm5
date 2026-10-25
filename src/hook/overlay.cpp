@@ -22,6 +22,7 @@
 #include "robot.h"
 #include "third_party/imgui/imgui.h"
 #include "third_party/imgui/backends/imgui_impl_dx9.h"
+#include "../mods/languages.h"
 
 namespace overlay {
 namespace {
@@ -456,8 +457,14 @@ Language PanelLanguage()
 		language = _wcsicmp(text, L"fr") == 0 ? kFrench : kEnglish;
 		return static_cast<Language>(language);
 	}
-	// The game's language: a text of the original game, the red player's name
-	// ("Joueur rouge" / "Red player"); else the language of Windows.
+	// The game's language: French when the languages mod gives the game French
+	// texts ([lang] texts=fr); else a text of the original game, the red
+	// player's name ("Joueur rouge" / "Red player"); else the language of Windows.
+	if (mods::TextsChoice() == mods::Texts::French) {
+		hooklog::Write("overlay: French words, as the game's texts ([lang] texts=fr)");
+		language = kFrench;
+		return static_cast<Language>(language);
+	}
 	std::string data;
 	if (ReadGameFile("Text/Game/Player/Colors/red_player.txt", &data) && data.size() >= 4) {
 		const wchar_t *w = reinterpret_cast<const wchar_t *>(data.data());
