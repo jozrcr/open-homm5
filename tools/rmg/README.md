@@ -110,6 +110,8 @@ Rules:
 
 `rmg_recipe_test.cpp` enforces it: `x1_fingerprints.txt` records, for 302 `X1` names (the ready templates, every letter at every place, and 200 random names), the size and a fingerprint (FNV-1a, 64 bits) of what each builds. If one changes, the build fails. Never change or remove a line of that file to make the test pass; adding lines is fine.
 
+**In multiplayer** (`src/mods/rmg_join.cpp`): a PC that joins a game made from a recipe builds the template from the name when it reads the host's game info, then rebuilds the map like any random map. The host gives such a map the recipe's teams by itself (`[rmg] recipe_teams=1`, the default: with 3 teams of 2, players 1+2, 3+4, 5+6). Not yet tested in the game.
+
 To offer recipe templates in the game's list before the in-game builder exists, name them in `open-homm5.ini`:
 
 ```ini

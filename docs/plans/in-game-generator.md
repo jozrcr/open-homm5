@@ -325,13 +325,13 @@ The parts sit where the game's own parts are: the zone map on the minimap, the c
 
 **Nothing new travels, and nothing has to agree.** The same DLL version means the same bytes; this is tested against the JavaScript and between builds.
 
-**The one known wrinkle.** The client's game lists the templates (to check the map's template exists) *before* it opens the template. So the client must know the recipe a moment earlier. The plan is to wrap the connector command's Execute (vtable cell `0x00e38734` → `0x00701530`): read the template path from the game info copy it holds (connector `+0x14`, settings at `+0x108`, template link at `+0x28` of those) and register the recipe before the game lists. Step 0 confirms where the path string sits.
+**The one known wrinkle.** The client's game lists the templates (to check the map's template exists) *before* it opens the template. So the client must know the recipe a moment earlier. The plan is to wrap the connector command's Execute (vtable cell `0x00e38734` → `0x00701530`): read the template path from the game info copy it holds (connector `+0x14`, settings at `+0x108`, template link at `+0x28` of those) and register the recipe before the game lists. Step 0 confirms where the path string sits. *(Step 3, 2026-10-25: the link is read by name when the game info arrives, which already makes the client open, and so register, the recipe before it lists; the Execute wrapper is kept as a second chance. See [Notes from step 3](#notes-from-step-3).)*
 
 **Players without our DLL, or with an older one,** cannot join a game made from a recipe template. The same is already true for every `OH-` template. We'll add two things:
 - with our DLL: a clean `RMG_MAP_FAIL` message instead of the crash when a template is missing (a mod in `src/mods`, not a change to the original code's files);
 - a line in the install guide: everyone updates together.
 
-**Teams:** unchanged. They come from the host's lobby (`rmg_teams.cpp`), not the map.
+**Teams:** unchanged. They come from the host's lobby (`rmg_teams.cpp`), not the map. *(Owner's answer 1, step 3: on a map made from a recipe, the host now sets the recipe's teams itself, `[rmg] recipe_teams=1`; the lobby arrows and `teams=` still win.)*
 
 ## Build steps (each one testable)
 
@@ -363,6 +363,15 @@ The parts sit where the game's own parts are: the zone map on the minimap, the c
 3. **Clients join recipe games.** The connector hook, and the clean "template missing" message.
 
    *Test:* a LAN robot run on a recipe template: the client rebuilds the map, plays 4 AI turns, and every world checksum is equal on both copies. With the client's recipe support off: the message, no crash.
+
+   **[x] Code and unit tests done (2026-10-25), with automatic teams for recipe maps (the owner's answer 1); [ ] the robot test is still to do.** `src/mods/rmg_join.cpp`, and `rmg_teams.cpp` for the teams. What the static reading found: [Notes from step 3](#notes-from-step-3).
+
+   *The robot test, when the PC is free* (LAN, `run_lan_test.py`; the host generates and saves a map from `OH-X1-321110nnxxxxxxxa` first, as in step 2, and starts the game on that saved map):
+   - **Client rebuilds the map.** The client's log says `rmg templates: OH-X1-321110nnxxxxxxxa.xdb built from its name` while the lobby reads the host's game info, then `rmg join: joining a random map game made from the recipe OH-X1-321110nnxxxxxxxa`; the game starts on both PCs, 4 AI turns play, every world checksum is equal.
+   - **Teams set automatically.** No `teams=` on the host: the host's log says `rmg teams: a map made from the recipe OH-X1-321110nnxxxxxxxa: 3 teams of 2, in player order`, and both logs' `this PC starts with` lines show players 1+2, 3+4, 5+6 on teams 0, 1, 2.
+   - **The lobby arrows still win.** With `lobby_teams=1` and one arrow pressed on the host: `teams already set ... keeping them`, the arrows' teams on both PCs.
+   - **`recipe_teams=0`** on the host: every player on their own team, as before.
+   - **The client without recipe support** (`templates=0` on the client): the client's log says `rmg join: the map's template is missing on this PC`, the lobby shows the game's "can't make the map" message (`RMG_MAP_FAIL`), and the client doesn't crash. If it crashes anyway, before or after this line, note where: the static reading may have missed a second place that uses the template.
 4. **Shared overlay and modal input.** Move ImGui setup out of the player list into `overlay.cpp`. Add the window procedure subclass, our own small mouse and keyboard feed to ImGui (we don't add ImGui's Win32 backend, which would be a download), and the DirectInput mute while a modal panel is open.
 
    *Test:* the player list unchanged in a robot run. By hand (the robot can't click a background window): a test panel takes clicks and Esc, and the game behind it doesn't react. **Also by the owner on Linux (Proton).**
@@ -407,6 +416,23 @@ Written on 2026-10-25, while building the C++ maker (`src/mods/rmg_maker.cpp`) a
 **One difference, for input that nobody can give:** JavaScript looks the loot and guard words up in plain objects, so words like `toString` or `constructor` pass its check and then build a template full of `NaN`. C++ refuses them as unknown words. The page, the ready list and recipe names never produce them.
 
 **A bug in the JavaScript test, fixed:** the random generator of `test_template_maker.js` (`seed * 1103515245 + 12345`, then `% n`) barely changed its low bits. Of its 400 "random" cases, 399 were free-for-all games with poor loot, no underground and open ally paths. It is now xorshift32. Its 400 cases, and the parity test's 400 wider cases (every value a recipe can hold, every size), pass every check.
+
+## Notes from step 3
+
+Static reading of the reference exe on 2026-10-25 (the MMH5.5 exes have the same bytes at every place below). Nothing here has run in a game yet.
+
+**Where the template's name is.**
+- The map's `sRMGProps` (in `map.xdb`, and in `NDb::SAdvMapDesc` at `+0x254`) holds `RMGmap` (`+4`), `RMGversion` (`+8`), `RMGstartseed` (`+0xc`), `RMGguid` (`+0x10`, a string) and `InitialParams` (`+0x1c`). The template is `InitialParams.Template`, at `sRMGProps +0x28`: a database link, an NDb pointer and a flag.
+- The game info that the host advertises (0x194 bytes) holds a copy of `sRMGProps` at `+0x108`, so its template link is at `+0x130`. The connector command (`CCreateRMGConnectorCmd`, 0x1a4 bytes) keeps a copy of the game info at `+0x10`, the connector (0x1b8 bytes) at `+0x14`.
+- Every database object has its database id at `+0xc`: the path (a string), a flag, a hash and the path in a canonical case. The connector compares templates by that id (`0x00701670`).
+
+**The link travels by name.** `0x004a6a50` serializes the link. Between PCs it writes the path, `/RMG/Templates/<file>.xdb#xpointer(/RMGTemplate)`. When it reads one, it asks the database for that object at once (`0x009b0f60`), and the database loads the file through the file system.
+- So **the client's Open hook builds a recipe template as soon as the client reads the host's game info**, and registers the name. That is before the connector lists the templates: the "known wrinkle" above solves itself, as long as the database's loading goes through the file system's Open (the robot checks it).
+- The connector hook (`0x00701530`, cell `0x00e38734`) registers it again from the game info copy, in case the database had the template already.
+- **A missing template leaves the link empty.** `0x004a69d0` then returns 0, and the connector reads `[0 + 0xc]` (`0x007012be`): the crash of §2. The guard redirects that one call (`0x007012b1`): for an empty link, it returns a stand-in whose database id matches no template, so the connector takes its own way for "template not in the list" (code 1, `RMG_MAP_FAIL`). The connector reads nothing else of the stand-in on that way, and the guard checks 14 bytes around the call before it goes in.
+- The guard is on even with `templates=0`: it is a crash fix for any missing template, ours or MMH5.5's.
+
+**Automatic teams (`rmg_teams.cpp`).** The game setup's constructor (`0x00ca0240`) gets the map's `SAdvMapDesc`. We read the template link at `+0x27c` and remember the recipe's teams per setup. At the host's start (`0x0071feb0`), when `teams=` is empty and no two players share a team yet, players 1 to N get team 1, the next N team 2, and so on. The host sends its setup to every PC, so clients need nothing. `recipe_teams=0` turns it off.
 
 ## Risks
 

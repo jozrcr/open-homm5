@@ -316,7 +316,7 @@ max_expansions=0     ; EXPERIMENT, CHANGES THE AI'S PATHS: expand a tile at most
 
 `max_expansions` is not part of the exact speed-up: it is a first test of a faster search that may change the AI's paths (see the experiment in [ai-pathfinder.md](../../docs/subsystems/ai-pathfinder.md)). With 16 on the owner's day-50 save, AI thinking went from 16.7 s to 8.3 s; only the AI hero's giant long-range searches changed. On another save the AI then chose differently after a few moves. Off by default; not for real games until it has been tested much more.
 
-## Teams on random maps (`rmg_teams.cpp`, off by default)
+## Teams on random maps (`rmg_teams.cpp`; on by default only for recipe maps)
 
 Step 2 of the map generator plan ([docs/plans/map-generator.md](../../docs/plans/map-generator.md)).
 
@@ -333,7 +333,10 @@ Step 2 of the map generator plan ([docs/plans/map-generator.md](../../docs/plans
 teams=            ; empty: the map's teams. humans_vs_ai, pairs, or a list like 1,1,2,2,3,3
 lobby_teams=0     ; 1 = the lobby's team arrows pick team numbers on maps without teams
 trace_teams=1     ; log the teams each PC starts with
+recipe_teams=1    ; maps made from a recipe template get the template's teams
 ```
+
+**Teams of recipe maps** (`recipe_teams=1`, on by default, host only; the owner's choice, 2026-10-25). A map made from a recipe template (`OH-X1-...`, see [Random map templates](#random-map-templates-rmg_templatescpp-rmg_makercpp-rmg_recipecpp-on-by-default)) knows its teams: with 3 teams of 2, players 1+2, 3+4 and 5+6 start in the zones that belong together. When the host starts such a map, it sets those teams, unless `teams=` says something else or the lobby arrows (`lobby_teams=1`) already put two players together. How: the setup constructor gets the map's description, whose `sRMGProps` (`+0x254`) names the template (`+0x28`); we remember the recipe's teams per setup, as for `lobby_teams`. Not yet tested in the game.
 
 **Choosing teams in the lobby** (`lobby_teams=1`, host only). On maps without teams of their own, each row's team arrows move that player's team number up or down, instead of moving the player to another colour (the game's arrows). The pieces:
 - **Which maps:** the setup constructor (0x00ca0240) tells whether the map has teams. We remember that per setup.
@@ -368,7 +371,12 @@ Step 1 of the map generator plan ([docs/plans/map-generator.md](../../docs/plans
   - **Same bytes as the page:** `build.ps1 -Test` checks that `rmg_maker.cpp` writes exactly what `tools/rmg/template_maker.js` writes, on the 24 ready templates and 400 random choices.
   - **Same bytes forever:** what an `X1` name builds never changes (`tools/rmg/x1_fingerprints.txt` records 302 of them; the test fails on any change). And at start, the DLL builds three recorded names itself and serves no recipe if one differs (the log says `self-check FAILED`).
   - A file in `open-homm5\templates\` whose name is a recipe is skipped (the log says so): the name decides.
-- **Not done yet:** the client side of a multiplayer game (step 3 of the plan: the client lists the templates before it opens the one it needs), and the builder panel.
+- **Joining a random map game** (`rmg_join.cpp`, step 3). Each PC rebuilds the host's random map from the template's name, the seed and the options, which the host's game info carries.
+  - When this PC reads a host's game info, the game loads the template by its name at once: for a recipe, the Open hook builds it and puts it in the list. Just before the game builds the map, a hook on the connector (`0x00701530`) registers the recipe again from the game info, in case.
+  - **The guard:** a PC without the map's template used to crash there, because the game used the missing template without a check (`0x007012b1`). Now the game shows its own "can't make the map" message (`RMG_MAP_FAIL`). This works for any missing template, also with `templates=0`.
+  - Players without our DLL still crash on templates they lack: everyone should update together.
+- **Teams on recipe maps:** see [Teams on random maps](#teams-on-random-maps-rmg_teamscpp-on-by-default-only-for-recipe-maps) (`recipe_teams=1`).
+- **Not done yet:** the builder panel (steps 4 to 7).
 
 ```ini
 [rmg]

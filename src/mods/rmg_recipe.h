@@ -40,6 +40,17 @@ bool CanonicalRecipe(const std::string &name, std::string *canonical);
 // any case, with / or \, leading slashes or not. False for any other path.
 bool RecipeOfPath(const std::string &path, std::string *recipe);
 
+// The same for a database reference, as maps and the multiplayer game info
+// name a template: "/RMG/Templates/<recipe>.xdb#xpointer(/RMGTemplate)" (the
+// part from "#" on is ignored).
+bool RecipeOfReference(const std::string &reference, std::string *recipe);
+
+// The team (0, 1, 2...) of map player number `player` (1 = PLAYER_1) on a map
+// made from these choices: player N starts in zone N, and the start zones of
+// one team come one after the other. -1 for a player the template has no
+// start zone for.
+int RecipeTeamOf(const Choices &choices, int player);
+
 // A list of recipe names as in open-homm5.ini's [rmg] recipes=: separated by
 // commas, spaces ignored, ".xdb" or not, and ";" starts a comment. Each name
 // goes once into *names, as CanonicalRecipe gives it; anything else goes into

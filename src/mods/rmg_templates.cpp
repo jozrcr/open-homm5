@@ -19,8 +19,12 @@
 // template maker (rmg_maker.cpp): the same bytes on every PC. The listing adds
 // every recipe this PC was asked to open, and those named in the settings.
 //
+// Joining someone else's random map game, and the guard against a missing
+// template: rmg_join.cpp (step 3).
+//
 // Settings, open-homm5.ini [rmg]:
-//   templates=1  (default; 0 = off: neither the folder's files nor recipes)
+//   templates=1  (default; 0 = off: neither the folder's files nor recipes;
+//                the guard against a missing template stays on)
 //   recipes=     recipe names to offer in the game's list, separated by commas
 #include <windows.h>
 #include <string.h>
@@ -29,6 +33,7 @@
 #include <string>
 #include <vector>
 
+#include "rmg_join.h"
 #include "rmg_maker.h"
 #include "rmg_recipe.h"
 #include "rmg_templates.h"
@@ -94,13 +99,15 @@ std::vector<Template> g_templates;
 std::vector<std::string> g_recipes;
 SRWLOCK g_recipes_lock = SRWLOCK_INIT;
 
-// Adds a recipe to the list; true when it was not there yet.
-bool AddRecipe(const std::string &recipe)
+// Adds a recipe to the list; true when it was not there yet. `always`: even
+// past the limit (the template of a game this PC joins must be listed).
+bool AddRecipe(const std::string &recipe, bool always = false)
 {
 	bool added = false;
 	AcquireSRWLockExclusive(&g_recipes_lock);
 	try {
-		if (g_recipes.size() < kMaxRecipes && std::find(g_recipes.begin(), g_recipes.end(), recipe) == g_recipes.end()) {
+		if ((always || g_recipes.size() < kMaxRecipes) &&
+		    std::find(g_recipes.begin(), g_recipes.end(), recipe) == g_recipes.end()) {
 			g_recipes.push_back(recipe);
 			added = true;
 		}
@@ -379,20 +386,17 @@ void ReadRecipesSetting(const wchar_t *ini)
 			hooklog::Write("rmg templates: recipes=: %s not listed (more than %u)", n.c_str(), static_cast<unsigned>(kMaxRecipes));
 }
 
-}  // namespace
-
-void ApplyRmgTemplatesFromSettings()
+// Serves the folder's files and the recipes; true when recipes are served.
+bool ServeTemplates(const wchar_t *path)
 {
-	wchar_t path[MAX_PATH];
-	hooklog::PathNextToExe(L"open-homm5", L".ini", path, MAX_PATH);
 	if (!GetPrivateProfileIntW(L"rmg", L"templates", 1, path))
-		return;
+		return false;
 	LoadTemplates();
 	g_recipes_on = MakerSelfCheck();
 	if (g_recipes_on)
 		ReadRecipesSetting(path);
 	if (g_templates.empty() && !g_recipes_on)
-		return;
+		return false;
 	// The hooks go in even with no file and no recipe to offer: any recipe name
 	// the game asks for (the template of a game this PC joins) must be served.
 	g_selftest = GetPrivateProfileIntW(L"rmg", L"templates_selftest", 0, path) ? 1 : 0;
@@ -400,7 +404,7 @@ void ApplyRmgTemplatesFromSettings()
 	g_list_next = reinterpret_cast<ListFn>(hookpatch::PatchPointer(kWinVfsListSlot, kWinVfsList, &ListHook));
 	if (!g_open_next || !g_list_next) {
 		hooklog::Write("rmg templates: the game's file system is not as expected: our templates are not added");
-		return;
+		return false;
 	}
 	std::string names;
 	for (size_t i = 0; i < g_templates.size() && i < 12; ++i)
@@ -408,13 +412,30 @@ void ApplyRmgTemplatesFromSettings()
 	hooklog::Write("rmg templates: %u template(s) from open-homm5\\templates%s%s%s", static_cast<unsigned>(g_templates.size()),
 	               names.empty() ? "" : ": ", names.c_str(), g_templates.size() > 12 ? ", ..." : "");
 	if (!g_recipes_on)
-		return;
+		return false;
 	std::string offered;
 	for (const std::string &r : Recipes())
 		offered += (offered.empty() ? "" : ", ") + r;
 	hooklog::Write("rmg templates: recipe names (RMG/Templates/%s....xdb) are built when the game asks for them (maker "
 	               "self-check ok); in the list from recipes=: %s",
 	               mods::rmg::kRecipePrefix, offered.empty() ? "none" : offered.c_str());
+	return true;
+}
+
+}  // namespace
+
+bool RegisterRecipe(const std::string &recipe)
+{
+	return AddRecipe(recipe, true);
+}
+
+void ApplyRmgTemplatesFromSettings()
+{
+	wchar_t path[MAX_PATH];
+	hooklog::PathNextToExe(L"open-homm5", L".ini", path, MAX_PATH);
+	// Joining random map games: the guard against a missing template goes in
+	// even with templates=0; the recipe part only when recipes are served.
+	ApplyRmgJoin(ServeTemplates(path));
 }
 
 }  // namespace mods

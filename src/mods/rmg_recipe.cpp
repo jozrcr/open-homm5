@@ -259,6 +259,18 @@ bool RecipeOfPath(const std::string &path, std::string *recipe)
 	return CanonicalRecipe(path.substr(at + dir), recipe);
 }
 
+bool RecipeOfReference(const std::string &reference, std::string *recipe)
+{
+	return RecipeOfPath(reference.substr(0, reference.find('#')), recipe);
+}
+
+int RecipeTeamOf(const Choices &c, int player)
+{
+	if (c.per_team < 1 || player < 1 || player > c.teams * c.per_team)
+		return -1;
+	return (player - 1) / c.per_team;
+}
+
 void ParseRecipeList(const std::string &text, std::vector<std::string> *names, std::vector<std::string> *bad)
 {
 	std::string item;

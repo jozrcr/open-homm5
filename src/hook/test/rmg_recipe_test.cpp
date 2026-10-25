@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "../../mods/rmg_join.h"
 #include "../../mods/rmg_maker.h"
 #include "../../mods/rmg_recipe.h"
 #include "rmg_cases.h"
@@ -251,6 +252,73 @@ int main(int argc, char **argv)
 			std::string recipe;
 			Check(!mods::rmg::RecipeOfPath(p, &recipe), std::string("path \"") + p + "\" left to the game");
 		}
+	}
+
+	// --- References, as maps and the multiplayer game info name templates ----
+	{
+		std::string recipe;
+		Check(mods::rmg::RecipeOfReference("/RMG/Templates/OH-X1-321110nnxxxxxxxa.xdb#xpointer(/RMGTemplate)", &recipe) &&
+		          recipe == "OH-X1-321110nnxxxxxxxa",
+		      "a map's template reference gives its recipe");
+		Check(mods::rmg::RecipeOfReference("/rmg/templates/oh-x1-321110nnxxxxxxxa.xdb", &recipe), "a reference without #xpointer");
+		Check(!mods::rmg::RecipeOfReference("/RMG/Templates/OH-2v2v2-Lu-Normal.xdb#xpointer(/RMGTemplate)", &recipe) &&
+		          !mods::rmg::RecipeOfReference("#xpointer(/RMGTemplate)", &recipe) && !mods::rmg::RecipeOfReference("", &recipe),
+		      "other references are not recipes");
+	}
+
+	// --- Template links in game memory (rmg_join.cpp) ------------------------
+	// A link is an NDb pointer; the object's database id sits at +0xc and starts
+	// with the path (an nstl::string: begin, end, capacity), as in sRMGProps.
+	{
+		static char path[] = "/RMG/Templates/OH-X1-321110nnxxxxxxxa.xdb#xpointer(/RMGTemplate)";
+		struct {
+			unsigned char head[0xc];
+			const char *begin, *end, *cap;  // the database id: path...
+			unsigned char key_made, pad[3];
+			unsigned hash;
+			const char *key_begin, *key_end, *key_cap;  // ...and key
+		} object = {};
+		object.begin = path;
+		object.end = path + sizeof(path) - 1;
+		object.cap = object.end + 1;
+		const void *link[2] = {&object, nullptr};
+		std::string reference, recipe;
+		Check(mods::TemplateLinkReference(link, &reference) && reference == path &&
+		          mods::rmg::RecipeOfReference(reference, &recipe) && recipe == "OH-X1-321110nnxxxxxxxa",
+		      "a template link in memory gives its path and recipe");
+		object.begin = object.end = nullptr;
+		object.key_begin = path;
+		object.key_end = path + 10;
+		Check(mods::TemplateLinkReference(link, &reference) && reference == std::string(path, 10),
+		      "an empty path: the key is read instead");
+		object.key_begin = object.key_end = nullptr;
+		Check(!mods::TemplateLinkReference(link, &reference), "an empty database id: nothing");
+		const void *empty[2] = {nullptr, nullptr};
+		const void *bad[2] = {reinterpret_cast<const void *>(16), nullptr};
+		Check(!mods::TemplateLinkReference(empty, &reference) && !mods::TemplateLinkReference(bad, &reference) &&
+		          !mods::TemplateLinkReference(nullptr, &reference),
+		      "an empty or broken link: nothing, no crash");
+		Check(mods::kAdvMapDescRmgProps == 0x254 && 0x108 + mods::kRmgPropsTemplateLink == 0x130,
+		      "the template link: map description +0x27c, game info +0x130");
+	}
+
+	// --- Teams of a recipe map, by player number -----------------------------
+	{
+		Choices c;  // 2v2v2
+		const int want[] = {-1, 0, 0, 1, 1, 2, 2, -1};  // players 0 (none) to 7
+		bool ok = true;
+		for (int p = 0; p < 8; p++)
+			ok = ok && mods::rmg::RecipeTeamOf(c, p) == want[p];
+		Check(ok, "2v2v2: players 1+2, 3+4, 5+6");
+		c.teams = 2;
+		c.per_team = 4;
+		Check(mods::rmg::RecipeTeamOf(c, 4) == 0 && mods::rmg::RecipeTeamOf(c, 5) == 1 && mods::rmg::RecipeTeamOf(c, 8) == 1 &&
+		          mods::rmg::RecipeTeamOf(c, 9) == -1,
+		      "4v4: players 1-4, 5-8");
+		c.teams = 6;
+		c.per_team = 1;
+		Check(mods::rmg::RecipeTeamOf(c, 1) == 0 && mods::rmg::RecipeTeamOf(c, 6) == 5 && mods::rmg::RecipeTeamOf(c, 7) == -1,
+		      "free-for-all: one team per player");
 	}
 
 	// --- The list of [rmg] recipes= ------------------------------------------
