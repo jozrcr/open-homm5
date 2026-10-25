@@ -113,6 +113,15 @@ These steps come from the generator's log strings.
   - which player gets which start zone of a template;
   - the single-player screen's request path.
 
+## Zone placement: links are not neighbours (robot test, 2026-10-25)
+
+- **Player N always starts in zone N:** we checked town positions against the generator log's `Zone #N, started at x:y`.
+- **The generator chooses where zones go, and does not keep linked zones next to each other.**
+  - In our 2v2v2 templates, teammates (zones 1+2, 3+4, 5+6, linked by a weak guard) started 50 to 108 tiles apart.
+  - In MMH5.5's own `6P-Team-XL` they started up to 139 tiles apart.
+  - A link only promises a path, which may be long or go through a teleport (MMH5.5 turned the cartographer object into `RMGDimensionDoor`).
+- **So templates cannot decide who starts next to whom.** That needs the placement code (step 3 of the plan). The log lines come from that code: zones are placed in an order that is not the index order (13, 5, 6, 7, 10, ... in one run), each with `k == 0.90, R = 21`.
+
 ## Multiplayer: every PC generates the map itself
 
 - **What travels:** the generated `map.xdb` ends with `sRMGProps` (template, parameters, seed). With `RMGmap` = true, each client **regenerates** the same map from those, instead of downloading it.

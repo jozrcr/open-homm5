@@ -1,0 +1,432 @@
+<title>Heroes V Template Maker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;700&family=Alegreya+Sans:wght@400;500;700&display=swap">
+<style>
+  /* Layout: a map-maker's desk. Choices on the left, the zone map and the file on the right; one column on phones. */
+  :root {
+    --bg: #edf0f2;
+    --surface: #ffffff;
+    --ink: #1c2530;
+    --muted: #586575;
+    --line: #cdd5dc;
+    --accent: #0e6772;
+    --accent-ink: #ffffff;
+    --gold: #a8740a;
+    --warn-bg: #fff4dc;
+    --warn-ink: #6b4a00;
+    --neutral-zone: #d9dfe5;
+    --centre-zone: #f0d58a;
+    --display: "Alegreya", Georgia, "Times New Roman", serif;
+    --body: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+    /* Player flag colours, in the game's order. */
+    --p1: #c83a32; --p2: #2f63c4; --p3: #2e9a4a; --p4: #d9a520;
+    --p5: #e07a22; --p6: #8a44b8; --p7: #1f9aa0; --p8: #d0559a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #11161c; --surface: #1a2028; --ink: #e3e8ed; --muted: #9aa7b5; --line: #2e3844;
+      --accent: #43b3c0; --accent-ink: #0b1216; --gold: #e2b444; --warn-bg: #3a2e12; --warn-ink: #f3d68f;
+      --neutral-zone: #3a4552; --centre-zone: #8a6d22; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #11161c; --surface: #1a2028; --ink: #e3e8ed; --muted: #9aa7b5; --line: #2e3844;
+    --accent: #43b3c0; --accent-ink: #0b1216; --gold: #e2b444; --warn-bg: #3a2e12; --warn-ink: #f3d68f;
+    --neutral-zone: #3a4552; --centre-zone: #8a6d22; color-scheme: dark;
+  }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.45;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 24px 40px;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 24px; }
+  header h1 { font-family: var(--display); font-weight: 700; font-size: 2rem; line-height: 1.1; margin: 0; text-wrap: balance; }
+  header p { margin: 6px 0 0; color: var(--muted); max-width: 65ch; }
+  .layout { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 24px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 18px; min-width: 0; }
+  h2 { font-family: var(--display); font-size: 1.25rem; margin: 0; }
+  .label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; }
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; }
+  button { font: inherit; cursor: pointer; }
+  .chip { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 999px; padding: 5px 12px; font-size: 0.92rem; }
+  .chip:hover { border-color: var(--accent); }
+  .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; min-width: 0; }
+  legend { padding: 0; margin-bottom: 4px; }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+  .row label { min-width: 0; }
+  .row small { display: block; color: var(--muted); font-size: 0.85rem; }
+  .stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .stepper button { width: 34px; height: 34px; border: 0; background: transparent; color: var(--ink); font-size: 1.1rem; }
+  .stepper button:hover { background: var(--bg); }
+  .stepper output { min-width: 2.2ch; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; color: var(--ink); padding: 6px 11px; font-size: 0.92rem; border-right: 1px solid var(--line); }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .check { display: flex; gap: 10px; align-items: flex-start; }
+  .check input { margin-top: 4px; accent-color: var(--accent); width: 18px; height: 18px; }
+  input[type="text"] { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); width: 100%; box-sizing: border-box; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .map { width: 100%; max-width: 100%; aspect-ratio: 1 / 0.86; display: block; }
+  .map text { font-family: var(--body); font-size: 13px; font-weight: 700; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.88rem; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 1px solid var(--line); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 0; }
+  .stats div { border-top: 2px solid var(--line); padding-top: 6px; min-width: 0; }
+  .stats dt { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .stats dd { margin: 2px 0 0; font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .warn { background: var(--warn-bg); color: var(--warn-ink); border-radius: 8px; padding: 10px 12px; font-size: 0.95rem; }
+  .warn p { margin: 0; }
+  .warn p + p { margin-top: 6px; }
+  .file { display: grid; gap: 10px; }
+  .filename { font-family: Consolas, "SFMono-Regular", monospace; font-size: 0.92rem; overflow-wrap: anywhere; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .primary { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 9px 16px; font-weight: 700; }
+  .secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; }
+  .status { color: var(--muted); font-size: 0.92rem; }
+  ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; max-width: 65ch; }
+  details summary { cursor: pointer; color: var(--muted); }
+  #tiers summary { color: var(--accent); font-weight: 700; }
+  .tiers { display: grid; gap: 14px; margin-top: 10px; }
+  .tier { display: grid; gap: 8px; border-left: 3px solid var(--line); padding-left: 12px; }
+  .tier-name { font-weight: 700; }
+  .tier-name small { color: var(--muted); font-weight: 400; }
+  .tier .row { grid-template-columns: 4.5em minmax(0, 1fr); }
+  .tier .seg { justify-self: start; }
+  pre { margin: 8px 0 0; max-height: 280px; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 0.8rem; }
+  .note { color: var(--muted); font-size: 0.92rem; max-width: 65ch; margin: 0; }
+  @media (prefers-reduced-motion: no-preference) { .map line, .map circle { transition: opacity 0.2s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Heroes V Template Maker</h1>
+    <p>Pick the players, teams and how much there is to find. The page builds a random map template for the game's own generator (Tribes of the East with MMH5.5), shows its zones, and gives you the file.</p>
+  </header>
+
+  <div class="layout">
+    <form class="panel" id="choices" autocomplete="off">
+      <div style="display:grid;gap:8px">
+        <span class="label">Start from</span>
+        <div class="presets" id="presets"></div>
+      </div>
+
+      <fieldset>
+        <legend><h2>Players</h2></legend>
+        <div class="row"><label>Teams<small>1 player per team = free-for-all</small></label><span class="stepper" data-key="teams" data-min="2" data-max="8"></span></div>
+        <div class="row"><label>Players per team</label><span class="stepper" data-key="perTeam" data-min="1" data-max="4"></span></div>
+        <div class="row"><label>Teammates' path<small>between their start zones</small></label><span class="seg" data-key="allyLink" data-options="weak:Weak guard,open:Open"></span></div>
+        <div class="row"><label>Start zone mines</label><span class="seg" data-key="startMines" data-options="all:All six,woodore:Wood &amp; ore"></span></div>
+      </fieldset>
+
+      <fieldset>
+        <legend><h2>Neutral zones</h2></legend>
+        <div class="row"><label>Between neighbouring teams<small>where teams meet</small></label><span class="stepper" data-key="borderZones" data-min="0" data-max="4"></span></div>
+        <div class="row"><label>Behind each team<small>a treasure zone only that team reaches first</small></label><span class="stepper" data-key="teamZones" data-min="0" data-max="3"></span></div>
+        <div class="row"><label>In the centre<small>the richest zones, strongly guarded</small></label><span class="stepper" data-key="centreZones" data-min="0" data-max="3"></span></div>
+        <label class="check"><input type="checkbox" id="borderTowns" data-key="borderTowns"><span>A town in each zone between teams</span></label>
+        <label class="check"><input type="checkbox" id="teamTowns" data-key="teamTowns"><span>A town in each team's treasure zone</span></label>
+      </fieldset>
+
+      <fieldset>
+        <legend><h2>Loot and guards</h2></legend>
+        <div class="row"><label>Loot</label><span class="seg" data-key="loot" data-options="poor:Poor,normal:Normal,rich:Rich,veryrich:Very rich"></span></div>
+        <div class="row"><label>Guards on paths</label><span class="seg" data-key="guards" data-options="weak:Weak,normal:Normal,strong:Strong"></span></div>
+        <details id="tiers">
+          <summary>By distance from the bases</summary>
+          <div class="tiers">
+            <p class="note">Distance counts the zones crossed from the nearest start zone. "Same" uses the overall level above. A path's guard follows the zone it leads into.</p>
+            <div class="tier"><span class="tier-name">Start zones</span>
+              <div class="row"><label>Loot</label><span class="seg" data-key="lootByDistance.0" data-options=":Same,poor:Poor,normal:Normal,rich:Rich,veryrich:Very rich"></span></div></div>
+            <div class="tier"><span class="tier-name">Next to a base <small id="tier1count"></small></span>
+              <div class="row"><label>Loot</label><span class="seg" data-key="lootByDistance.1" data-options=":Same,poor:Poor,normal:Normal,rich:Rich,veryrich:Very rich"></span></div>
+              <div class="row"><label>Guards</label><span class="seg" data-key="guardsByDistance.1" data-options=":Same,weak:Weak,normal:Normal,strong:Strong"></span></div></div>
+            <div class="tier"><span class="tier-name">Two steps away <small id="tier2count"></small></span>
+              <div class="row"><label>Loot</label><span class="seg" data-key="lootByDistance.2" data-options=":Same,poor:Poor,normal:Normal,rich:Rich,veryrich:Very rich"></span></div>
+              <div class="row"><label>Guards</label><span class="seg" data-key="guardsByDistance.2" data-options=":Same,weak:Weak,normal:Normal,strong:Strong"></span></div></div>
+            <div class="tier"><span class="tier-name">Further away <small id="tier3count"></small></span>
+              <div class="row"><label>Loot</label><span class="seg" data-key="lootByDistance.3" data-options=":Same,poor:Poor,normal:Normal,rich:Rich,veryrich:Very rich"></span></div>
+              <div class="row"><label>Guards</label><span class="seg" data-key="guardsByDistance.3" data-options=":Same,weak:Weak,normal:Normal,strong:Strong"></span></div></div>
+          </div>
+        </details>
+        <p class="note">Monster strength itself is still chosen on the game's generator screen.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend><h2>Map</h2></legend>
+        <div class="row"><label>Size</label><span class="seg" data-key="size" data-options="auto:Best fit,M:M,L:L,XL:XL,H:H,I:I"></span></div>
+        <label class="check"><input type="checkbox" id="underground" data-key="underground"><span>Underground level</span></label>
+        <div style="display:grid;gap:6px"><label class="label" for="name">Name in the game's list</label><input type="text" id="name" data-key="name" placeholder="made from your choices"></div>
+      </fieldset>
+    </form>
+
+    <section class="panel" aria-live="polite">
+      <div style="display:grid;gap:8px">
+        <h2 id="title">Template</h2>
+        <svg class="map" id="map" viewBox="0 0 560 480" role="img" aria-label="Zones and paths of the template"></svg>
+        <div class="legend" id="legend"></div>
+      </div>
+      <dl class="stats" id="stats"></dl>
+      <div class="warn" id="warnings" hidden></div>
+      <div class="file">
+        <span class="label">The file</span>
+        <span class="filename" id="filename"></span>
+        <div class="actions">
+          <button type="button" class="primary" id="download">Download template</button>
+          <button type="button" class="secondary" id="copy">Copy the XML</button>
+          <span class="status" id="status"></span>
+        </div>
+        <ol class="steps">
+          <li>Extract the zip into the game's folder, the one that holds <code>bin</code> and <code>data</code>. It adds <code>data\RMG\Templates\</code> and the template file.</li>
+          <li><strong>Every player</strong> of a multiplayer game needs the same file: each PC builds the map itself from it.</li>
+          <li>On the generator screen, pick the map size shown above (with or without underground, as chosen), then the template in the list.</li>
+        </ol>
+        <p class="note">Tested in the game: the generator builds maps from these templates. Teams: the game doesn't set teams on random maps yet; choosing them in the lobby is being worked on. Teammates' zones are joined by a lightly guarded path, but the game's generator decides where zones go and doesn't keep joined zones side by side (MMH5.5's own team templates have the same problem). Placing teammates together needs a change in the generator itself, step 3 of the plan.</p>
+        <details><summary>Show the XML</summary><pre id="xml"></pre></details>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="template_maker.js"></script>
+<script>
+(function () {
+  "use strict";
+  var TM = window.TemplateMaker;
+  var PRESETS = [
+    { label: "2v2v2", o: { teams: 3, perTeam: 2, teamZones: 1, borderZones: 1, centreZones: 1 } },
+    { label: "2v2v2 with towns", o: { teams: 3, perTeam: 2, teamZones: 1, borderZones: 1, centreZones: 1, borderTowns: true } },
+    { label: "2v2v2 big, rich", o: { teams: 3, perTeam: 2, teamZones: 1, borderZones: 2, centreZones: 1, borderTowns: true, loot: "rich" } },
+    { label: "2 vs 2", o: { teams: 2, perTeam: 2, teamZones: 1, borderZones: 1, centreZones: 1 } },
+    { label: "2 vs 2 big, rich", o: { teams: 2, perTeam: 2, teamZones: 1, borderZones: 2, centreZones: 2, borderTowns: true, loot: "rich" } },
+    { label: "4 players, many zones", o: { teams: 4, perTeam: 1, teamZones: 1, borderZones: 2, centreZones: 1 } },
+    { label: "6 players with towns", o: { teams: 6, perTeam: 1, teamZones: 1, borderZones: 1, centreZones: 1, borderTowns: true } },
+    { label: "3 vs 3 very rich", o: { teams: 2, perTeam: 3, teamZones: 1, borderZones: 2, centreZones: 2, borderTowns: true, loot: "veryrich" } }
+  ];
+  function fresh(o) {
+    return Object.assign({}, TM.DEFAULTS, o, { lootByDistance: {}, guardsByDistance: {} });
+  }
+  // Keys like "lootByDistance.2" reach into the per-distance settings.
+  function get(key) {
+    var p = key.split(".");
+    return p.length === 1 ? state[key] : (state[p[0]][p[1]] || "");
+  }
+  function set(key, v) {
+    var p = key.split(".");
+    if (p.length === 1) state[key] = v; else state[p[0]][p[1]] = v;
+  }
+  var state = fresh(PRESETS[0].o);
+  var current = null, activePreset = 0;
+  var form = document.getElementById("choices");
+
+  function el(tag, attrs, text) {
+    var e = document.createElement(tag);
+    for (var k in attrs || {}) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  var NS = "http://www.w3.org/2000/svg";
+  function svg(tag, attrs, text) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  // Presets.
+  var presetBox = document.getElementById("presets");
+  PRESETS.forEach(function (p, i) {
+    var b = el("button", { type: "button", "class": "chip", "aria-pressed": "false" }, p.label);
+    b.addEventListener("click", function () {
+      state = fresh(Object.assign({}, p.o, { underground: state.underground, name: "" }));
+      activePreset = i;
+      sync();
+    });
+    presetBox.appendChild(b);
+  });
+
+  // Steppers and segmented choices.
+  form.querySelectorAll(".stepper").forEach(function (s) {
+    var key = s.dataset.key, min = +s.dataset.min, max = +s.dataset.max;
+    var minus = el("button", { type: "button", "aria-label": "fewer" }, String.fromCharCode(0x2212));
+    var out = el("output", {});
+    var plus = el("button", { type: "button", "aria-label": "more" }, "+");
+    minus.addEventListener("click", function () { if (state[key] > min) { state[key]--; changed(); } });
+    plus.addEventListener("click", function () { if (state[key] < max) { state[key]++; changed(); } });
+    s.append(minus, out, plus);
+  });
+  form.querySelectorAll(".seg").forEach(function (s) {
+    var key = s.dataset.key;
+    s.dataset.options.split(",").forEach(function (pair) {
+      var v = pair.split(":")[0], text = pair.split(":")[1];
+      var b = el("button", { type: "button", "data-value": v, "aria-pressed": "false" }, text);
+      b.addEventListener("click", function () { set(key, v); changed(); });
+      s.appendChild(b);
+    });
+  });
+  form.querySelectorAll("input[type=checkbox]").forEach(function (c) {
+    c.addEventListener("change", function () { state[c.dataset.key] = c.checked; changed(); });
+  });
+  document.getElementById("name").addEventListener("input", function (e) { state.name = e.target.value.trim(); render(); });
+  form.addEventListener("submit", function (e) { e.preventDefault(); });
+
+  function changed() { activePreset = -1; sync(); }
+
+  function sync() {
+    form.querySelectorAll(".stepper").forEach(function (s) { s.querySelector("output").textContent = state[s.dataset.key]; });
+    form.querySelectorAll(".seg").forEach(function (s) {
+      s.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.value === get(s.dataset.key))); });
+    });
+    form.querySelectorAll("input[type=checkbox]").forEach(function (c) { c.checked = !!state[c.dataset.key]; });
+    document.getElementById("name").value = state.name || "";
+    presetBox.querySelectorAll(".chip").forEach(function (b, i) { b.setAttribute("aria-pressed", String(i === activePreset)); });
+    render();
+  }
+
+  function zoneColor(z) {
+    if (z.kind === "start" || z.kind === "team") return "var(--p" + (z.team % 8 + 1) + ")";
+    return z.kind === "centre" ? "var(--centre-zone)" : "var(--neutral-zone)";
+  }
+
+  // Zone positions: teams around a circle, their treasure zones further in,
+  // neutral zones between neighbours on the circle, the centre in the middle.
+  function positions(g, o) {
+    var cx = 280, cy = 240, R = 190, pos = [];
+    var T = o.teams, step = 2 * Math.PI / T;
+    var byTeam = {}, sides = T === 2 ? 2 : T;
+    g.zones.forEach(function (z, i) { (byTeam[z.kind + z.team] = byTeam[z.kind + z.team] || []).push(i); });
+    var borderIdx = 0, centreIdx = 0;
+    var centres = g.zones.filter(function (z) { return z.kind === "centre"; }).length;
+    g.zones.forEach(function (z, i) {
+      var a, r;
+      if (z.kind === "start" || z.kind === "team") {
+        var list = byTeam[z.kind + z.team], k = list.indexOf(i), n = list.length;
+        var spread = Math.min(step * 0.5, 0.42) * (z.kind === "team" ? 0.7 : 1);
+        a = -Math.PI / 2 + z.team * step + (n > 1 ? (k / (n - 1) - 0.5) * spread : 0);
+        r = z.kind === "start" ? R : R * 0.58;
+      } else if (z.kind === "border") {
+        var per = o.borderZones, side = Math.floor(borderIdx / per), k2 = borderIdx % per;
+        borderIdx++;
+        var sideStep = 2 * Math.PI / sides;
+        a = -Math.PI / 2 + side * sideStep + sideStep / 2 + (per > 1 ? (k2 / (per - 1) - 0.5) * sideStep * 0.35 : 0);
+        r = R * (T === 2 ? 0.95 : 0.98);
+      } else {
+        a = -Math.PI / 2 + centreIdx * (2 * Math.PI / Math.max(1, centres)) + Math.PI / 4;
+        r = centres > 1 ? 34 : 0;
+        centreIdx++;
+      }
+      pos.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+    });
+    return pos;
+  }
+
+  function drawMap(t, o) {
+    var map = document.getElementById("map");
+    while (map.firstChild) map.removeChild(map.firstChild);
+    var pos = positions(t.graph, o);
+    t.template.Connections.forEach(function (c) {
+      var a = pos[c.SourceZoneIndex - 1], b = pos[c.DestZoneIndex - 1];
+      map.appendChild(svg("line", {
+        x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: "var(--muted)",
+        "stroke-width": c.Guarded ? Math.max(1.2, c.GuardStrenght / 4) : 1.4,
+        "stroke-dasharray": c.Guarded ? "none" : "4 4", "stroke-linecap": "round", opacity: 0.75
+      }));
+    });
+    t.graph.zones.forEach(function (z, i) {
+      var p = pos[i], r = z.kind === "centre" ? 22 : z.kind === "start" ? 19 : 16;
+      map.appendChild(svg("circle", { cx: p.x, cy: p.y, r: r, fill: zoneColor(z), stroke: "var(--surface)", "stroke-width": 2.5,
+        "fill-opacity": z.kind === "team" ? 0.55 : 1 }));
+      var town = t.template.Zones[i].Town;
+      map.appendChild(svg("text", { x: p.x, y: p.y + 4.5, "text-anchor": "middle",
+        fill: z.kind === "start" && z.team % 8 !== 3 ? "#ffffff" : "#1c2530" }, String(i + 1)));
+      if (town && z.kind !== "start") map.appendChild(svg("text", { x: p.x, y: p.y - r - 5, "text-anchor": "middle", fill: "var(--gold)" }, "town"));
+    });
+    var legend = document.getElementById("legend");
+    legend.innerHTML = "";
+    [["var(--p1)", "Start zones (team colour)"], ["var(--p2)", "Team treasure zone (pale)"], ["var(--neutral-zone)", "Between teams"],
+     ["var(--centre-zone)", "Centre"]].forEach(function (l) {
+      var s = el("span"); var i = el("i"); i.style.background = l[0]; i.style.opacity = l[1].indexOf("pale") > 0 ? 0.55 : 1;
+      s.append(i, document.createTextNode(l[1])); legend.appendChild(s);
+    });
+    var s = el("span"); s.textContent = "Thicker path = stronger guard; dashed = open"; legend.appendChild(s);
+  }
+
+  function render() {
+    var status = document.getElementById("status");
+    status.textContent = "";
+    var players = state.teams * state.perTeam;
+    var warnings = document.getElementById("warnings");
+    try {
+      current = TM.makeTemplate(state);
+    } catch (e) {
+      current = null;
+      warnings.hidden = false;
+      warnings.innerHTML = "";
+      warnings.appendChild(el("p", {}, players > 8 ? "The game allows at most 8 players; this makes " + players + ". Use fewer teams or fewer players per team." : e.message));
+      document.getElementById("download").disabled = true;
+      document.getElementById("copy").disabled = true;
+      return;
+    }
+    document.getElementById("download").disabled = false;
+    document.getElementById("copy").disabled = false;
+    document.getElementById("title").textContent = current.name;
+    drawMap(current, state);
+    var st = current.stats, stats = document.getElementById("stats");
+    stats.innerHTML = "";
+    [["Players", st.players], ["Zones", st.zones + " (" + st.neutralZones + " neutral)"], ["Map size", st.size],
+     ["Tiles per zone", st.tilesPerZone.toLocaleString("en")], ["Paths", st.connections]].forEach(function (p) {
+      var d = el("div"); d.append(el("dt", {}, p[0]), el("dd", {}, String(p[1]))); stats.appendChild(d);
+    });
+    var by = st.byDistance;
+    ["", "tier1count", "tier2count", "tier3count"].forEach(function (id, d) {
+      if (id) document.getElementById(id).textContent = "(" + by[d] + (by[d] === 1 ? " zone)" : " zones)");
+    });
+    warnings.innerHTML = "";
+    warnings.hidden = !current.warnings.length;
+    current.warnings.forEach(function (w) { warnings.appendChild(el("p", {}, w)); });
+    document.getElementById("filename").textContent = "data\\RMG\\Templates\\" + current.fileName;
+    document.getElementById("xml").textContent = current.xml.replace(/^\ufeff/, "");
+  }
+
+  // The file: a zip with data/RMG/Templates/<name>.xdb, ready to extract into the game folder.
+  document.getElementById("download").addEventListener("click", function () {
+    var status = document.getElementById("status");
+    if (!current) return;
+    status.textContent = "Preparing the file...";
+    var downloads = window.claude && window.claude.use ? window.claude.use("downloads") : Promise.resolve(null);
+    var zip = new JSZip();
+    zip.file("data/RMG/Templates/" + current.fileName, current.xml);
+    Promise.all([downloads, zip.generateAsync({ type: "blob", compression: "DEFLATE" })]).then(function (r) {
+      var downloads = r[0], blob = r[1];
+      if (!downloads) { status.textContent = "Downloading isn't available here: use Copy the XML instead."; return; }
+      return downloads.save({ filename: current.fileName.replace(/\.xdb$/, "") + ".zip", data: blob }).then(function () {
+        status.textContent = "Saved. Extract it into the game folder.";
+      }, function (e) {
+        status.textContent = e && e.code === "declined" ? "Not saved." : "Couldn't save the file (" + (e && e.code || "error") + "): use Copy the XML instead.";
+      });
+    }).catch(function () { status.textContent = "Couldn't build the file: use Copy the XML instead."; });
+  });
+  document.getElementById("copy").addEventListener("click", function () {
+    var status = document.getElementById("status");
+    if (!current) return;
+    var text = current.xml.replace(/^\ufeff/, "");
+    var done = function () { status.textContent = "Copied. Save it as " + current.fileName + " in data\\RMG\\Templates\\."; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () {
+        document.querySelector("details").open = true;
+        var range = document.createRange(); range.selectNodeContents(document.getElementById("xml"));
+        var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+        status.textContent = "Selected the XML below: copy it with Ctrl+C.";
+      });
+    }
+  });
+
+  sync();
+})();
+</script>
