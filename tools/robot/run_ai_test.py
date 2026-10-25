@@ -380,6 +380,8 @@ def main():
                         "off = the game's own pathfinding")
     p.add_argument("--ai-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="extra [ai] setting for the mods, e.g. port_relax=1 (repeatable)")
+    p.add_argument("--rmg-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="[rmg] setting, e.g. templates_selftest=1 (src/mods/rmg_templates.cpp)")
     p.add_argument("--audio-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="[audio] setting, e.g. original_music=1 or log_music=1 (repeatable; src/mods/original_music.cpp)")
     p.add_argument("--trace-moves", action="store_true", help="log what the start-move command calls (robot_trace.cpp)")
