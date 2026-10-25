@@ -1,8 +1,9 @@
 // The player list overlay's parts (player_list.cpp), shared between its files:
 //   player_list_game.cpp       reads the game: players, teams, turn status, day;
-//   player_list_textures.cpp   pictures from the game's data (portraits, frames);
 //   player_list_draw.cpp       draws the panel (all of the look and its words);
-//   player_list.cpp            settings, Direct3D and Dear ImGui, the F9 key.
+//   player_list.cpp            settings, the overlay client, the F9 key.
+// The overlay itself (Dear ImGui, fonts, the pictures from the game's data, the
+// screen on top) is shared with the other panels: src/hook/overlay.h.
 #pragma once
 #include <windows.h>
 
@@ -32,7 +33,7 @@ struct Row {
 	char name[64];  // UTF-8: the player's name (lobby name, "AI 2" in single player); "" if none
 	char hero[64];  // UTF-8: the name of the player's selected (or first) hero, "" without heroes
 	char face[160];  // that hero's portrait: a .dds file of the game's data, or ""
-	void *face_texture;  // the portrait as a texture (IDirect3DTexture9 *), or nullptr (player_list.cpp)
+	void *face_texture;  // the portrait as a texture (IDirect3DTexture9 *), or nullptr (overlay::GameTexture)
 };
 
 struct Snapshot {
@@ -49,17 +50,6 @@ bool InstallGameHooks();  // false: the game is not as expected (the overlay sta
 void SetTrace(int level);  // 1 = log status changes, 2 = also raw dumps (research)
 // The game's state now; false when no adventure map is on screen.
 bool ReadSnapshot(Snapshot *out);
-
-// player_list_textures.cpp: pictures from the game's data (portraits, frames).
-bool InstallGameTextures();  // false: no portraits, plain style (the rest works)
-// The picture of that .dds file as a texture of the device (IDirect3DTexture9 *),
-// or nullptr: not loaded yet (*loads_left files are read at most per call), or
-// not readable (then *failed, if given, is true).
-void *GameTexture(IDirect3DDevice9 *device, const char *dds_path, int *loads_left, bool *failed = nullptr);
-void ReleaseGameTextures();
-// A file of the game's data, read through the game's own file system (false
-// before the game opened its first file, or when there is no such file).
-bool ReadGameFile(const char *path, std::string *out);
 
 // player_list_draw.cpp: the panel. All ImGui drawing of the overlay is there,
 // and all its words (English, French).

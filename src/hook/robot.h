@@ -39,6 +39,10 @@ void OnAiTurnStart(void *ai);
 void OnDirectInputCreated(void *direct_input);
 // Press and release one key (a DIK_ code, e.g. 0x1C = Enter). False if busy.
 bool PressKey(int dik_code);
+// One of our overlay's own keys (step "key|F11"): true once for the next
+// overlay::KeyPressed(vk) after the step ran (the robot's window is in the
+// background, so the overlay's GetAsyncKeyState never sees a key).
+bool TakeOverlayKey(int vk);
 
 // Robot human player (robot_endturn.cpp): ends the passive human's turns.
 void OnAiStep();               // from the AI trace, every AI step
