@@ -143,6 +143,50 @@ net_sleep_ms=2    ; 1..10, the network thread's rest between rounds (the game: 1
 
 The robot passes them with `run_lan_test.py --net-setting KEY=VALUE`.
 
+## Quicker autosaves (`autosave.cpp`; the trace and level 1 on by default)
+
+**What it is for:** in co-op games the autosave at the start of each round freezes every PC for a long time. Findings and addresses: [docs/subsystems/save.md](../../docs/subsystems/save.md).
+
+**What the robot found:**
+- **One PC asks, every PC saves.** Each round only the PC of the first living human asks for the autosave (a network command); every PC then writes its own file, and everyone waits for the slowest one.
+- **The freeze is mostly the game looking through the saves folder.** To pick the name and the file, it reads the header of every multiplayer save in the folder: 4 times on the PC that asks, twice more on every PC. Each header read of a big-map save takes about 85 ms (it rebuilds that game's hero pool).
+- With the owner's 17 old multiplayer saves in the folder, a round froze for **about 10 s** (7 s asking, 3.3 s saving). With only the 3 autosaves of the small robot map: 0.1 s and 0.15 s.
+- **Without the mod:** moving old multiplayer saves out of your profile's `Saves` folder helps the same way.
+
+**What the mod does:**
+- **Trace** (`trace_autosave=1`): one log line per request and per save, with each phase, and how long each PC was frozen:
+  ```
+  autosave: day 3 (day start): player 0 asks every PC to save (request a6820c3c; finding the oldest autosave and sending took 6763 ms)
+  autosave: day 3: player 1 saved "Sauvegarde auto 1" (save 1 this round; request a6820c3c from another PC): 3299 ms in all: 2 ms preparing, 3230 ms until the first stream (disk check, file name, header), 66 ms serializing and compressing (deflate 33 ms, level 1, 5000 KB -> 815 KB in 4 streams), ...
+  autosave: player 1 closed no segment for 6661 ms around the save
+  ```
+- **Faster compression** (`compression=1`): saves use zlib level 1 instead of the game's 6. On the owner's biggest save, the game's own zlib takes 0.60 s instead of 1.75 s, for a file 24% bigger (13.8 MB instead of 11.2). Same format: the game loads them as before (robot: a level-1 autosave loaded and played on). Only saves change, nothing else the game compresses.
+- **Fewer autosaves** (`autosave_every=N`): autosave only on days 1, 1+N, 1+2N... (7 = the first day of each week). The day is part of the game, so every PC with the mod skips the same days.
+- **Quick look through the saves folder** (`fast_save_list=1`): while the autosave is requested or a multiplayer save runs, the game's reads of the other saves' headers skip the step that rebuilds each one's hero pool. That step only fills a list for the lobby's hero choice, which nothing in a save uses. The names, the choice of the oldest autosave, the file names and the new save's header stay exactly the same. Details and checks in save.md.
+
+A save does not change the game, so none of this can desync: the robot's world checksums stayed equal in every run (2 copies, 6 AI turns each, with and without the owner's saves in the folder).
+
+**Robot results** (A1M4, small map; more in save.md):
+
+| | Request (host) | Each PC's save | Frozen per round | zlib part |
+|---|---|---|---|---|
+| game's level 6, 3 autosaves in the folder | 0.1 s | 0.16–0.23 s | (not measured) | 0.10 s |
+| level 1, 3 autosaves | 0.1 s | 0.12–0.15 s | ~0.3 s | 0.03 s |
+| level 1, the owner's 29 saves copied in, `fast_save_list=0` | 6.4–7.2 s | 3.2–3.9 s | ~10 s | 0.03 s |
+| **the defaults**, the owner's 29 saves copied in | **0.07–0.08 s** (first: 0.8 s) | **0.11–0.13 s** (first: 0.9 s) | **~0.3 s** (first: ~1 s) | 0.03 s |
+
+```ini
+[save]
+trace_autosave=1   ; 0 = no autosave lines in the log
+compression=1      ; zlib level of saves, 0..9 (-1 = the game's 6)
+autosave_every=1   ; autosave every N days (1 = every day, as the game)
+fast_save_list=1   ; 0 = the game's full read of every save in the folder
+```
+
+The robot passes them with `--save-setting KEY=VALUE`; `run_lan_test.py --autosave` ticks the lobby's autosave option.
+
+**Not built:** making only the host ask. The game already sends one request per round, from the PC of the first living human (not always the host): skipping that PC's request would lose the autosave.
+
 ## Fast AI pathfinding (`fast_paths*.cpp`, on by default)
 
 **What it fixes:** long AI thinking late in a game on big maps (several seconds per AI move).

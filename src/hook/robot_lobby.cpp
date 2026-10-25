@@ -165,16 +165,18 @@ bool PickSave(const char *wanted)
 
 // Checkboxes of the multiplayer setup screen's options panel
 // (NUI::CMPCreateOptions, filled in by 0x0070862c): IButton pointers at
-// +0x18 ghostmode, +0x1c quick_combat, +0x20 realtime. IButton (a window
-// interface): slot 2 next state (a click), slot 3 SetState(int), slot 5 state.
-// When the game is created (0x00708f10) quick combat = (state == 0).
+// +0x18 ghostmode, +0x1c quick_combat, +0x20 realtime, +0x3c simultaneus.
+// IButton (a window interface): slot 2 next state (a click), slot 3
+// SetState(int), slot 5 state. When the game is created (0x00708f10) each
+// option is on when its state is 0; "realtime" becomes the game option
+// "autosave_enabled" (the lobby's autosave).
 bool SetCreateOption(const char *spec)
 {
 	struct Option {
 		const char *name;
 		DWORD offset;
 	};
-	const Option options[] = {{"ghostmode", 0x18}, {"quick_combat", 0x1c}, {"realtime", 0x20}};
+	const Option options[] = {{"ghostmode", 0x18}, {"quick_combat", 0x1c}, {"realtime", 0x20}, {"simultaneus", 0x3c}};
 	const char *space = strchr(spec, ' ');
 	const int state = space ? atoi(space + 1) : 0;
 	const Option *option = nullptr;
@@ -183,7 +185,7 @@ bool SetCreateOption(const char *spec)
 			option = &o;
 	}
 	if (!option) {
-		hooklog::Write("robot: unknown option \"%s\" (ghostmode, quick_combat, realtime)", spec);
+		hooklog::Write("robot: unknown option \"%s\" (ghostmode, quick_combat, realtime, simultaneus)", spec);
 		return false;
 	}
 	BYTE *panel = static_cast<BYTE *>(FindScreen("NUI::CMPCreateOptions"));

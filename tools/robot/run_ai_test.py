@@ -102,6 +102,10 @@ def write_mod_settings(game, args, instance):
     audio = getattr(args, "audio_setting", None) or []  # e.g. original_music=1, log_music=1
     if audio:
         lines += ["[audio]"] + audio
+    # [save] = quicker autosaves (src/mods/autosave.cpp), its defaults without settings
+    save = getattr(args, "save_setting", None) or []  # e.g. autosave_host_only=0, compression=-1
+    if save:
+        lines += ["[save]"] + save
     mod_settings_file(game, instance).write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
@@ -384,6 +388,8 @@ def main():
                    help="[rmg] setting, e.g. templates_selftest=1 (src/mods/rmg_templates.cpp)")
     p.add_argument("--audio-setting", action="append", default=[], metavar="KEY=VALUE",
                    help="[audio] setting, e.g. original_music=1 or log_music=1 (repeatable; src/mods/original_music.cpp)")
+    p.add_argument("--save-setting", action="append", default=[], metavar="KEY=VALUE",
+                   help="[save] setting, e.g. compression=-1 or autosave_every=2 (repeatable; src/mods/autosave.cpp)")
     p.add_argument("--trace-moves", action="store_true", help="log what the start-move command calls (robot_trace.cpp)")
     p.add_argument("--trace-ai-busy", action="store_true",
                    help="log each change of the AI manager's 'player busy' check (robot_trace.cpp)")

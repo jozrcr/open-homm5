@@ -56,6 +56,19 @@ python tools\robot\run_lan_test.py --turns 3 --host-audio original_music=1 --cli
 - `log_music=1`: the DLL logs every music file the game starts (`music file 2: ..\Music\AdvMap-Terrain\Terrain-Grass.ogg`). Music still streams with the robot's volume 0, so nothing is heard.
 - The `rmg` console command makes and starts a random map (template path without a leading `/`). Each run gives other factions, so the hero starts on other terrains (sand, dirt, snow, ...); the map is written to the test copy's `data\RMGTemp`. The test maps (A1M4, A2M1, ...) all start on grass.
 
+## Checking autosaves (the autosave mod)
+
+```
+python tools\robot\run_lan_test.py --seconds 400 --turns 6 --autosave                          # the mod's defaults
+python tools\robot\run_lan_test.py --seconds 400 --turns 6 --autosave --save-setting compression=-1   # the game's zlib level
+python tools\robot\run_ai_test.py --load-save "Sauvegarde auto" --turns 2 --quick-combat         # load an autosave
+```
+
+- `--autosave`: the host ticks the setup screen's autosave option (the checkbox named `realtime`), so every PC autosaves at the start of each day. Without it, multiplayer games never autosave (the console variable `autosave` only counts in single player).
+- `--save-setting KEY=VALUE` (both copies), `--host-save` / `--client-save`: `[save]` settings (`src/mods/README.md`). `run_ai_test.py` has `--save-setting` too.
+- The trace lines start with `autosave:` in both logs. Robot autosaves go to `<test copy>/robot_home-<host|client>/.../Profiles/Robot/Saves/` and stay there between runs (3 files, "Sauvegarde auto 1..3"). With `fast_save_list=0`, the time of each autosave grows with the multiplayer saves in that folder (docs/subsystems/save.md). Saves copied there whose name is an autosave's ("Sauvegarde auto 2") get overwritten: the game reuses the file of the save with the same name.
+- Multiplayer saves do not show in the single-player load list, so the load check uses a single-player autosave (`run_ai_test.py` makes one each day: the robot profile has `autosave = 1`).
+
 ## Robot script
 
 Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--host-step` / `--client-step`), `"<seconds>|<kind>|<text>"`, seconds counted from the first main-loop call:
@@ -68,7 +81,7 @@ Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--ho
 | `msg` | `<name> [number]` | posts a "game message", like buttons with an `ARSendGameMessage` reaction: e.g. `create`, `load`, `back` on the multiplayer setup screen, `start` in the waiting room (names from `UI/<screen>/*.(ARSendGameMessage).xdb` in the game data) |
 | `map` | part of a map file path | highlights that map on the multiplayer setup screen, e.g. `A1M4/` (`robot_lobby.cpp`) |
 | `save` | part of a save's name | highlights that save on the single-player load screen (`menu|single load_game`) and selects it; then `msg|load` loads it (`run_ai_test.py --save-file <path> --load-save <name>` does it all) |
-| `option` | `<checkbox> <state>` | a checkbox of the multiplayer setup screen: `quick_combat`, `ghostmode`, `realtime`; state 0 = checked (`run_lan_test.py` turns quick combat on, so battles resolve by themselves) |
+| `option` | `<checkbox> <state>` | a checkbox of the multiplayer setup screen: `quick_combat`, `ghostmode`, `realtime` (it is the autosave option), `simultaneus` (simultaneous turns); state 0 = checked (`run_lan_test.py` turns quick combat on, so battles resolve by themselves) |
 | `game` | a number | highlights that game (0 = first) in the LAN lobby's list, before `ui|NUI::CLobbyScreen join` |
 | `arrow` | `<row> left\|right` | presses a player row's state arrow in the multiplayer waiting room: on your own row it toggles "ready", on an empty slot it cycles open → computer → closed |
 | `slots` | (none) | research: logs the waiting room's rows (state, player) and whether the host can start |
