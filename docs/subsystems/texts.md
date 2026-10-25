@@ -42,3 +42,7 @@ From the inventory of the owner's install (MMH5.5 RC19d):
 ## Not texts
 
 Some words are elsewhere and are not covered by text packs: map files (`.h5m`) carry their own texts, MMH5.5's Lua scripts may contain a few sentences written in the script, and the exe has some strings of its own.
+
+## Our mod: French texts (`src/mods/languages*.cpp`)
+
+`[lang] texts=fr` wraps slot 7 (`0x00e6651c`). The slot is changed only if it still holds `0x009e0020` and the code there is the 3.1 thunk `E9 CB FE FF FF`. When the game opens a `.txt` path found in `bin\open-homm5\lang\fr\*.pak`, the mod hands back a new `CMemoryStream` (`0x004034d0`, sized with `0x008c7610`) holding that file, starting with `FF FE`. The game deletes the stream as usual. The hook goes in at DLL load, before the first text is read. Use in [../../src/mods/README.md](../../src/mods/README.md), plan in [../plans/languages.md](../plans/languages.md).

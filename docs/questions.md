@@ -13,7 +13,7 @@ Answer: (owner fills in)
 
 ---
 
-## Q11: One language: where may translated texts live? (2026-10-25, status: open)
+## Q11: One language: where may translated texts live? (2026-10-25, status: answered)
 
 Context: the plan is [plans/languages.md](plans/languages.md).
 - **French:** MMH5.5's team publishes an official French pack (ModDB and GitHub; the ModDB page says "Proprietary", the GitHub repo has no licence). Your RC19d has one. What it leaves out is about 5,000 words for co-op (10,000 with campaigns), mostly the 3.1 patch's English texts (Ubisoft's) and a few MMH5.5 texts. Those translations would be ours, but made from Ubisoft's and MMH5.5's texts.
@@ -32,7 +32,13 @@ Options:
 
 Also to approve: downloading the French pack for RC19d (ModDB, about 0.4 MB), getting Steam's English depot (173.5 MB, into a folder outside the game), and which MMH5.5 version the group plays (RC19d installed, RC19k is out).
 
-Answer: (owner fills in)
+Answer (2026-10-25, through the coordinator):
+1. **Option 1, "private + ModDB".** Nothing translated goes in the public repo or the release. Each player gets MMH5.5's French pack from ModDB. Our gap translations are shared privately within the group and offered to the MMH5.5 team.
+2. **Download approved:** MMH5.5's French pack for RC19d, from the official GitHub repo or ModDB. Then translate the gaps for co-op; the campaigns wait.
+3. **English: no, all French.** Only French is built for now; no Steam English depot.
+4. **The group will upgrade to RC19k.** So the MMH5.5 part of the gaps waits for RC19k's texts. The 3.1 patch's texts and Ubisoft's English in the multiplayer maps go ahead now.
+
+Downloading a French pack for RC19i or RC19k needs another OK; see [plans/languages.md](plans/languages.md), "Versions".
 
 ## Q10: Show moves sooner after a click by default? (2026-10-25, status: answered)
 

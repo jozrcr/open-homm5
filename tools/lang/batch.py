@@ -3,6 +3,7 @@
     python tools/lang/batch.py make  --paths LIST.txt --out build/lang/b001   [--game DIR]
     python tools/lang/batch.py check build/lang/b001                           (en.txt vs fr.txt)
     python tools/lang/batch.py pack  build/lang/b001 --to build/lang/fr        (game files, UTF-16)
+    python tools/lang/batch.py pak   build/lang/open-homm5-fr.pak build/lang/b001 build/lang/b002 ...
 
 make: LIST.txt has one game path per line (text/game/.../name.txt). Writes into
       the batch folder:
@@ -15,6 +16,8 @@ check: every path translated, tags and <value=...> placeholders unchanged, same
       number of lines, no English left, length warnings. Exit code 1 on errors.
 pack: one file per path as the game reads it (UTF-16 LE + BOM, CRLF), ready to
       zip into a .pak for open-homm5\\lang\\fr.
+pak:  the same, straight into one .pak from several batches (dated now, so it
+      wins over an older pack on the same path). It holds game texts: build/ only.
 """
 import argparse
 import collections
@@ -146,9 +149,34 @@ def pack(args):
     print("packed %d files into %s" % (n, args.to))
 
 
+def pak(args):
+    """All the batches' fr.txt in one game pack (.pak = zip), for open-homm5\\lang\\fr."""
+    import time
+    import zipfile
+    stamp = time.localtime()[:6]  # newer than any pack made before: ours wins on the same path
+    n = 0
+    seen = set()
+    with zipfile.ZipFile(args.out, "w", zipfile.ZIP_DEFLATED) as z:
+        for batch in args.batches:
+            en = h5texts.read_batch(os.path.join(batch, "en.txt"))
+            fr = h5texts.read_batch(os.path.join(batch, "fr.txt"))
+            for key, text in fr.items():
+                if key not in en or h5texts.norm(key) in seen:
+                    continue
+                seen.add(h5texts.norm(key))
+                info = zipfile.ZipInfo(key, date_time=stamp)
+                info.compress_type = zipfile.ZIP_DEFLATED
+                z.writestr(info, h5texts.to_game_bytes(text))
+                n += 1
+    print("%s: %d texts from %d batch(es)" % (args.out, n, len(args.batches)))
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
+    k = sub.add_parser("pak")
+    k.add_argument("out")
+    k.add_argument("batches", nargs="+")
     m = sub.add_parser("make")
     m.add_argument("--paths", required=True)
     m.add_argument("--out", required=True)
@@ -163,6 +191,8 @@ def main():
         make(args)
     elif args.cmd == "check":
         sys.exit(check(args))
+    elif args.cmd == "pak":
+        pak(args)
     else:
         pack(args)
 

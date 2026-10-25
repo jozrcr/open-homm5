@@ -160,3 +160,7 @@ Not needed for co-op on multiplayer or random maps. Their archives compete with 
 | MMH55-SPMaps-Dialogs-EN.h5u | 971 | 4569 | 0 | 154 | 817 | 0 |
 | MMH55-SPMaps-Texts-EN.h5u | 423 | 9796 | 0 | 240 | 183 | 14 |
 
+## 9. The French pack MMH55-Texts-FR-RC19d.pak
+
+- 5842 text files; it has 3646 of the 4130 English files the player sees; 62 of those are still the English text. Left to translate: 546 files, 10030 words (list: build/lang/gaps.txt).
+

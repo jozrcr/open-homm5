@@ -400,3 +400,39 @@ original_music=0   ; 1 = the original Heroes V music where MMH5.5 changed it
 log_music=0        ; testing: 1 = log every music file the game starts
 log_data_files=0   ; testing: log the first N files the game reads from its data
 ```
+
+## One language: French texts (`languages*.cpp`, off by default)
+
+**What it is for:** with MMH5.5, a French game mixes languages. The base game's texts are French, but the 3.1 patch's and MMH5.5's texts are English, and they replace many French ones. With `texts=fr`, the game takes every text it can from the French packs in `open-homm5\lang\fr\` next to the exe:
+
+- **MMH5.5's own French pack.** The MMH5.5 team publishes it on MMH5.5's ModDB page. Each player downloads the one for their MMH5.5 version and puts its `.pak` there.
+- **Our pack** of what that pack leaves out, shared within the group.
+
+Nothing on disk changes. `game` (the default) installs nothing. The plan, with the counts and the version question, is [docs/plans/languages.md](../../docs/plans/languages.md).
+
+**How:** the game reads each text the first time it is shown, through its file system, and keeps it until it closes ([docs/subsystems/texts.md](../../docs/subsystems/texts.md)). The mod wraps the same "open file" function as the music mod (`CWinVFS` slot 7). When the game opens a `.txt` path that one of our packs has, it gets that file instead.
+
+- **Only `.txt` files** are ever taken from a pack. A language pack cannot change game data, only words on the screen.
+- **The `FF FE` mark** that the game needs before a text (without it the game shows an empty text) is always there. A UTF-8 text in a pack is converted.
+- **Between our packs,** the newest file of a path wins, as in the game. On equal dates, the pack whose name sorts last wins, the same on Windows and Linux.
+- **The player list** (`[ui] language=auto`) uses French words with `texts=fr`.
+
+Texts are only shown, never part of the game world: the game objects keep a text's path, not its words. So each player should be able to choose for themselves. **Not checked yet:** a LAN robot game with only the host on `texts=fr`, world checksums compared.
+
+The log (`open-homm5.log`) says what was found, for example (counts of MMH5.5's RC19d French pack and of our pack):
+
+```
+languages: texts=fr: the game's texts come from open-homm5\lang\fr\*.pak where they have them
+languages: texts=fr: 6024 French texts from open-homm5\lang\fr: MMH55-Texts-FR.pak (5841), open-homm5-fr.pak (183); 1 of them newer than another pack's; indexed in ... ms
+languages: version text: French pack "Version: 5.69d", the game "Version: 5.69d"
+```
+
+The version line compares the MMH5.5 version written in the French pack with the one the game shows in its main menu. When they differ, some French descriptions may describe another version's numbers.
+
+**Settings** (`open-homm5.ini`):
+
+```ini
+[lang]
+texts=game     ; game (the texts as installed), fr; en (English) is planned, not built yet
+log_texts=0    ; testing: log the first N texts taken from the packs
+```
