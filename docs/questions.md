@@ -13,7 +13,7 @@ Answer: (owner fills in)
 
 ---
 
-## Q10: Show moves sooner after a click by default? (2026-10-25, status: open)
+## Q10: Show moves sooner after a click by default? (2026-10-25, status: answered)
 
 Context: the plan is [plans/responsiveness.md](plans/responsiveness.md). In multiplayer, the game shows every move 400 ms after its step, on purpose, as a safety margin (`view_delay_ms`). With our 100 ms steps the real wait is usually 100 to 250 ms. A lower margin makes moves start sooner, for your clicks and for the AI's moves. In robot tests, AI hero moves dropped from 0.61 to 0.46 s with 200 ms, with no desync. The risk: when a step arrives later than the margin, that move starts with a small jump (the hero is already a few steps along). It never changes the game itself, only when this PC shows it, and each PC can choose.
 
@@ -22,7 +22,7 @@ Options:
 2. Default 200: faster, more jumps on slow links.
 3. Keep the game's 400. Each player can still lower it in `open-homm5.ini`.
 
-Answer:
+Answer (2026-10-25): yes, and lower: everyone has a good PC and fiber, so 250 ms still feels delayed. Default **150 ms while co-op timing is ON** (the game's 400 otherwise); tune it with the trace of the next game.
 
 ## Q9: A better random map generator: which route, and which maps first? (2026-10-25, status: answered)
 

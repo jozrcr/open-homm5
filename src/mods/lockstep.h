@@ -4,8 +4,12 @@
 namespace mods {
 
 // With the settings of open-homm5.ini: [net] drain_reports=1 (default),
-// view_delay_ms=400 (the game's; 100..400), catch_up_ms=150 (the game's), trace_lockstep=1. Only after
+// view_delay_ms=150 (with co-op timing ON; 100..400), catch_up_ms=150 (the game's), trace_lockstep=1. Only after
 // DetectGameBuild() said the build is hookable.
 void ApplyLockstepFromSettings();
+
+// Called by the co-op guard: true when its shorter segments start, false at
+// the start of a game (the margin view_delay_ms only applies while ON).
+void LockstepCoopTiming(bool on);
 
 }  // namespace mods

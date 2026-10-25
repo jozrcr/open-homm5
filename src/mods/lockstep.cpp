@@ -21,7 +21,11 @@
 //    is the transceiver timer minus 400 ms, so that a segment's results are
 //    shown only once every PC surely has them. With our 100 ms segments the
 //    wait is usually much shorter, but every move still starts 400 ms late.
-//    [net] view_delay_ms (100..400, the game: 400) sets that margin. It only
+//    [net] view_delay_ms (100..400, default 150) sets that margin, but only
+//    while the co-op guard's shorter segments are ON (every PC agreed, see
+//    coop_guard.cpp, which calls LockstepCoopTiming); otherwise the game's 400
+//    stays, since 200 ms segments wait longer. The owner chose a low default
+//    (Q10: everyone on fiber). It only
 //    moves when this PC shows things and when its AI goes on; the game world
 //    itself follows the segment times, the same on every PC. Too small, and a
 //    move whose segment arrives late starts with a small jump.
@@ -250,7 +254,19 @@ bool SetImmediate(DWORD address, DWORD expected, DWORD value)
 	return true;
 }
 
+DWORD g_view_ms = 400;  // the margin with co-op timing ON ([net] view_delay_ms)
+
 }  // namespace
+
+// The co-op guard (coop_guard.cpp) switched to its shorter segments, or a new
+// game started with the game's own timing.
+void LockstepCoopTiming(bool on)
+{
+	const DWORD now = *reinterpret_cast<const DWORD *>(kViewDelayImmediate);
+	const DWORD want = on ? g_view_ms : 400;
+	if (now != want && (now == 400 || now == g_view_ms))
+		SetImmediate(kViewDelayImmediate, now, want);
+}
 
 void ApplyLockstepFromSettings()
 {
@@ -258,16 +274,18 @@ void ApplyLockstepFromSettings()
 	hooklog::PathNextToExe(L"open-homm5", L".ini", path, MAX_PATH);
 	g_drain = GetPrivateProfileIntW(L"net", L"drain_reports", 1, path) != 0;
 	g_trace = GetPrivateProfileIntW(L"net", L"trace_lockstep", 1, path) != 0;
-	const DWORD view = GetPrivateProfileIntW(L"net", L"view_delay_ms", 400, path);
+	const DWORD view = GetPrivateProfileIntW(L"net", L"view_delay_ms", 150, path);
 	const DWORD catch_up = GetPrivateProfileIntW(L"net", L"catch_up_ms", 150, path);
 
 	if (view != 400) {
 		if (view < 100 || view > 400)
 			hooklog::Write("lockstep: view_delay_ms must be 100..400, not %lu: keeping the game's 400 ms", view);
-		else if (!SetImmediate(kViewDelayImmediate, 400, view))
+		else if (*reinterpret_cast<const DWORD *>(kViewDelayImmediate) != 400)
 			hooklog::Write("lockstep: the game time code is not as expected: keeping the game's 400 ms");
-		else
-			hooklog::Write("lockstep: moves are shown %lu ms after their segment (game: 400)", view);
+		else {
+			g_view_ms = view;
+			hooklog::Write("lockstep: with co-op timing ON, moves are shown %lu ms after their segment (game: 400)", view);
+		}
 	}
 	if (catch_up != 150) {
 		if (catch_up < 150 || catch_up > 1000)
