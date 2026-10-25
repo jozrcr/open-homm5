@@ -1,6 +1,6 @@
 # Freezes ("not responding") and the hang watchdog
 
-Status: one real freeze, **cause not known yet** (2026-10-25). The DLL now has a watchdog that writes where the game is stuck the next time (`src/hook/watchdog.cpp`). This page has what the log of that freeze shows, the suspects, and how to read a watchdog report.
+Status: one real freeze, cause not proven (2026-10-25). **Leading hypothesis:** the AI took several decisions in one frame, on a world that did not have its last moves yet, something our faster co-op timing allowed and the game itself never does (below). Since then the DLL puts the game's guarantee back (`src/mods/ai_pacing.cpp`, `[ai] one_decision_per_frame=1`, on by default), and a watchdog writes where the game is stuck if it freezes again (`src/hook/watchdog.cpp`). This page has what the log of that freeze shows, the suspects, and how to read a watchdog report.
 
 ## The freeze of 2026-10-25
 
@@ -59,7 +59,7 @@ It cannot desync (only the host runs the AI; the others apply its commands), and
 
 **Fixed on the way:** the lockstep trace (`TraceLook`) walks from the report counts it saw last to the game's current ones; a count that went back or jumped by more than its 256-segment ring now restarts the trace instead of looping (and indexing) by that difference.
 
-**Not changed (uncertain, for the owner and the next session):** limiting the AI to one decision per frame, or making it wait until the segment with its last commands has run (suspect 1). It would cost some AI speed. The watchdog's next report says whether the freeze is in the AI.
+**Suspect 1 is the leading hypothesis, and its cause is removed:** `src/mods/ai_pacing.cpp` (`[ai] one_decision_per_frame=1`, on by default; 0 = the 0.2.x behaviour) calls the AI's turn driver at most once per frame in multiplayer games, and after a call with commands only once the segment holding them has run. That is what the game guarantees with its own timing, so it ships as a restoration, not a gameplay change. Robot (LAN, slow host: every frame +60 ms, `view_delay_ms=50`): same-frame AI steps 23 of 58 (40%) without it, **0 of 67** with it, 0.29 s → 0.42 s per AI step there; with fast frames nothing changes (0 held, 0.25 s per step); world checksums equal in every run. Details in `src/mods/README.md`. If the owner's game still freezes, the watchdog's report says where.
 
 ## The hang watchdog
 
@@ -94,4 +94,5 @@ watchdog: our DLL is at 6f340000 (link time stamp 6ade25e8): ...
 - `build.ps1 -Test` runs `test/watchdog_test.cpp`: a thread freezes on purpose, once busy and once blocked.
 - In the game: `[debug] hang_test=1`, then F12 with the game in front: it spins 25 s in `HangTestSpin` (the report must show it, and the game must go on afterwards).
 - Robot: `python tools\robot\run_ai_test.py --turns 4 --quick-combat --debug-setting hang_test_at=28 --debug-setting hang_seconds=10` (the freeze starts once, 28 s after the game first took its messages). Checked 2026-10-25: one look after 10 s, the main thread at 2000 of 2000 ms, EIP in `GetTickCount` (the test loop calls it), the stack `HangTestSpin` → our `PeekMessageA` hook → `0x00c3b4a9` (main loop) → the game's callers, the last AI steps, "takes its messages again, after 25 s", and the AI went on with its next turn.
+- Two more testing switches (robot runs): `hang_test_frame_ms=N` makes every frame N ms longer (a slow PC: how the robot reproduced the same-frame AI decisions), `hang_test_ai_step=N` freezes 3 s once instead of the first AI call that starts a turn from the N-th call on.
 - A first robot run showed why the watched thread is the one that makes the DirectInput object (the game's main thread): a short-lived start-up thread also calls the exe's `PeekMessageA` first.

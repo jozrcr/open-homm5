@@ -20,6 +20,13 @@ void Install();
 typedef void (*Reporter)();
 void AddReporter(Reporter reporter);
 
+// Called before each call of the game's AI turn driver (stage = the AI's stage):
+// [debug] hang_test_ai_step=N (robot tests) freezes the main thread for 3 s
+// once, instead of the first call that would start an AI turn from the N-th
+// call on (true: skip that call), so that the frames after it catch up
+// (several segments per frame) as the AI starts its turn.
+bool OnAiStep(DWORD stage);
+
 // A name for one of our own functions, so that a return address in our DLL can
 // be shown as "after <name>+0x12" (a guess: the linker may put another function
 // right after it; the build's map file, build\hook\dinput8.map, is exact).

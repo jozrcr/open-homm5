@@ -18,6 +18,7 @@
 #include "log.h"
 #include "robot.h"
 #include "watchdog.h"
+#include "../mods/ai_pacing.h"
 #include "../mods/fast_paths.h"
 
 namespace {
@@ -187,7 +188,13 @@ void ReportForWatchdog()
 
 void __fastcall TurnDriverHook(void *self, void *edx, void *commands, int flag)
 {
+	// Held for a later frame (src/mods/ai_pacing.cpp): the manager then sends
+	// the empty list, as after a call that decided nothing.
+	if (!mods::AiPacingAllowsStep())
+		return;
 	const DWORD stage_before = Field(self, kOffStage);
+	if (watchdog::OnAiStep(stage_before))
+		return;  // ([debug] hang_test_ai_step: a short freeze on purpose instead of this call)
 	LastCall &last = SlotFor(self);
 	LARGE_INTEGER t0, t1;
 	QueryPerformanceCounter(&t0);
@@ -212,6 +219,7 @@ void __fastcall TurnDriverHook(void *self, void *edx, void *commands, int flag)
 	char types[96];
 	CommandTypes(commands, types, sizeof(types));
 	const int cmds = CommandCount(commands);
+	mods::AiPacingAfterStep(cmds, stage_before, stage_after);
 	const double think = Ms(t0, t1);
 	Step &s = g_steps[g_step_count % kSteps];
 	s = {GetTickCount(), self, stage_before, stage_after, cmds, static_cast<float>(think), static_cast<float>(gap),

@@ -143,9 +143,30 @@ net_sleep_ms=2    ; 1..10, the network thread's rest between rounds (the game: 1
 
 The robot passes them with `run_lan_test.py --net-setting KEY=VALUE`.
 
-**A side effect to know (found after the owner's freeze of 2026-10-25, [docs/subsystems/hangs.md](../../docs/subsystems/hangs.md)):** with 50 ms segments and `catch_up_ms=600`, the game's AI manager runs several segments in one frame and calls the AI's turn driver in each of them, so the AI can take a second (up to a sixth) decision in the same frame, before its first decision's commands have run. In the owner's real game 17% of the AI's steps came that way; with the Oct 24 builds (100 ms segments, the game's 150 ms catch-up) none did. It does not desync (only the host runs the AI and sends its commands), but the AI then sees a world without its last moves, which the game itself never shows it. Whether that caused the freeze is not known yet; the hang watchdog will tell. The timing of the Oct 24 builds (`[coop] segment_ms=100`, `[net] catch_up_ms=150`, `view_delay_ms=400`) had no such steps in the owner's logs (not checked with the robot yet).
+**A side effect, now fixed by `ai_pacing.cpp` (below):** with 50 ms segments and `catch_up_ms=600`, the game's AI manager runs several segments in one frame and calls the AI's turn driver in each of them, so on a slow frame the AI took a second (up to a sixth) decision in the same frame, before its first decision's commands had run. In the owner's game that froze, 17% of the AI's steps came that way; with the Oct 24 builds none did.
 
 **Hardened:** the trace follows the players' report counts from one frame to the next; a count that went back or jumped by more than its 256-segment memory now starts the trace again, instead of a long loop (it never happened in the logs, but those counts are the game's memory).
+
+## One AI decision per frame (`ai_pacing.cpp`; on by default)
+
+**What it is for:** the game itself never lets its AI decide twice in one frame, or before its last moves have happened in the world: with the game's own timing (200 ms segments, the segment timer moving at most 150 ms per frame) the AI manager calls the AI at most once per frame, and the AI's commands run in a later frame's network pump. Our faster co-op timing broke that on slow frames (above), and it is the leading suspect for the owner's freeze of 2026-10-25 ([docs/subsystems/hangs.md](../../docs/subsystems/hangs.md)). This puts the guarantee back.
+
+**What it does,** in multiplayer games (single player is untouched): the AI's turn driver is called at most once between two network pumps (once per frame), and after a call that produced commands, only once the segment holding them has run (no segment record numbered up to it is left in the transceiver's list after a pump). A call held back is simply not made; the AI gets it in a later frame. Only the host runs the AI and every PC applies the commands it sends, so this cannot desync. A safety valve lets the AI go on after 5 s of waiting (logged once; never seen). How: the two calls of the segment runner `0x007c98e0` in the pump (`0x007ca957`, `0x007ca97d`) go through us, after checking the runner's first bytes; the turn driver hook (`src/hook/ai_trace.cpp`) asks before each call. One line per AI turn: `ai pacing: this AI turn: N calls held for the next frame, M until the AI's own commands had run`.
+
+```ini
+[ai]
+one_decision_per_frame=1  ; 0 = as 0.2.0 to 0.2.3 (several decisions per frame on slow frames)
+```
+
+**Robot results** (LAN, 2 copies, A1M4, 6 AI turns each; world checksums equal in every run):
+
+| Run | Same-frame AI steps | AI time per step | Checksums |
+|---|---:|---:|---|
+| Slow host (every frame +60 ms, 10-13 frames/s), `view_delay_ms=50` (the owner's), **off** | 23 of 58 (40%) | 0.29 s | 976, all equal |
+| The same, **on** | **0 of 67** (46 calls held a frame) | 0.42 s | 1181, all equal |
+| Defaults (fast frames), **on** | 0 of 66 (none held) | 0.25 s (hero moves 199 ms) | 1085, all equal |
+
+On a fast PC nothing changes (0.25 s per step, as the 0.2.2 robot runs); on a slow frame the AI waits one frame per decision, as the game does with its own timing.
 
 ## Quicker autosaves (`autosave.cpp`; the trace and level 1 on by default)
 

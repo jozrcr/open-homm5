@@ -773,6 +773,9 @@ void HangTestKey()
 
 DWORD g_hang_test_at_ms = 0;  // [debug] hang_test_at (robot tests): once, this long after the first beat
 DWORD g_first_beat = 0;
+LONG g_hang_test_ai_step = 0;  // [debug] hang_test_ai_step (robot tests): a 3 s freeze at that AI call
+LONG g_ai_steps = 0;
+DWORD g_slow_frame_ms = 0;  // [debug] hang_test_frame_ms (robot tests): a slow PC (long frames, as in the owner's game)
 
 void OnMessages()
 {
@@ -783,6 +786,8 @@ void OnMessages()
 		g_first_beat = GetTickCount() | 1;
 	if (g_hang_test)
 		HangTestKey();
+	if (g_slow_frame_ms)
+		Sleep(g_slow_frame_ms);  // [debug] hang_test_frame_ms: every frame this much longer (a slow PC)
 	if (g_hang_test_at_ms && GetTickCount() - g_first_beat >= g_hang_test_at_ms) {
 		g_hang_test_at_ms = 0;
 		HangTest("[debug] hang_test_at");
@@ -834,6 +839,20 @@ bool StartThread()
 
 }  // namespace
 
+bool OnAiStep(DWORD stage)
+{
+	// at the first AI call that would start a turn (stage 0) from the N-th call
+	// on: the moment the robot's autosave freezes showed the AI's bursts of
+	// decisions (a long frame, then the AI's first call)
+	if (!g_hang_test_ai_step || ++g_ai_steps < g_hang_test_ai_step || stage != 0)
+		return false;
+	g_hang_test_ai_step = 0;
+	hooklog::Write("watchdog: hang test ([debug] hang_test_ai_step): the main thread spins for 3 s instead of this AI "
+	               "call (a turn's start), so that the next frames catch up");
+	HangTestSpin(3000);
+	return true;
+}
+
 void AddReporter(Reporter reporter)
 {
 	const LONG i = InterlockedIncrement(&g_reporter_count) - 1;
@@ -867,6 +886,13 @@ void Install()
 		g_stall_ms = seconds * 1000;
 	g_hang_test = GetPrivateProfileIntW(L"debug", L"hang_test", 0, path) != 0;
 	g_hang_test_at_ms = GetPrivateProfileIntW(L"debug", L"hang_test_at", 0, path) * 1000;
+	g_hang_test_ai_step = static_cast<LONG>(GetPrivateProfileIntW(L"debug", L"hang_test_ai_step", 0, path));
+	g_slow_frame_ms = GetPrivateProfileIntW(L"debug", L"hang_test_frame_ms", 0, path);
+	if (g_slow_frame_ms > 500)
+		g_slow_frame_ms = 500;
+	if (g_slow_frame_ms)
+		hooklog::Write("watchdog: test: every frame of the game gets %lu ms longer ([debug] hang_test_frame_ms)",
+		               g_slow_frame_ms);
 	Common();
 	// The thread that makes the DirectInput object (we are called from there) is the
 	// game's main thread, the one that runs its frames and the AI. (Not "the first
