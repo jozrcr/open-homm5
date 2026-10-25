@@ -454,6 +454,48 @@ std::string FileName(const std::string &name)
 
 }  // namespace
 
+// makeTemplate's checks of the choices, in its order and with its words (the
+// builder panel asks before it offers a choice). The map size is checked last,
+// as makeTemplate does once it knows the zones.
+bool CheckChoices(const Choices &o, std::string *error)
+{
+	if (!(o.teams >= 2 && o.per_team >= 1)) {
+		*error = "need at least 2 teams (1 player per team = free-for-all)";
+		return false;
+	}
+	const int players = o.teams * o.per_team;
+	if (players > 8) {
+		*error = "the game allows at most 8 players (" + Str(players) + " asked)";
+		return false;
+	}
+	if (!FindLoot(o.loot)) {
+		*error = "unknown loot level " + o.loot;
+		return false;
+	}
+	if (!FindGuards(o.guards)) {
+		*error = "unknown guard level " + o.guards;
+		return false;
+	}
+	for (const std::string &k : o.loot_by_distance)
+		if (!k.empty() && !FindLoot(k)) {
+			*error = "unknown loot level " + k;
+			return false;
+		}
+	for (const std::string &k : o.guards_by_distance)
+		if (!k.empty() && !FindGuards(k)) {
+			*error = "unknown guard level " + k;
+			return false;
+		}
+	bool size_known = o.size == "auto";
+	for (const Size &s : kSizes)
+		size_known = size_known || o.size == s.key;
+	if (!size_known) {
+		*error = "unknown map size " + o.size;
+		return false;
+	}
+	return true;
+}
+
 // makeTemplate(options)
 bool MakeTemplate(const Choices &o, Template *out, std::string *error)
 {

@@ -126,6 +126,23 @@ python tools\robot\save_rmg_map.py --remove OH-X1-robot-2v2
 - `save_rmg_map.py` packs the generated map the way the generator screen's Save does, so the LAN host can pick it. The map has 4 players: `38|arrow|3 right` makes the fourth one a computer player.
 - Look for `rmg join:` and `rmg teams:` lines in both logs; `lan_report.py` checks the checksums.
 - Not possible yet: opening the generator screen. Its button sends `rmg_screen` as a `UISSendGameMessage`, and the robot's `msg|rmg_screen` is not taken (by the single-player or the multiplayer screen).
+## Checking the template builder (a modal panel of the overlay)
+
+Two runs: the builder, Use, then the game's Create and Save; then the saved map is started.
+
+```
+python tools\robot\run_ai_test.py --no-map --seconds 95 --shot-every 0 --step "8|menu|single custom_game" --step "13|rmg|" --step "20|shot|rmg-screen" --step "22|ui|NUI::CRMGScreen oh_builder" --step "26|shot|builder-filled" --step "28|panel|preset 1" --step "29|panel|distance on" --step "31|shot|builder-preset" --step "32|panel|scroll end" --step "34|shot|builder-scrolled" --step "36|panel|use" --step "39|shot|after-use" --step "41|ui|NUI::CRMGScreen create" --step "70|shot|created" --step "72|ui|NUI::CRMGScreen save" --step "77|shot|saved"
+python tools\robot\run_ai_test.py --no-map --seconds 170 --turns 1 --quick-combat --shot-every 0 --step "8|menu|single custom_game" --step "13|rmg|" --step "18|key|F11" --step "22|shot|builder-filled" --step "24|panel|cancel" --step "26|ui|NUI::CRMGScreen back" --step "30|console|advmap /Maps/RMG/<RMGguid>/map.xdb#xpointer(/AdvMapDesc) 0 1 1"
+```
+
+- `rmg|` opens the random map screen from the custom game screen (`msg|rmg_screen` does not: see the step table).
+- `ui|NUI::CRMGScreen oh_builder` sends what our "Template..." button sends: the panel opens as from a click. `key|F11` opens it too.
+- `panel|...` gives the open panel what a click would (`rmg_builder.cpp`, `RobotCommand`): `preset <number in the list, recipe name or part of a ready name>`, `distance on|off`, `scroll <units>|end`, `use`, `save`, `cancel`, `open`.
+- `ui|NUI::CRMGScreen create` and `... save` press the game's own Create and Save. The map is saved as `Maps\<the screen's name>.h5m`; its `RMGguid` (inside: `Maps/RMG/<guid>/map.xdb`) starts it in the second run. Remove the saved map afterwards: `python tools\robot\save_rmg_map.py --remove <name without .h5m>`.
+- `--resolution 1920x1080` checks the panel at another size.
+- What to look for in the log: `rmg screen: the random map screen gets our "Template..." button`, `rmg screen: "oh_builder"`, `rmg builder: Use OH-X1-...: size ..., "ARMG Templates" ticked, OH-X1-... chosen (n of m that fit)`, then at Create and when the saved map starts `rmg teams: setup ... is for a random map made from /RMG/Templates/OH-X1-....xdb`.
+- Checked 2026-10-25 at 1024×768 and 1920×1080 on the French test copy: every line above, our template chosen 14th of the 19 that fit, the map built from it, saved and started, and the computer players took their turns.
+- Not possible with the robot: clicks on the panel (the drop-down lists, the arrows, the boxes, the scroll bar), Esc, and checking that the game behind gets no input (the robot's window is in the background). That is checked by hand, with the test panel's help (`[ui] overlay_test_panel=1`, `src/mods/README.md`).
 
 ## Robot script
 
@@ -145,6 +162,9 @@ Besides starting a map, the DLL runs a script of timed steps (`--step`, or `--ho
 | `slots` | (none) | research: logs the waiting room's rows (state, player) and whether the host can start |
 | `mem` | hex addresses | research: logs the 32-bit values there (e.g. `f27398` = `net_batched_segments`) |
 | `shot` | a label | saves the next frame as `frame-NNN-<label>.png` |
+| `rmg` | (none) | opens the random map screen from the custom game screen (`menu|single custom_game` first). Its button posts the game message `rmg_screen`, but the screen's observer (`0x0077b090`) drops a message without the button as sender, so `msg|rmg_screen` does nothing; the step calls the observer's handler `0x0077a6c0` on the live `NUI::CHSCreate` instead (`robot_ui.cpp`) |
+| `key` | `F1`..`F12` | presses one of **our overlay's** keys (the DLL's own key handling sees it; the game does not): e.g. `F11` opens the template builder on the random map screen, `F9` is not covered (the player list reads its key itself) |
+| `panel` | a command | for our open panel, what a click would do (the robot cannot click): the template builder takes `preset <n>`, `distance on\|off`, `scroll <units>\|end`, `use`, `save`, `cancel` and `open` (`rmg_builder.cpp`) |
 | `peek` | `<screen class> <hex offset> ...` | research: logs the objects along a pointer chain from a screen, with their class names |
 
 When the game hangs, the DLL logs where: if the main loop stops calling `PeekMessageA`, or stops showing frames, for 3 s, it logs the main thread's position and the game's return addresses on its stack (`robot: stall ...`), and how many game messages are queued.
