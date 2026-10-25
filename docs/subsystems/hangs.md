@@ -39,7 +39,9 @@ With the game's timing (200 ms segments, the segment timer moving at most 150 ms
 | `[28588]` (froze) | 0.2.3, 50 ms, catch-up 600, margin 50 | 809 | 141 (17%) | 6 |
 | `[30836]` (replay) | 0.2.3, same | 190 | 26 (14%) | 3 |
 
-It cannot desync (only the host runs the AI; the others apply its commands), and it is part of why the robot measured faster AI moves with 0.2.0. But the game itself never lets its AI decide on a world without its last moves, and the freeze came right after such a pair.
+It takes long frames: in the robot's LAN runs on the small A1M4 map, where frames are short, almost no AI step came that way with the same timing (none in 27 of the 30 runs with 50 ms segments and `catch_up_ms=600`), except in the three runs with 8-9 s autosave freezes (the owner's old saves, before `fast_save_list`): right after each freeze the AI took 3 to 6 decisions in one frame (11 of ~60 steps per run). In the owner's game frames were long all the time (a big map, 60-150 ms of AI thinking per step, 13-18 frames/s in the background).
+
+It cannot desync (only the host runs the AI; the others apply its commands), and it may be part of why the robot measured faster AI moves with 0.2.0. But the game itself never lets its AI decide on a world without its last moves, and the freeze came right after such a pair.
 
 ## Suspects, most likely first
 
@@ -91,4 +93,5 @@ watchdog: our DLL is at 6f340000 (link time stamp 6ade25e8): ...
 
 - `build.ps1 -Test` runs `test/watchdog_test.cpp`: a thread freezes on purpose, once busy and once blocked.
 - In the game: `[debug] hang_test=1`, then F12 with the game in front: it spins 25 s in `HangTestSpin` (the report must show it, and the game must go on afterwards).
-- Robot: `python tools\robot\run_ai_test.py --turns 2 --debug-setting hang_test_at=60` (the freeze starts once, 60 s after the game first took its messages).
+- Robot: `python tools\robot\run_ai_test.py --turns 4 --quick-combat --debug-setting hang_test_at=28 --debug-setting hang_seconds=10` (the freeze starts once, 28 s after the game first took its messages). Checked 2026-10-25: one look after 10 s, the main thread at 2000 of 2000 ms, EIP in `GetTickCount` (the test loop calls it), the stack `HangTestSpin` → our `PeekMessageA` hook → `0x00c3b4a9` (main loop) → the game's callers, the last AI steps, "takes its messages again, after 25 s", and the AI went on with its next turn.
+- A first robot run showed why the watched thread is the one that makes the DirectInput object (the game's main thread): a short-lived start-up thread also calls the exe's `PeekMessageA` first.

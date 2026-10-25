@@ -564,6 +564,9 @@ void Report(DWORD stalled_ms)
 	if (moved)
 		hooklog::Write("watchdog: the main thread took its messages again during the look (%d samples): a long load or "
 		               "a long step, not a hang", samples);
+	if (!samples && !moved)
+		hooklog::Write("watchdog: the main thread could not be looked at (it ended, or SuspendThread / GetThreadContext "
+		               "failed)");
 	hooklog::Write("watchdog: the main thread used %lu ms of CPU in those %lu ms: %s", main_ms, window,
 	               main_ms * 2 > window ? "busy (it is running: an endless or very long loop)"
 	                                    : "mostly waiting (blocked: on a lock, a wait or the system)");
@@ -705,6 +708,7 @@ DWORD WINAPI WatchThread(void *)
 	LONG seen = g_beats;
 	DWORD since = GetTickCount();
 	bool reported = false;
+	bool armed = false;  // the main thread took its messages at least once
 	for (;;) {
 		Sleep(g_poll_ms);
 		const LONG beats = g_beats;
@@ -715,9 +719,10 @@ DWORD WINAPI WatchThread(void *)
 			seen = beats;
 			since = now;
 			reported = false;
+			armed = true;
 			continue;
 		}
-		if (!g_main_id || reported || now - since < g_stall_ms)
+		if (!armed || reported || now - since < g_stall_ms)
 			continue;
 		reported = true;
 		Report(now - since);
@@ -771,11 +776,8 @@ DWORD g_first_beat = 0;
 
 void OnMessages()
 {
-	const LONG me = static_cast<LONG>(GetCurrentThreadId());
-	if (!g_main_id)
-		InterlockedCompareExchange(&g_main_id, me, 0);
-	if (g_main_id != me)
-		return;
+	if (g_main_id != static_cast<LONG>(GetCurrentThreadId()))
+		return;  // another of the exe's threads (a short-lived one takes messages at start-up)
 	Beat();
 	if (!g_first_beat)
 		g_first_beat = GetTickCount() | 1;
@@ -866,6 +868,10 @@ void Install()
 	g_hang_test = GetPrivateProfileIntW(L"debug", L"hang_test", 0, path) != 0;
 	g_hang_test_at_ms = GetPrivateProfileIntW(L"debug", L"hang_test_at", 0, path) * 1000;
 	Common();
+	// The thread that makes the DirectInput object (we are called from there) is the
+	// game's main thread, the one that runs its frames and the AI. (Not "the first
+	// thread to take the exe's messages": a short-lived start-up thread does that.)
+	g_main_id = static_cast<LONG>(GetCurrentThreadId());
 	const GameBuild build = DetectGameBuild();
 	g_vanilla_layout = build == GameBuild::Vanilla31 || build == GameBuild::Mmh55Utility;
 	g_peek_next = reinterpret_cast<PeekFn>(hookpatch::PatchImport("USER32.dll", "PeekMessageA", reinterpret_cast<void *>(&PeekHook)));
