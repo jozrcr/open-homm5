@@ -6,6 +6,45 @@ The owner asked: "would it be possible to have the starter biome be race-adequat
 
 The owner's decision (2026-10-25): **automatic from the lobby (B), or nothing.** Choosing the factions in the template builder (option A) is rejected: it would lock a map to its factions.
 
+**The owner's answers (2026-10-25), after reading this plan:**
+1. **B(a), the rebuild at start**, with its trade-offs: a longer start, only when a faction changed; and contents that may differ from the preview.
+2. **Players left on "Random"** in the lobby keep the faction the map was made with.
+3. **The lobby's faction arrows are unlocked on random maps**, as part of the same setting, so nobody has to tick "Random towns".
+4. **Off by default:** `[rmg] faction_terrain=0`.
+
+B(b) is used only if B(a) hits a wall, and the coordinator is told first.
+
+## Built (2026-10-25): `src/mods/rmg_factions.cpp`, setting `[rmg] faction_terrain`
+
+B(a) works in the robot's LAN games. How it is built, in short (details in [src/mods/README.md](../../src/mods/README.md)):
+- **The lobby (host):** on random maps, every start slot may take any faction.
+- **Agreeing before the map loads:** each client's DLL says hello to the host in the lobby, with a waiting-room request the game ignores. The host rebuilds only when every human client said hello.
+- **The decision travels in the map's name:** the host's start message names `Maps/RMG/<guid>-OH1-<one digit per player>/` instead of the map. Every PC that has the mod rebuilds that map before the game looks it up, with the game's own generator, as a joining client does. A client does it when it reads the start message, the host when its world starts. A PC without the mod could not even find the map, so it can never start on a different world.
+- **Players left on "Random"** get the faction the map was made with.
+
+**What step 0 found** (the open points of section 4):
+- **Which map the start loads:** the start message carries the map's id, a path. Each client looks it up when it reads the message (`0x00ca0c70`), the host when its world starts (`0x00820830`). So a new path, built just before, is loaded fresh, and the lobby's cached copy of the old map does not matter.
+- **Where a joining client's map goes:** a new package `Maps\<map name>.N.h5m`, with the same files inside as the host's (`Maps/RMG/<guid>/`).
+- **A second build in one game session** works.
+
+**Robot tests, two copies on this PC:**
+
+| Test | Rebuild time | Packages | World checksums |
+|---|---|---|---|
+| The host picked Haven, where its zone was made for Inferno | 9.2 s on the host, 8.7 s on the client | the same, byte for byte | 504, all equal |
+| The client picked Inferno, where its zone was made for Dungeon | | the same | 507, all equal |
+
+- **In the first test,** the host's start zone changed from Inferno ground and decorations to Haven grass and trees.
+- **In the second test,** the zone is underground: cave ground whatever the faction, so only the town changed.
+
+**Still open:**
+1. **A robot run with the setting on and no faction changed.** It should not rebuild. The attempt was cut short because the owner was using the test copy.
+2. **The lobby unlock on fixed-town maps,** which the robot cannot test yet (see the README).
+3. **Linux (Proton).**
+4. **A line on the loading screen** while the map is built.
+5. **Every rebuild leaves a package in `Maps`,** as each join does in the game itself.
+6. **After an MMH5.5 update,** an old `...-OH1-...` package of the same map and factions would be reused by the PCs that have one. Deleting old `-OH1-` packages after an update avoids that.
+
 ## Short version
 
 - **Yes, it is possible.** Recommended: **B(a), rebuild the map at game start.** Once the lobby's factions are final, every PC rebuilds the random map with each player's faction. The game's own generator then paints each start zone for its player's faction: the town, the ground, the trees and rocks, and the dwellings.

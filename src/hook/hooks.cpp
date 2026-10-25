@@ -13,6 +13,7 @@
 #include "../mods/notify.h"
 #include "../mods/original_music.h"
 #include "../mods/player_list.h"
+#include "../mods/rmg_factions.h"
 #include "../mods/rmg_teams.h"
 #include "../mods/rmg_templates.h"
 
@@ -63,6 +64,7 @@ void InstallAll()
 	mods::ApplyNotifyFromSettings();
 	mods::ApplyRmgTeamsFromSettings();
 	mods::ApplyRmgTemplatesFromSettings();
+	mods::ApplyRmgFactionsFromSettings();
 	mods::ApplyOriginalMusicFromSettings();
 	mods::ApplyPlayerListFromSettings();
 }

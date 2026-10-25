@@ -346,7 +346,8 @@ void LogWaitSlots()
 }
 
 // Press a player row's arrow in the waiting room: "<row> left|right", or
-// "<row> team left|right" for the team arrows.
+// "<row> team left|right" for the team arrows, "<row> race left|right" for the
+// faction arrows (0x007138a0 / 0x007138c0: +0xc4 = 3).
 // The arrows (UI/MPWait/PlayersList/Item/OpenCloseLeft|Right, TeamColorLeft|Right)
 // only record a pending change on the row (CMPWaitItem, 0x00713820 / 0x00713840,
 // team: 0x00713860 / 0x00713880):
@@ -355,15 +356,21 @@ void LogWaitSlots()
 // Row states (+0x28 of that part, seen in the robot's screenshots): 0 human not
 // ready, 1 computer, 2 closed, 3 human ready, 4 open slot. The right arrow on an
 // empty slot cycles open -> computer -> closed -> open; on your own row it
-// toggles ready.
+// toggles ready. "<row> ready" presses it only when the row is a human not yet
+// ready (state 0, read like LogWaitSlots does), so it can be repeated, e.g.
+// while a client is still rebuilding a random map.
 bool PressSlotArrow(const char *spec)
 {
 	const int row = atoi(spec);
-	const bool right = strstr(spec, "right") != nullptr;
+	const bool ready = strstr(spec, "ready") != nullptr;
+	const bool right = ready || strstr(spec, "right") != nullptr;
 	const bool team = strstr(spec, "team") != nullptr;
+	const bool race = strstr(spec, "race") != nullptr;
 	BYTE *screen = static_cast<BYTE *>(FindScreen("NUI::CMPWaitScreen"));
-	if (!screen)
+	if (!screen) {
+		hooklog::Write("robot: waiting room: not open (arrow %s skipped)", spec);
 		return false;
+	}
 	__try {
 		BYTE *logic = *reinterpret_cast<BYTE **>(screen + 0x1b4);
 		BYTE **begin = *reinterpret_cast<BYTE ***>(logic + 0x38);
@@ -372,15 +379,25 @@ bool PressSlotArrow(const char *spec)
 			hooklog::Write("robot: waiting room: no row %d", row);
 			return false;
 		}
+		if (ready) {
+			typedef DWORD *(__fastcall *PtrFn)(void *self, void *edx);
+			void **slot_vt = *reinterpret_cast<void ***>(begin[row]);
+			const DWORD state = reinterpret_cast<PtrFn>(slot_vt[14])(begin[row], nullptr)[0];
+			if (state != 0) {
+				hooklog::Write("robot: waiting room: row %d is in state %lu, not pressing ready", row, state);
+				return true;
+			}
+		}
 		BYTE *full = begin[row] - 8;
-		*reinterpret_cast<DWORD *>(full + 0xc4) = team ? 2 : 1;
+		*reinterpret_cast<DWORD *>(full + 0xc4) = race ? 3 : team ? 2 : 1;
 		*(full + 0xc8) = right ? 1 : 0;
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER) {
 		hooklog::Write("robot: waiting room: pressing an arrow crashed (caught)");
 		return false;
 	}
-	hooklog::Write("robot: waiting room: row %d %s arrow %s pressed", row, team ? "team" : "state", right ? "right" : "left");
+	hooklog::Write("robot: waiting room: row %d %s arrow %s pressed", row, race ? "race" : team ? "team" : "state",
+	               right ? "right" : "left");
 	return true;
 }
 

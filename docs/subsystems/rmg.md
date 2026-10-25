@@ -178,6 +178,16 @@ Chunks nest. Chunk `4` is the version (4); chunk `1.1` holds:
   - Every player needs the same templates and data, and our DLL wherever it changes anything.
   - Editing a generated map breaks this: the message is "multiplayer regeneration won't work", and `RMG_MAP_FAIL` appears if the flag is still set.
 - **Seeds** look like the Unix time. The editor has a seed field; the game screen doesn't.
+- **Where things are** (robot traces, 2026-10-25; `trace_factions=1` in [../../src/mods/rmg_factions.cpp](../../src/mods/rmg_factions.cpp)):
+  - **A saved random map** is a package `Maps\<name>.h5m` whose files sit at `Maps/RMG/<guid>/`.
+  - **A joining client** rebuilds it into a new package, `Maps\<name>.N.h5m`, with the same files inside. The connector's Write (generator slot 4, `0x00908da0`) takes 9 arguments: the folder, the file name, the generated map's path, the map's name, the generated map's id, then 1, 0, 0, 0.
+  - **The generator's settings** come from the map's `sRMGProps`, desc +0x254, through `0x00701090`:
+    - +4 RMGmap, +8 RMGversion, +0xc the seed, +0x10 the guid;
+    - +0x20 the size, +0x24 the players, +0x28 the template, +0x30 water, +0x34 monsters, +0x38 underground;
+    - +0x3c PlayersInfo: 16-byte entries, with the faction at +4;
+    - +0x48 the map name, +0x54 random towns.
+  - **The start message** `NMP::CMPStart` (vtable `0x00e3a4dc`) holds, from +0xc: the start info, then the map's id (a CDBID: type string, flag, hash, path string at +0x14).
+  - **Who looks the map up:** a client when it reads the message (`0x005a1430` → `0x00ca0c70`, `DbGet` `0x009b0f60`); every PC then creates the world from it (`0x0071d660` → `0x00820830`, which takes one stack argument). The map's description stays cached by path since the lobby, but its ground files are read again at the start.
 
 ## The code
 

@@ -356,6 +356,41 @@ The robot sets these with `run_lan_test.py --host-rmg KEY=VALUE`, and presses a 
 
 **Not done yet:** a random map in a LAN robot game. The robot plays A1M4, which has no teams either.
 
+## Start terrain that matches the factions (`rmg_factions.cpp`, off by default)
+
+Plan and research: [docs/plans/faction-terrain.md](../../docs/plans/faction-terrain.md). On a random map, the generator gives each start zone the faction its player had when the map was made. Factions picked later in the lobby change only the player (or a "Random towns" town), not the ground. With this mod, the map is rebuilt at the start with the lobby's factions.
+
+- **The lobby (host only):** on random maps, every start slot may take any of the 8 factions. The host's setup decides every PC's arrows.
+- **The hello:** in a random map's lobby, each client's DLL sends the host a waiting-room request of a type the game does not use (0x4f48). A host without the mod ignores it. A client says hello whatever its own setting: it can follow a host that rebuilds.
+- **The host's start:**
+  1. Factions left on "Random" get the faction the map was made with (through the game's own SetRace, slot 0x38).
+  2. If a faction then differs and every human client said hello, the start message names another map, `Maps/RMG/<guid>-OH1-<one hex digit per player>/`.
+  3. Otherwise the map stays as it is. On fixed-town maps, the changed factions go back to the map's.
+- **Every PC** that sees such a name rebuilds the map, the way a joining client builds a random map: the original map's settings, the factions from the name, the game's own generator, written as another `Maps\<name>.N.h5m`. A client does it when it reads the start message (before the game looks the map up), the host when its world starts. If a package with that name already opens (the same game played before), it is used as it is.
+- **If a rebuild fails** on a PC, that PC starts on the original map and logs `REBUILD FAILED` (its world will not match the others').
+
+```ini
+[rmg]
+faction_terrain=0  ; 1 = as the host, rebuild random maps with the lobby's factions
+trace_factions=0   ; research: lobby setups, the start, map builds, map files, faults
+```
+
+**Robot tests** (LAN, 2026-10-25; MMH5.5's `4P-Collar-L` map `MMH55_RMG_Map_002`, large with underground, "Random towns"; the host had the setting, the client had none):
+- **A faction changed** (the host picked Haven where its zone was made for Inferno):
+  - both PCs rebuilt the map: 9.2 s on the host, then 8.7 s on the client (the robot's two copies share a folder, so they take turns; real PCs build at the same time);
+  - the two packages were byte for byte the same;
+  - the host's start zone went from Inferno ground (`Dead_Land`) with lava and dirt decorations to Haven ground (`Dark_Grass`) with grass decorations;
+  - **504 world checksums, all equal.**
+- **Another change** (the client picked Inferno where its zone was made for Dungeon): 507 checksums, all equal. That zone is underground, and underground zones get cave ground whatever the faction, so its ground did not change; its town did.
+- **No faction changed:** no rebuild; the game starts on the map as it was. *(To be run again: see the plan.)*
+
+**Not done yet:**
+- **The lobby unlock on fixed-town maps** (every slot locked to one faction) is not robot-tested: the only such saved maps use recipe templates, which this branch does not serve.
+- **Linux (Proton).**
+- **A line on the loading screen** while the map is rebuilt: the screen just waits a few seconds.
+
+**Each rebuild leaves a map package in the game's `Maps` folder,** like each join of a random map in the game itself. It shows in the map list under the same name.
+
 ## Original music (`original_music*.cpp`, off by default)
 
 **What it is for:** MMH5.5 brings its own music (new tracks for terrains, the main menu, the credits, battles and hero themes). With this switch on, the game plays the **original Heroes V music** wherever MMH5.5 changed it. Off (the default), you hear MMH5.5's music, exactly as without the add-on.
