@@ -10,6 +10,7 @@
 #include "../mods/lan_discovery.h"
 #include "../mods/lockstep.h"
 #include "../mods/net_tuning.h"
+#include "../mods/notify.h"
 #include "../mods/original_music.h"
 #include "../mods/player_list.h"
 #include "../mods/rmg_teams.h"
@@ -59,6 +60,7 @@ void InstallAll()
 	mods::ApplyCoopGuardFromSettings();
 	mods::ApplyLockstepFromSettings();
 	mods::ApplyAutosaveFromSettings();
+	mods::ApplyNotifyFromSettings();
 	mods::ApplyRmgTeamsFromSettings();
 	mods::ApplyRmgTemplatesFromSettings();
 	mods::ApplyOriginalMusicFromSettings();
