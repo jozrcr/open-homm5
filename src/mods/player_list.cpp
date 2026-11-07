@@ -157,6 +157,7 @@ plist::Hits g_hits = {};
 float g_back_w = 0, g_back_h = 0;
 int g_hover = 0;    // the followable player under the cursor, 0 = none
 int g_pressed = 0;  // the row the button went down on
+int g_sword_hover = 0, g_sword_pressed = 0;  // the same for a row's sword (an ally in a battle)
 bool g_button = false;
 bool g_shown_now = false;  // the list is drawn this frame (its rows' places are current)
 const char *const kRowOwners[plist::kMaxPlayers] = {"player list row 1", "player list row 2", "player list row 3",
@@ -170,18 +171,27 @@ void Spectate(plist::Snapshot *s)
 	HWND window = overlay::GameWindow();
 	const bool front = window && GetAncestor(GetForegroundWindow(), GA_ROOTOWNER) == GetAncestor(window, GA_ROOTOWNER);
 	const bool cursor = front && g_back_w > 0 && overlay::CursorInBackBuffer(g_back_w, g_back_h, &x, &y);
+	g_sword_hover = 0;
 	for (int i = 0; i < g_hits.count; ++i) {
 		const float *r = g_hits.rect[i];
 		if (cursor && x >= r[0] && x < r[2] && y >= r[1] && y < r[3] && SpectateCanFollow(g_hits.id[i]))
 			g_hover = g_hits.id[i];
+		const float *sw = g_hits.sword[i];
+		if (cursor && sw[2] > sw[0] && x >= sw[0] && x < sw[2] && y >= sw[1] && y < sw[3] &&
+		    SpectateInBattle(g_hits.id[i]))
+			g_sword_hover = g_hits.id[i];
 	}
 	const bool down = front && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
-	if (down && !g_button)
+	if (down && !g_button) {
 		g_pressed = g_hover;
+		g_sword_pressed = g_sword_hover;
+	}
 	else if (!down && g_button) {
-		if (g_pressed && g_pressed == g_hover)
+		if (g_sword_pressed && g_sword_pressed == g_sword_hover)
+			SpectateWatchBattle(g_sword_pressed, "a click on the sword in the player list");
+		else if (g_pressed && g_pressed == g_hover)
 			SpectateToggle(g_pressed, "a click on the player list");
-		g_pressed = 0;
+		g_pressed = g_sword_pressed = 0;
 	}
 	g_button = down;
 	const int followed = SpectateFollowing();
@@ -193,6 +203,9 @@ void Spectate(plist::Snapshot *s)
 		          : SpectateFollowsMe(row.id)   ? plist::kEyeFollowsMe
 		          : row.id == g_hover           ? plist::kEyeHover
 		                                        : plist::kEyeNone;
+		row.sword = !SpectateInBattle(row.id) ? plist::kSwordNone
+		            : row.id == g_sword_hover  ? plist::kSwordHover
+		                                       : plist::kSwordShown;
 	}
 }
 
@@ -227,6 +240,11 @@ void Prepare(const overlay::Frame &frame)
 	}
 	for (int i = 0; i < snapshot.count; ++i)
 		snapshot.rows[i].face_texture = overlay::GameTexture(frame.device, snapshot.rows[i].face, &loads);
+	bool sword = g_look.sword != nullptr;  // (read the first time an ally is in a battle)
+	for (int i = 0; i < snapshot.count && !sword; ++i)
+		sword = snapshot.rows[i].sword != plist::kSwordNone;
+	if (sword)
+		g_look.sword = overlay::GameTexture(frame.device, plist::kSwordPicture, &loads);
 
 	plist::FontSizes(frame.height, &g_font_px, &g_bold_px);
 	overlay::WantFont(g_font_px);
@@ -256,6 +274,18 @@ void Draw(const overlay::Frame &frame)
 		first = false;
 		hooklog::Write("player list: first frame drawn (%.0fx%.0f, %d players)", frame.width, frame.height,
 		               g_snapshot.count);
+	}
+	static int swords_told = 0;  // (where the sword is: robot runs click it)
+	static bool sword_before[plist::kMaxPlayers + 1] = {};
+	for (int i = 0; i < g_hits.count; ++i) {
+		const int id = g_hits.id[i];
+		const bool shown = g_hits.sword[i][2] > g_hits.sword[i][0];
+		if (id >= 1 && id <= plist::kMaxPlayers && shown != sword_before[id]) {
+			sword_before[id] = shown;
+			if (swords_told++ < 20)
+				hooklog::Write("player list: player %d's sword %s (%.0f,%.0f - %.0f,%.0f)", id, shown ? "shown" : "gone",
+				               g_hits.sword[i][0], g_hits.sword[i][1], g_hits.sword[i][2], g_hits.sword[i][3]);
+		}
 	}
 }
 

@@ -631,6 +631,11 @@ bool ModalOpen(const char *owner)
 	return g_open && strcmp(g_owner, owner) == 0;
 }
 
+bool AnyModalOpen()
+{
+	return g_open != 0;
+}
+
 void BlockClicksIn(const char *owner, float x0, float y0, float x1, float y1, float back_w, float back_h)
 {
 	Zone *slot = nullptr;

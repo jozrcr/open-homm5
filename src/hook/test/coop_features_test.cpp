@@ -17,7 +17,8 @@ void Check(bool ok, const char *what)
 		++g_failures;
 }
 
-const unsigned kRhythm = 1u << kScriptRhythm, kParallel = 1u << kParallelAi, kBonus = 1u << kAiBonus;
+const unsigned kRhythm = 1u << kScriptRhythm, kParallel = 1u << kParallelAi, kBonus = 1u << kAiBonus,
+               kEndless = 1u << kEndlessTurns;
 
 }  // namespace
 
@@ -33,7 +34,15 @@ int main()
 	Check(!DecodeHello(0x55110001).valid, "Undo End Turn's hello ('U') is not ours");
 	Check(!DecodeHello(0x46000301).valid, "version 0: not a hello");
 	Check(!DecodeHello(0).valid, "nothing: not a hello");
-	Check(kKnown == (kRhythm | kParallel | kBonus), "this version knows script_rhythm, parallel_ai and ai_bonus");
+	Check(kKnown == (kRhythm | kParallel | kBonus | kEndless), "this version knows script_rhythm, parallel_ai, ai_bonus and endless_turns");
+	h = DecodeHello(EncodeHello(kKnown, kEndless | kBonus, 4));
+	Check(h.valid && h.wants == (kEndless | kBonus) && h.ai_bonus == 4, "hello: endless_turns (bit 3) and the computer bonus travel together");
+	Hello endless[2];
+	endless[0] = DecodeHello(EncodeHello(kKnown, kEndless | kRhythm));
+	endless[1] = DecodeHello(EncodeHello(kKnown & ~kEndless, 0));  // an MMH5.5 PC: does not know it (55u.dll does PEST)
+	Check(Decide(endless, 2) == kRhythm, "a PC that does not know endless_turns (MMH5.5, 0.3.4): off, the rest as wanted");
+	endless[1] = DecodeHello(EncodeHello(kKnown, 0));
+	Check(Decide(endless, 2) == (kEndless | kRhythm), "two PCs of the 2008 game, the host wants endless_turns: on");
 	h = DecodeHello(EncodeHello(kKnown, kBonus | kRhythm, 0));
 	Check(h.valid && h.wants == (kBonus | kRhythm) && h.ai_bonus == 0, "hello: the computer bonus 0 (off) travels");
 	h = DecodeHello(EncodeHello(kKnown, kBonus, 6));
@@ -76,7 +85,8 @@ int main()
 	four[3] = Hello();
 	Check(Decide(four, 4) == 0, "four PCs, the last sent none: off");
 
-	Check(Name(kScriptRhythm)[0] == 's' && Name(kParallelAi)[0] == 'p' && Name(kAiBonus)[0] == 'a', "names");
+	Check(Name(kScriptRhythm)[0] == 's' && Name(kParallelAi)[0] == 'p' && Name(kAiBonus)[0] == 'a' && Name(kEndlessTurns)[0] == 'e',
+	      "names");
 
 	if (g_failures)
 		printf("%d FAILED\n", g_failures);

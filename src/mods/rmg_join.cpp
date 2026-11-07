@@ -125,12 +125,18 @@ void NoteJoin(const BYTE *cmd)
 	               added ? " (now in the template list)" : "");
 }
 
+DWORD g_test_slow_ms = 0;  // [debug] join_build_extra_ms: testing (a slow PC's map build, as under Proton)
+
 void __fastcall ExecuteHook(void *cmd, void *edx)
 {
 	try {
 		if (cmd)
 			NoteJoin(static_cast<const BYTE *>(cmd));
 	} catch (...) {  // out of memory: the game goes on as without us
+	}
+	if (g_test_slow_ms) {
+		hooklog::Write("rmg join: test: the map build waits %lu ms more ([debug] join_build_extra_ms)", g_test_slow_ms);
+		Sleep(g_test_slow_ms);
 	}
 	g_execute_next(cmd, edx);
 }
@@ -189,6 +195,9 @@ void ApplyRmgJoin(bool recipes_served)
 		hooklog::Write("rmg join: the connector code is not as expected: no guard against a missing template");
 	if (!recipes_served)
 		return;
+	wchar_t ini[MAX_PATH];
+	hooklog::PathNextToExe(L"h5-together", L".ini", ini, MAX_PATH);
+	g_test_slow_ms = GetPrivateProfileIntW(L"debug", L"join_build_extra_ms", 0, ini);
 	g_execute_next = reinterpret_cast<ExecuteFn>(hookpatch::PatchPointer(kExecuteSlot, kExecute, &ExecuteHook));
 	if (!g_execute_next)
 		hooklog::Write("rmg join: the connector command is not as expected: a joined game's recipe is registered only "

@@ -8,6 +8,10 @@
 # Options, for tests and odd setups:
 #   --game-dir <folder>   use this game folder (or its bin folder), skip the search
 #   --steam-dir <folder>  look in this Steam folder only
+#   --mmh55-installer <file>  MMH5.5's installer file, to make the original game's 4 GB exe
+#                         from (else looked for here, in Downloads and on the Desktop)
+#   --no-download         never offer to fetch that exe from MMH5.5's release on GitHub
+#                         (also H5_TOGETHER_NO_DOWNLOAD=1)
 #   --test-known-55u "<sha256>=<name>;..."   count these 55u.dll files as known versions (tests)
 #
 # It looks for Steam in ~/.steam/steam, ~/.local/share/Steam, the Flatpak and the Snap
@@ -40,11 +44,15 @@ GAME_FOLDER='Heroes of Might and Magic 5 Tribes of the East'
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 game_dir_arg=""
 steam_dir_arg=""
+mmh55_installer_arg=""
+no_download=0
 test_known_55u_arg=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --game-dir)  game_dir_arg="${2:-}"; shift ;;
         --steam-dir) steam_dir_arg="${2:-}"; shift ;;
+        --mmh55-installer) mmh55_installer_arg="${2:-}"; shift ;;
+        --no-download) no_download=1 ;;
         --test-known-55u) test_known_55u_arg="${2:-}"; shift ;;
         -h|--help)   awk 'NR > 1 { if (/^#/) { sub(/^# ?/, ""); print } else exit }' "${BASH_SOURCE[0]}"; exit 0 ;;
         *) echo "Unknown option: $1 (try --help)"; exit 2 ;;
@@ -84,7 +92,8 @@ bin_of() {
 
 # SHA-256 of a file as lower case hex.
 sha256_of() {
-    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" 2>/dev/null | awk '{print $1}'
+    # (sha256sum puts a "\" before the checksum when the file's path holds a backslash)
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" 2>/dev/null | awk '{sub(/^\\/, "", $1); print $1}'
     elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" 2>/dev/null | awk '{print $1}'
     elif command -v openssl >/dev/null 2>&1; then openssl dgst -sha256 "$1" 2>/dev/null | awk '{print $NF}'
     fi
@@ -197,13 +206,30 @@ language_name() {
     esac
 }
 
+# The build date in a program's header (seconds since 1970), or 0. The 2008 game's exe and
+# MMH5.5's exes made from it say 2008-06-04 13:58:55; Steam's 2025 rebuild says 2025.
+PE_DATE_2008=1212587935
+pe_date() {
+    local off
+    off="$(od -An -tu4 -j 60 -N 4 "$1" 2>/dev/null | tr -d ' ')"
+    if [ -z "$off" ] || [ "$(od -An -c -j "$off" -N 2 "$1" 2>/dev/null | tr -d ' ')" != "PE" ]; then echo 0; return; fi
+    off="$(od -An -tu4 -j $((off + 8)) -N 4 "$1" 2>/dev/null | tr -d ' ')"
+    echo "${off:-0}"
+}
+
+# The 2008 game's own exe (not MMH5.5's: those have the same date but load MMH5.5's 55u.dll).
+exe_2008() {
+    [ "$(pe_date "$1")" = "$PE_DATE_2008" ] && ! LC_ALL=C grep -q -a -F 55u.dll "$1"
+}
+
 # What we can tell about a game, from its bin folder $1. Only looks. Sets gi_bin, gi_root (the
 # game folder), gi_store (Steam, GOG or nothing), gi_language (Steam's name for it, or nothing),
-# gi_exes (each "name|role": coop, copy of the co-op exe, or own), gi_mmh55 (ok, untested or
-# missing), gi_mmh55_name (RC19k...) and gi_mmh55_version (H55_Version).
+# gi_exes (each "name|role": coop, copy of the co-op exe, 2008 (the 2008 game's exe) or own),
+# gi_has2008 (1: the 2008 game's exe is there), gi_mmh55 (ok, untested or missing),
+# gi_mmh55_name (RC19k...) and gi_mmh55_version (H55_Version).
 game_info() {
     local b="$1" common manifest f c name role pak u55 coop=()
-    gi_bin="$b"; gi_root="$(dirname "$b")"; gi_store=""; gi_language=""; gi_exes=()
+    gi_bin="$b"; gi_root="$(dirname "$b")"; gi_store=""; gi_language=""; gi_exes=(); gi_has2008=0
     gi_mmh55="missing"; gi_mmh55_name=""; gi_mmh55_version=""
     # Steam keeps the game in <library>/steamapps/common/<name>, and its file for the game next to that
     common="$(dirname "$gi_root")"
@@ -215,19 +241,22 @@ game_info() {
         fi
     fi
     if [ -z "$gi_store" ] && [ -n "$(find_ci "$gi_root" 'goggame-*.info')" ]; then gi_store="GOG"; fi
-    # The exes. H5_Game.exe is a copy of the co-op exe when the player followed the GameRanger guide.
+    # The exes. H5_Game.exe is a copy of the co-op exe when the player followed the GameRanger
+    # guide, which keeps the 2008 game's own exe as H5_GameOLD.exe.
     for name in MMH55_Utility_64.exe MMH55_Utility.exe; do
         f="$(find_ci "$b" "$name")"
         if [ -n "$f" ] && [ -f "$f" ]; then coop+=("$f"); gi_exes+=("$name|coop"); fi
     done
-    f="$(find_ci "$b" H5_Game.exe)"
-    if [ -n "$f" ] && [ -f "$f" ]; then
+    for name in H5_Game.exe H5_GameOLD.exe H5_Original_4GB.exe; do
+        f="$(find_ci "$b" "$name")"
+        if [ -z "$f" ] || [ ! -f "$f" ]; then continue; fi
         role="own"
         for c in "${coop[@]}"; do
             [ "$role" = "own" ] && cmp -s "$f" "$c" && role="copy"
         done
-        gi_exes+=("H5_Game.exe|$role")
-    fi
+        if [ "$role" = "own" ] && exe_2008 "$f"; then role="2008"; gi_has2008=1; fi
+        gi_exes+=("$name|$role")
+    done
     # MMH5.5 and its version: the version file in its pak, and which 55u.dll it has
     pak="$(find_ci "$gi_root/data" MMH55-Index.pak)"
     if [ -n "$pak" ] && [ -f "$pak" ]; then
@@ -249,7 +278,10 @@ mmh55_text() {
             if [ -n "$gi_mmh55_version" ]; then echo "a version we have not tested (its version file says $gi_mmh55_version)"
             else echo "a version we have not tested"; fi
             ;;
-        *) echo "not found" ;;
+        *)
+            if [ "$gi_has2008" = "1" ]; then echo "not found (H5 Together works with the original 2008 game)"
+            else echo "not found"; fi
+            ;;
     esac
 }
 
@@ -270,18 +302,23 @@ write_game_info() {
         case "${entry#*|}" in
             coop) text="MMH5.5's co-op exe: H5 Together works with it" ;;
             copy) text="a copy of the co-op exe (made for GameRanger): works too" ;;
-            *)    text="the game's own exe, not MMH5.5's: H5 Together does nothing with it" ;;
+            2008)
+                if [ "$gi_mmh55" = "missing" ]; then text="the original 2008 game: H5 Together works with it"
+                else text="the original 2008 game: works too (H5 Together hides MMH5.5 from it)"; fi
+                ;;
+            *)    text="not the 2008 game (Steam's 2025 update?): H5 Together does nothing with it" ;;
         esac
         printf '%s%-21s %s\n' "$label" "${entry%%|*}" "$text"
         label="              "
     done
     for note in "$@"; do echo "  $note"; done
     [ "${gi_quiet:-0}" = "1" ] && return 0
-    if [ "$gi_mmh55" = "missing" ]; then
+    if [ "$gi_mmh55" = "missing" ] && [ "$gi_has2008" != "1" ]; then
         echo
-        echo "Warning: MMH5.5 was not found in this folder (there is no MMH55_Utility_64.exe)."
-        echo "H5 Together needs MMH5.5, the community version of the game, for now. The files can"
-        echo "be copied anyway, but they only start working once MMH5.5 is installed."
+        echo "Warning: MMH5.5 was not found in this folder (there is no MMH55_Utility_64.exe), nor the"
+        echo "original 2008 game's exe. Since July 2025, Steam installs a rebuild of the game that"
+        echo "H5 Together does not know. The files can be copied anyway; they start working with"
+        echo "MMH5.5, or with the 2008 game's exe."
     elif [ "$gi_mmh55" = "untested" ]; then
         echo
         echo "Warning: this MMH5.5 is a version we have not tested (tested: $KNOWN_55U_NAMES)."
@@ -787,6 +824,163 @@ if [ -f "$src_steam" ]; then
     steam_installed=1
 fi
 
+# ---- the original 2008 game with 4 GB of memory: bin/H5_Original_4GB.exe ----
+# As install.ps1 (Install-Original4Gb): the original game's exe can use only 2 GB of memory,
+# too little for big maps; Steam's copy refuses any change. MMH5.5's installer carries the 2008
+# exe without Steam's protection, stored as it is: it is copied out of that file (nothing is run
+# or installed) and its header gets the 4 GB mark. (Proton may give the game 4 GB by itself;
+# the copy does no harm then.)
+u16() { od -An -tu2 -j "$2" -N 2 "$1" 2>/dev/null | tr -d ' '; }
+u32() { od -An -tu4 -j "$2" -N 4 "$1" 2>/dev/null | tr -d ' '; }
+
+# exe_2008_length <file> <offset>: the length of the 2008 game's exe without Steam's protection
+# whose header starts at that offset of the file, else 0.
+exe_2008_length() {
+    local f="$1" o="$2" pe secs opt table i at e end=0
+    [ "$(od -An -c -j "$o" -N 2 "$f" 2>/dev/null | tr -d ' ')" = "MZ" ] || { echo 0; return; }
+    pe="$(u32 "$f" $((o + 60)))"
+    if [ -z "$pe" ] || [ "$pe" -lt 64 ] || [ "$pe" -gt 768 ]; then echo 0; return; fi
+    [ "$(u32 "$f" $((o + pe)))" = "17744" ] || { echo 0; return; }            # "PE\0\0"
+    [ "$(u16 "$f" $((o + pe + 4)))" = "332" ] || { echo 0; return; }           # 32-bit
+    [ "$(u32 "$f" $((o + pe + 8)))" = "$PE_DATE_2008" ] || { echo 0; return; } # 2008-06-04
+    [ "$(u32 "$f" $((o + pe + 80)))" = "14520320" ] || { echo 0; return; }      # 0x00DD9000: unprotected
+    secs="$(u16 "$f" $((o + pe + 6)))"
+    opt="$(u16 "$f" $((o + pe + 20)))"
+    table=$((o + pe + 24 + opt))
+    for ((i = 0; i < secs; i++)); do
+        at=$((table + 40 * i))
+        e=$(( $(u32 "$f" $((at + 20))) + $(u32 "$f" $((at + 16))) ))
+        [ "$e" -gt "$end" ] && end=$e
+    done
+    if [ "$end" -lt 1024 ] || [ "$end" -gt 67108864 ]; then echo 0; return; fi
+    echo "$end"
+}
+
+# The 2008 game's own exe (it loads um.dll, not MMH5.5's 55u.dll).
+exe_2008_bytes() {
+    LC_ALL=C grep -q -a -F um.dll "$1" && ! LC_ALL=C grep -q -a -F 55u.dll "$1"
+}
+
+# copy_exe_2008 <file> <out>: copies the 2008 exe found in <file> (MMH5.5's installer) to <out>.
+copy_exe_2008() {
+    local f="$1" out="$2" off len
+    while IFS=: read -r off _; do
+        len="$(exe_2008_length "$f" "$off")"
+        [ "$len" -gt 0 ] || continue
+        dd if="$f" of="$out" bs=1M iflag=skip_bytes,count_bytes skip="$off" count="$len" status=none 2>/dev/null || continue
+        [ "$(wc -c < "$out" | tr -d ' ')" = "$len" ] && exe_2008_bytes "$out" && return 0
+    done < <(LC_ALL=C grep -obUa $'MZ\x90' "$f" 2>/dev/null)   # (each exe header's first bytes; no -P: Git Bash refuses it)
+    rm -f "$out"
+    return 1
+}
+
+# The 4 GB mark (IMAGE_FILE_LARGE_ADDRESS_AWARE) in the exe $1's header.
+set_4gb() {
+    local pe at b
+    pe="$(u32 "$1" 60)"
+    at=$((pe + 22))
+    b="$(od -An -tu1 -j "$at" -N 1 "$1" | tr -d ' ')"
+    printf "$(printf '\\%03o' $((b | 32)))" | dd of="$1" bs=1 seek="$at" conv=notrunc status=none
+}
+
+# MMH5.5's own release on GitHub holds the same 2008 exe in a zip (as install.ps1,
+# Get-Exe2008FromGitHub): only its piece is fetched (curl, an HTTP range: about 5.4 MB),
+# unpacked (python3) and checked against the 2008 exe's SHA-256.
+MMH55_ZIP_URL="https://github.com/Might-Magic-Heroes-5-5/MMH55/releases/download/RC19k/manual_setup_RC19k.zip"
+MMH55_ZIP_OFFSET=2988923
+MMH55_ZIP_PACKED=5401151
+MMH55_ZIP_SHA256="6502a8c4cd0e03e9ce43b474bcb4a85acb8b8bf5050d56317e93c8f13fff50bd"
+
+# fetch_exe_2008 <out>: the 2008 exe from MMH5.5's release on GitHub, checked; fails otherwise
+# (fetch_why says why).
+fetch_exe_2008() {
+    local out="$1" piece n e start
+    fetch_why=""
+    if ! command -v curl > /dev/null 2>&1 || ! command -v python3 > /dev/null 2>&1; then
+        fetch_why="it needs curl and python3"; return 1
+    fi
+    piece="$(mktemp)"
+    if ! curl -fsSL -r "$MMH55_ZIP_OFFSET-$((MMH55_ZIP_OFFSET + 30 + 1024 + MMH55_ZIP_PACKED))" -o "$piece" "$MMH55_ZIP_URL"; then
+        rm -f "$piece"; fetch_why="the download failed"; return 1
+    fi
+    n="$(u16 "$piece" 26)"
+    e="$(u16 "$piece" 28)"
+    start=$((30 + n + e))
+    if [ "$(u32 "$piece" 0)" != "67324752" ] || [ "$(dd if="$piece" bs=1 skip=30 count="$n" status=none 2>/dev/null)" != "bin/H5_Game.exe" ]; then
+        rm -f "$piece"; fetch_why="the downloaded piece is not the 2008 exe (MMH5.5 may have changed its release)"; return 1
+    fi
+    if ! python3 -I -c 'import sys, zlib
+d = open(sys.argv[1], "rb").read()
+s, n = int(sys.argv[2]), int(sys.argv[3])
+open(sys.argv[4], "wb").write(zlib.decompressobj(-15).decompress(d[s:s + n]))' "$piece" "$start" "$MMH55_ZIP_PACKED" "$out"; then
+        rm -f "$piece" "$out"; fetch_why="unpacking it failed"; return 1
+    fi
+    rm -f "$piece"
+    if [ "$(sha256_of "$out")" != "$MMH55_ZIP_SHA256" ]; then
+        rm -f "$out"; fetch_why="the downloaded exe is not the expected 2008 exe (its SHA-256 differs)"; return 1
+    fi
+}
+
+original_state="none"
+original_from=""
+dst4="$bin/H5_Original_4GB.exe"
+if [ -n "$(find_ci "$bin" H5_Original_4GB.exe)" ]; then
+    original_state="kept"
+else
+    # a copy of the game's own 2008 exe without Steam's protection, already in the game folder
+    for name in H5_Game.exe H5_GameOLD.exe; do
+        f="$(find_ci "$bin" "$name")"
+        if [ -n "$f" ] && [ -f "$f" ] && [ "$(exe_2008_length "$f" 0)" = "$(wc -c < "$f" | tr -d ' ')" ] && exe_2008_bytes "$f"; then
+            cp -f "$f" "$dst4" && original_from="$name" && break
+        fi
+    done
+    sources=()
+    if [ -z "$original_from" ]; then
+        if [ -n "$mmh55_installer_arg" ]; then
+            sources=("$mmh55_installer_arg")
+        else
+            for place in "$here" "$(dirname "$here")" "$HOME/Downloads" "$HOME/Desktop" "${XDG_DOWNLOAD_DIR:-}"; do
+                [ -n "$place" ] && [ -d "$place" ] || continue
+                while IFS= read -r f; do sources+=("$f"); done < <(find "$place" -maxdepth 1 -type f -iname 'MMH55*.exe' -size +100M 2>/dev/null)
+            done
+        fi
+        for src in "${sources[@]}"; do
+            if [ ! -f "$src" ]; then original_state="failed"; original_from="$src (the file was not found)"; break; fi
+            echo "Looking for the original game's exe in $(basename "$src") ..."
+            if copy_exe_2008 "$src" "$dst4"; then original_from="$(basename "$src")"; break; fi
+        done
+    fi
+    # else, with the player's yes: MMH5.5's release on GitHub (about 5.4 MB)
+    if [ -z "$original_from" ] && [ "$original_state" != "failed" ] && [ "${#sources[@]}" -eq 0 ] &&
+       [ "$no_download" = "0" ] && [ -z "${H5_TOGETHER_NO_DOWNLOAD:-}" ]; then
+        echo
+        echo "The original 2008 game (without MMH5.5) with 4 GB of memory: I can make bin/H5_Original_4GB.exe."
+        echo "Its exe comes from MMH5.5's own release on GitHub (only that file: about 5.4 MB; MMH5.5"
+        echo "itself is not installed). Skip it if you only play MMH5.5."
+        answer=""
+        if read -r -p "Fetch it? Y = yes, N = no: " answer; then
+            case "$(printf '%s' "$answer" | tr 'A-Z' 'a-z')" in
+                ""|y|yes|o|oui)
+                    echo "Fetching the original game's exe from MMH5.5's release on GitHub ..."
+                    if fetch_exe_2008 "$dst4"; then
+                        original_from="MMH5.5's release on GitHub, checked"
+                    else
+                        original_state="failed"
+                        original_from="MMH5.5's release on GitHub ($fetch_why)"
+                    fi
+                    ;;
+            esac
+        fi
+    fi
+    if [ -n "$original_from" ] && [ -f "$dst4" ] && [ "$original_state" != "failed" ]; then
+        set_4gb "$dst4"
+        original_state="made"
+    elif [ "$original_state" != "failed" ] && [ "${#sources[@]}" -gt 0 ]; then
+        original_state="failed"
+        original_from="${sources[*]} (the original game's exe is not in it)"
+    fi
+fi
+
 echo
 echo "Done. What I did:"
 if [ "$old_moved" != " " ]; then
@@ -834,12 +1028,31 @@ echo "  - installed ${#txt_files[@]} language files in h5-together/texts (${txt_
 [ "$txt_replaced" -gt 0 ] && echo "    ($txt_replaced of them replaced our files from an earlier install)"
 [ "$txt_others" -gt 0 ] && echo "    (left the $txt_others other file(s) in that folder alone)"
 [ "$steam_installed" -eq 1 ] && echo "  - installed Valve's steam_api.dll in h5-together (online play over Steam, off until you turn it on in Options)"
+case "$original_state" in
+    made)
+        echo "  - made H5_Original_4GB.exe: the original 2008 game, with 4 GB of memory (its exe, from $original_from)"
+        echo "    To play the original game without MMH5.5, use the launch option for it below."
+        ;;
+    kept) echo "  - H5_Original_4GB.exe (the original game with 4 GB of memory) is already there" ;;
+esac
 echo "  - did not change or replace any file of the game itself"
+case "$original_state" in
+    none)
+        echo
+        echo "Tip: to play the original game (without MMH5.5) with 4 GB of memory, H5 Together can make"
+        echo "bin/H5_Original_4GB.exe from MMH5.5's installer file (MMH55_RC19k.exe, from MMH5.5's ModDB page:"
+        echo "download it, you do not need to install it). Put it in ~/Downloads and run install.sh again."
+        ;;
+    failed)
+        echo
+        echo "Could not make H5_Original_4GB.exe (the original game with 4 GB) from $original_from."
+        ;;
+esac
 
-if [ "$gi_mmh55" = "missing" ]; then
+if [ "$gi_mmh55" = "missing" ] && [ "$gi_has2008" != "1" ]; then
     echo
-    echo "Reminder: MMH5.5 was not found in this game folder (there is no MMH55_Utility_64.exe)."
-    echo "H5 Together does nothing without it: install MMH5.5 first (see docs/linux.md)."
+    echo "Reminder: neither MMH5.5 nor the original 2008 game's exe was found in this game folder."
+    echo "H5 Together does nothing with Steam's 2025 rebuild: install MMH5.5 first (see docs/linux.md)."
 elif [ "$gi_mmh55" = "untested" ]; then
     echo
     echo "Reminder: this MMH5.5 is a version we have not tested. If H5 Together seems to do nothing,"
@@ -857,15 +1070,38 @@ cat <<'EOF'
 
      It tells Wine (Proton) to load our dinput8.dll instead of its own.
 
-  2. Which exe starts? Steam starts H5_Game.exe, the plain game, and the add-on only
-     works with MMH5.5's exe, MMH55_Utility_64.exe (the co-op one). To make Steam start
-     that exe, paste this line instead of the one above:
+EOF
+if [ -f "$bin/H5_Original_4GB.exe" ]; then
+cat <<'EOF'
+  2. Which exe starts? Steam starts H5_Game.exe. For the original game with 4 GB of
+     memory (H5_Original_4GB.exe, which the installer made), paste this line instead:
+
+         WINEDLLOVERRIDES="dinput8=n,b" bash -c 'exec "${@/H5_Game.exe/H5_Original_4GB.exe}"' -- %command%
+
+     For MMH5.5 instead, the same line with its co-op exe:
+
+         WINEDLLOVERRIDES="dinput8=n,b" bash -c 'exec "${@/H5_Game.exe/MMH55_Utility_64.exe}"' -- %command%
+
+EOF
+elif [ "$gi_mmh55" != "missing" ]; then
+cat <<'EOF'
+  2. Which exe starts? Steam starts H5_Game.exe, and with MMH5.5 the add-on works with
+     its co-op exe, MMH55_Utility_64.exe. To make Steam start that exe, paste this line
+     instead of the one above:
 
          WINEDLLOVERRIDES="dinput8=n,b" bash -c 'exec "${@/H5_Game.exe/MMH55_Utility_64.exe}"' -- %command%
 
      If it does not work, docs/linux.md (step 3) has another way: swap the two exe
      files. https://github.com/jozrcr/h5-together/blob/main/docs/linux.md
 
+EOF
+else
+cat <<'EOF'
+  2. Which exe starts? Steam starts H5_Game.exe, the original game: the line above is enough.
+
+EOF
+fi
+cat <<'EOF'
   3. Start the game from Steam. Then look in the game's bin folder for the file
      h5-together.log:
 EOF

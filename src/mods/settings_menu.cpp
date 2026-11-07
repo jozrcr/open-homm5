@@ -227,8 +227,12 @@ st::MenuOptions OptionsNow()
 	st::MenuOptions o;
 	o.wine = UnderWine();
 	const std::wstring bin = ExeFolder();
-	o.packs = HasFiles(bin + L"h5-together\\lang\\fr\\*.pak") || HasFiles(bin + L"h5-together\\lang\\fr\\*.zip") ||
-	          HasFiles(bin + L"open-homm5\\lang\\fr\\*.pak");
+	// (the original game without MMH5.5 reads its own folder, lang\fr-original: languages.cpp)
+	o.packs = GameHasMmh55() ? HasFiles(bin + L"h5-together\\lang\\fr\\*.pak") ||
+	                               HasFiles(bin + L"h5-together\\lang\\fr\\*.zip") ||
+	                               HasFiles(bin + L"open-homm5\\lang\\fr\\*.pak")
+	                         : HasFiles(bin + L"h5-together\\lang\\fr-original\\*.pak") ||
+	                               HasFiles(bin + L"h5-together\\lang\\fr-original\\*.zip");
 	// our texts files: their codes and their own names
 	WIN32_FIND_DATAW fd;
 	HANDLE h = FindFirstFileW((bin + L"h5-together\\texts\\*.txt").c_str(), &fd);
@@ -266,6 +270,7 @@ st::MenuOptions OptionsNow()
 	wchar_t steam_dll[MAX_PATH];
 	oldnames::PathInOurFolder(L"steam_api.dll", steam_dll, MAX_PATH);
 	o.steam_dll = GetFileAttributesW(steam_dll) != INVALID_FILE_ATTRIBUTES;
+	o.mmh55 = GameHasMmh55();
 	return o;
 }
 

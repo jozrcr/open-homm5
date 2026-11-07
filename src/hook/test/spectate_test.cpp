@@ -42,9 +42,31 @@ int main()
 	Check(m.valid && m.kind == kStatus && m.player == 4 && m.screen == kInBattle, "status: in a battle");
 	Check(!Decode(EncodeStatus(4, 9)).valid, "status: an unknown screen is refused");
 	Check(!Decode(0x55000001u).valid, "another mark ('U', Undo End Turn) is not ours");
-	Check(!Decode(0x57c00000u).valid, "kind 3 does not exist");
+
+	// --- the army's placement before a battle (kind 3, since 0.3.5) ---
+	m = Decode(EncodePlacementStack(2, 6, 4, true, 31, 17));
+	Check(m.valid && m.kind == kPlacement && m.player == 2 && !m.end && m.index == 6 && m.slot == 4 && m.placed &&
+	          m.hx == 31 && m.hy == 17,
+	      "placement: a stack on the field");
+	m = Decode(EncodePlacementStack(8, 0, 0, false, 12, 3));
+	Check(m.valid && m.player == 8 && !m.placed && m.hx == 0 && m.hy == 0, "placement: a stack in the bar (no hex)");
+	Check(PlacementHexFits(0, 31) && !PlacementHexFits(32, 0) && !PlacementHexFits(0, -1), "placement: hexes 0..31");
+	m = Decode(EncodePlacementEnd(3, 7, 0x7fff));
+	Check(m.valid && m.kind == kPlacement && m.player == 3 && m.end && m.count == 7 && m.check == 0x7fff,
+	      "placement: the list's end");
+	Check(!Decode(EncodePlacementEnd(3, 0, 5)).valid, "placement: an empty list is refused");
+	Check(!Decode(EncodePlacementStack(1, 7, 0, true, 1, 1)).valid, "placement: index 7 is refused");
+	Check(!Decode(EncodePlacementStack(1, 0, 0, true, 1, 1) | 1u).valid, "placement: bit 0 must be 0");
+	{
+		const int types[3] = {0x47, 12, 12}, counts[3] = {7, 20, 21}, swapped[3] = {12, 0x47, 12};
+		const int a = PlacementCheck(types, counts, 3);
+		Check(a >= 0 && a <= 0x7fff && a == PlacementCheck(types, counts, 3), "placement check: 15 bits, the same twice");
+		Check(a != PlacementCheck(types, counts, 2) && a != PlacementCheck(swapped, counts, 3),
+		      "placement check: another list gives another check");
+	}
 	Check(EncodeWatch(1, 2, true) >> 24 == kMark && EncodeView(1, 0, 3, 4) >> 24 == kMark &&
-	          EncodeStatus(1, kOnMap) >> 24 == kMark,
+	          EncodeStatus(1, kOnMap) >> 24 == kMark && EncodePlacementStack(1, 0, 0, true, 1, 1) >> 24 == kMark &&
+	          EncodePlacementEnd(1, 1, 0) >> 24 == kMark,
 	      "every message carries the mark 'W'");
 
 	// --- tiles ---

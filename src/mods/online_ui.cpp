@@ -109,6 +109,7 @@ online::Status g_status;
 char g_top[96] = "";
 bool g_lan = false, g_wait = false, g_menu = false;
 online::Room g_room = online::Room::kNone;
+volatile LONG g_in_loaded_room = 0;  // g_room == kLoadedGame, for other threads
 // the waiting room's button
 bool g_button_shown = false, g_button_down = false, g_button_hovered = false;
 float g_back_w = 1024.0f, g_back_h = 768.0f;
@@ -285,6 +286,7 @@ bool Wanted()
 	g_boxed = Boxed();
 	g_lan = strcmp(g_top, kLobbyScreen) == 0;
 	g_room = online::WaitingRoom(g_top);
+	InterlockedExchange(&g_in_loaded_room, g_room == online::Room::kLoadedGame ? 1 : 0);
 	g_wait = g_room != online::Room::kNone;
 	g_menu = strcmp(g_top, kMainMenu) == 0;
 	if (steam) {
@@ -627,7 +629,7 @@ vlan::Mode ModeSetting()
 {
 	wchar_t path[MAX_PATH], mode[32];
 	hooklog::PathNextToExe(L"h5-together", L".ini", path, MAX_PATH);
-	GetPrivateProfileStringW(L"online", L"mode", L"off", mode, 32, path);
+	GetPrivateProfileStringW(L"online", L"mode", L"steam", mode, 32, path);
 	return vlan::ParseMode(mode);
 }
 
@@ -637,6 +639,11 @@ void InstallOnlineUiEarly()
 {
 	if (ModeSetting() != vlan::Mode::kOff)
 		overlay::InstallEarly();  // (an overlay client: the Direct3D import before the game's device)
+}
+
+bool OnlineInLoadedGameRoom()
+{
+	return InterlockedCompareExchange(&g_in_loaded_room, 0, 0) != 0;
 }
 
 void ApplyOnlineUiFromSettings()

@@ -318,7 +318,7 @@ bool HostSetting()
 {
 	wchar_t path[MAX_PATH];
 	hooklog::PathNextToExe(L"h5-together", L".ini", path, MAX_PATH);
-	return GetPrivateProfileIntW(L"coop", L"undo_end_turn", 0, path) != 0;
+	return GetPrivateProfileIntW(L"coop", L"undo_end_turn", 1, path) != 0;
 }
 
 void __fastcall UpdateHook(void *controller, void *edx, DWORD a, DWORD b, DWORD c, DWORD d, DWORD e)

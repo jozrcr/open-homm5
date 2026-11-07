@@ -343,7 +343,7 @@ bool Wanted()
 	if (robot::TakePanelCommand(command, sizeof(command), "skins "))
 		RobotCommand(command);
 	char top[96];
-	g_on_hero_screen = g_button && !overlay::ModalOpen(kName) &&
+	g_on_hero_screen = g_button && !overlay::AnyModalOpen() &&
 	                   (HeroScreenOnTop() || (g_test_button && overlay::TopScreen(top, sizeof(top)) && strstr(top, "AdventureScreen")));
 	if (g_on_hero_screen)
 		ButtonInput(g_back_w, g_back_h);

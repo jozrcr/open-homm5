@@ -58,12 +58,28 @@ const char *GroupText(Group g, bool help)
 	}
 }
 
+bool Is(const Setting &s, const char *section, const char *key)
+{
+	return strcmp(s.section, section) == 0 && strcmp(s.key, key) == 0;
+}
+
 bool Shown(const Setting &s, const MenuOptions &o)
 {
-	if (strcmp(s.section, "camera") == 0 && strcmp(s.key, "wheel_fix") == 0)
+	if (Is(s, "camera", "wheel_fix"))
 		return o.wine;
-	if (strcmp(s.section, "lang") == 0 && strcmp(s.key, "texts") == 0)
-		return o.packs;
+	if (Is(s, "lang", "texts"))
+		return o.packs;  // (MMH5.5's packs in lang\fr; the original game's in lang\fr-original)
+	// what acts only on MMH5.5's data (its music, its violet sky, its scripts, its rules)
+	if (Is(s, "audio", "original_music") || Is(s, "camera", "edge_sky") || Is(s, "coop", "script_rhythm") ||
+	    Is(s, "rules", "key") || Is(s, "rules", "button"))
+		return o.mmh55;
+	// MMH5.5's PEST, for the 2008 game (with MMH5.5, its 55u.dll does it); MMH5.5's HD
+	// textures kept in the 2008 game (with MMH5.5 they are always there)
+	if (Is(s, "coop", "endless_turns") || Is(s, "video", "hd_textures"))
+		return !o.mmh55;
+	// the skill wheel's button on the hero screen: MMH5.5 has its own wheel there
+	if (Is(s, "ui", "skill_wheel"))
+		return !o.mmh55;
 	return true;
 }
 
@@ -200,11 +216,12 @@ struct Name {
 const Name kOrder[] = {
 	{"ui", "player_list"}, {"ui", "player_list_key"}, {"ui", "player_list_top"}, {"ui", "player_list_left"},
 	{"notify", "turn"}, {"notify", "sound"}, {"notify", "popup"}, {"coop", "share_view"}, {"coop", "watch_battles"}, {"coop", "stay_after_defeat"}, {"rules", "key"}, {"rules", "button"},
-	{"skins", "skins"}, {"skins", "key"}, {"skins", "hero_screen_button"}, {"skins", "show_others"},
+	{"ui", "hero_tips"},
+	{"skins", "skins"}, {"skins", "key"}, {"skins", "hero_screen_button"}, {"ui", "skill_wheel"}, {"ui", "skill_wheel_key"}, {"skins", "show_others"},
 	{"camera", "zoom_out"}, {"camera", "combat_zoom_out"}, {"camera", "start_zoom"}, {"camera", "edge_sky"}, {"camera", "anim_saver"}, {"video", "fps_limit"}, {"video", "vsync"}, {"menu", "scene"},
 	{"camera", "wheel_fix"}, {"audio", "original_music"}, {"audio", "volume_curve"}, {"ui", "language"},
 	{"lang", "texts"}, {"rmg", "builder"}, {"rmg", "builder_key"}, {"rmg", "teams"}, {"rmg", "lobby_teams"},
-	{"rmg", "recipe_teams"}, {"rmg", "faction_terrain"}, {"coop", "undo_end_turn"}, {"coop", "script_rhythm"}, {"ai", "parallel_turns"}, {"coop", "resume_save"}, {"coop", "guard"}, {"coop", "segment_ms"},
+	{"rmg", "recipe_teams"}, {"rmg", "faction_terrain"}, {"coop", "undo_end_turn"}, {"coop", "endless_turns"}, {"coop", "script_rhythm"}, {"ai", "parallel_turns"}, {"coop", "resume_save"}, {"coop", "guard"}, {"coop", "segment_ms"},
 	{"net", "view_delay_ms"}, {"net", "tuning"}, {"ai", "fast_paths"}, {"net", "lan_all_adapters"}, {"net", "lan_peers"},
 	{"save", "fast_save_list"}, {"save", "game_names"}, {"save", "compression"}, {"save", "autosave_every"}, {"rmg", "templates"},
 	{"rules", "enabled"}, {"skins", "live_hero_screen"}, {"debug", "hang_watchdog"}, {"debug", "hang_seconds"},
@@ -251,7 +268,7 @@ std::vector<MenuRow> MenuRows(const MenuOptions &o, int page)
 		for (const Setting *s : rows)
 			if (s->text && Shown(*s, o))
 				out.push_back(Row(*s, o));
-		if (group == kHostGroup)
+		if (group == kHostGroup && o.mmh55)
 			out.push_back(Line(group, "info_rules"));
 		if (group == kOnline)
 			out.push_back(Line(group, "info_online"));

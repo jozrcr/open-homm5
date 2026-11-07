@@ -105,6 +105,7 @@
 #include <string>
 #include <vector>
 
+#include "../hook/game_build.h"
 #include "../hook/log.h"
 #include "../hook/overlay.h"
 #include "../hook/patch.h"
@@ -1387,6 +1388,18 @@ void __fastcall RunMpHook(void *self, void *edx)
 	InterlockedExchange(&g_mp_world, 0);
 }
 
+// Testing (the robot; never for players): [debug] script_at runs a line of script on every PC
+// (coop_features.cpp), which needs the world's scripts. A multiplayer map without a map script
+// has none (every map of the 2008 game), so with script_at set it gets the empty one, as
+// map_scripts=1 gives (the same on every robot copy: they share the setting).
+bool TestScriptsWanted()
+{
+	static int wanted = -1;
+	if (wanted < 0)
+		wanted = static_cast<int>(GetPrivateProfileIntW(L"debug", L"script_at", -1, IniPath().c_str())) >= 0 ? 1 : 0;
+	return wanted == 1;
+}
+
 // --- 6. the world starts its scripts (map_scripts) ----------------------------------------------
 void __fastcall WorldScriptsHook(void *world, void *edx, const void *map_script)
 {
@@ -1398,6 +1411,11 @@ void __fastcall WorldScriptsHook(void *world, void *edx, const void *map_script)
 			value = g_serving_values[rules::kMapScripts];
 	}
 	rules::MapScriptAction action = rules::MapScriptActionFor(map_script != nullptr, value);
+	if (!map_script && mp && action != rules::kEmptyScript && TestScriptsWanted()) {
+		hooklog::Write("rules: the world starts its scripts: testing ([debug] script_at): an empty map script, so a line of script "
+		               "can run");
+		action = rules::kEmptyScript;
+	}
 	const int own = OwnMapScripts();
 	static LONG logged = 0;
 	const bool log = InterlockedIncrement(&logged) <= 30;
@@ -1669,7 +1687,13 @@ void ApplyHostRulesFromSettings()
 		hooklog::Write("rules: off (enabled=0): no hello, every game uses this PC's H55-Settings.lua");
 		return;
 	}
-	ReadChoices();
+	// The 2008 game without MMH5.5: MMH5.5's rules have nothing to act on. The hellos stay
+	// (the waiting room's versions line); no choice is read, so every game has none.
+	if (GameHasMmh55())
+		ReadChoices();
+	else
+		hooklog::Write("rules: the 2008 game without MMH5.5: MMH5.5's rules do not apply here (the host's [rules] choices are "
+		               "not used; no F2 panel, no Rules... button); the waiting room's versions line stays");
 	// class_skills: the world's serializer (saves keep the rule) and the testing trace
 	rules::InstallClassSkills(GetPrivateProfileIntW(L"rules", L"trace_skills", 0, ini.c_str()) != 0);
 	g_open_next = reinterpret_cast<OpenFn>(

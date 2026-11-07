@@ -5,7 +5,8 @@
 // copy of the save. The friend whose game crashed missed the "Reprise" save the others
 // made, so without this the friend cannot come back. Here, every PC with the virtual
 // LAN on (online play over Steam; the robot's loopback) asks the hosts it knows, every
-// few seconds, "do you offer a save?". A host offers the last resume save it made
+// few seconds, "do you offer a save?". A host offers the last resume save it made, only
+// while it hosts a loaded game (its waiting room; never in a new game's lobby, 0.3.5)
 // (quick_resume.cpp keeps its file). If this PC has no save of that size and checksum,
 // it fetches the file, a window of pieces at a time (resume_transfer_logic.h), checks
 // it, and writes it into its own saves folder as "h5together-reprise.sav". Then the
@@ -17,12 +18,14 @@
 #include "resume_transfer.h"
 
 #include <windows.h>
+#include <shlobj.h>
 #include <stdio.h>
 #include <string.h>
 
 #include <string>
 #include <vector>
 
+#include "online_ui.h"
 #include "quick_resume.h"
 #include "resume_transfer_logic.h"
 #include "virtual_lan_transport.h"
@@ -93,7 +96,17 @@ void Send(vlan::Transport *t, uint64_t to, const std::vector<uint8_t> &message)
 void HostAnswer(vlan::Transport *t, uint64_t from, const transfer::Message &m)
 {
 	if (m.kind == transfer::Kind::kAsk) {
-		if (LoadOffer())
+		// Only while this PC hosts a loaded game (its waiting room): in a new game's lobby a
+		// friend's PC fetched last night's resume save for nothing, with its "your friend's
+		// resume save is coming" line (the owner, 2026-11-06).
+		const bool loaded = OnlineInLoadedGameRoom();
+		static int told = -1;
+		if (told != (loaded ? 1 : 0)) {
+			told = loaded ? 1 : 0;
+			hooklog::Write(loaded ? "resume transfer: this PC hosts a loaded game: it offers its resume save, if it has one"
+			                      : "resume transfer: a player asks, but this PC hosts no loaded game: no save offered");
+		}
+		if (loaded && LoadOffer())
 			Send(t, from, transfer::EncodeOffer(static_cast<uint32_t>(g_offer.file.size()), g_offer.crc, g_offer.name));
 		else
 			Send(t, from, transfer::EncodeNoOffer());
@@ -203,6 +216,14 @@ void WriteReceived()
 		return;
 	}
 	_snprintf_s(path, sizeof(path), _TRUNCATE, "%s%s", folder, kReceivedName);
+	{
+		// (a profile that never saved has no Saves folder yet: the original game's own profile,
+		// mmh55_files.cpp, at its first game; robot 2026-11-06: error 3, the path not found)
+		std::string dir = folder;
+		while (!dir.empty() && (dir.back() == '\\' || dir.back() == '/'))
+			dir.pop_back();
+		SHCreateDirectoryExA(nullptr, dir.c_str(), nullptr);
+	}
 	HANDLE f = CreateFileA(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 	DWORD written = 0;
 	const std::vector<uint8_t> &file = g_rx.File();
@@ -220,7 +241,7 @@ void WriteReceived()
 	}
 	else {
 		g_state = 3;
-		hooklog::Write("resume transfer: writing the received save failed (error %lu)", GetLastError());
+		hooklog::Write("resume transfer: writing the received save into %s failed (error %lu)", folder, GetLastError());
 	}
 	g_rx.Finish();
 }

@@ -83,6 +83,9 @@ ImFont *Font(float px);
 // *loads_left files are read per call; each takes 0.1-1 ms), or not readable
 // (then *failed, if given, is true). The pictures stay until the device goes.
 void *GameTexture(IDirect3DDevice9 *device, const char *dds_path, int *loads_left, bool *failed = nullptr);
+// Frees the pictures whose path starts with `prefix` (they load again when asked). Only between
+// frames (in a client's Wanted): a frame being built may still draw them.
+void ReleaseGameTextures(const char *prefix);
 // A file of the game's data, read through the game's own file system (MMH5.5's
 // paks count as they do for the game). False before the game opened its first
 // file, or when there is no such file.
@@ -139,6 +142,8 @@ void SetModalPass(const char *owner, unsigned pass);
 void CloseModal(const char *owner);
 // Is `owner`'s panel open? The overlay may have closed it (Esc, its screen, the timeout).
 bool ModalOpen(const char *owner);
+// Is any panel open (a button over a screen hides while one is)?
+bool AnyModalOpen();
 // A button of `owner`'s over the game's screen, without a modal panel: in draw, every
 // frame it shows, its rectangle (back buffer pixels, of a back buffer back_w x back_h).
 // While the cursor is inside, the game gets no mouse button and no wheel (keys and

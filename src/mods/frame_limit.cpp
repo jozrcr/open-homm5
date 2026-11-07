@@ -43,7 +43,7 @@ void ReadSettings(int *fps, int *vsync)
 {
 	wchar_t path[MAX_PATH];
 	hooklog::PathNextToExe(L"h5-together", L".ini", path, MAX_PATH);
-	const int f = GetPrivateProfileIntW(L"video", L"fps_limit", 0, path);
+	const int f = GetPrivateProfileIntW(L"video", L"fps_limit", 180, path);
 	*fps = f >= 20 && f <= 500 ? f : 0;
 	wchar_t v[16];
 	GetPrivateProfileStringW(L"video", L"vsync", L"game", v, 16, path);

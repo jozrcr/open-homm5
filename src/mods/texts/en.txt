@@ -488,6 +488,8 @@ video.fps_limit = Frame rate limit
 video.fps_limit.help = At most this many frames a second: a cooler, quieter PC, above all in the menus (the game draws up to 400 there). Only your screen.
 video.vsync = Vertical sync
 video.vsync.help = On: each frame at your screen's refresh, no tearing. Off: never wait for the screen. Only your screen.
+video.hd_textures = MMH5.5's HD textures
+video.hd_textures.help = With the original game started in a folder where MMH5.5 is installed: keep MMH5.5's sharper textures (terrain, towns, sky). The rest of MMH5.5 stays hidden. Only your screen.
 menu.scene = Main menu picture
 menu.scene.help = The scene behind the main menu, with its own music. Heroes V needs MMH5.5.
 audio.original_music = Original Heroes V music
@@ -496,8 +498,14 @@ audio.volume_curve = Wider volume range
 audio.volume_curve.help = The volume sliders' lowest step is 10 times quieter; the highest is unchanged.
 ui.language = Add-on's language
 ui.language.help = The words of H5 Together's panels and of this page.
+ui.hero_tips = Hero details in the waiting room
+ui.skill_wheel = Skill wheel button on the hero screen
+ui.skill_wheel.help = A small wheel next to the hero's name on the hero screen: what the hero's class can learn, what each ability needs first, and what the hero has. The original game only (MMH5.5 has its own).
+ui.skill_wheel_key = Skill wheel key
+ui.skill_wheel_key.help = Opens the skill wheel of the selected hero on the adventure map (or the hero screen's hero).
+ui.hero_tips.help = The tooltip of a starting hero (in the multiplayer waiting room) also tells its class, its starting skills and what its specialty does.
 lang.texts = The game's texts
-lang.texts.help = French packs: also the texts MMH5.5 leaves in English (from h5-together\lang\fr).
+lang.texts.help = French packs: also the texts left in English (from h5-together\lang\fr, or lang\fr-original for the original game).
 rmg.builder = Template builder
 rmg.builder.help = A "Template..." button on the random map screen, with every choice of the template maker.
 rmg.builder_key = Template builder key
@@ -507,7 +515,7 @@ rmg.teams.help = Random maps have none of their own: every player is alone unles
 rmg.lobby_teams = Arrows pick team numbers
 rmg.lobby_teams.help = In the waiting room, on maps without teams, the team arrows pick a team number.
 rmg.recipe_teams = Builder maps' teams
-rmg.recipe_teams.help = Maps made from a template builder recipe get the template's teams.
+rmg.recipe_teams.help = Maps made from a template builder recipe get the template's teams; in the waiting room, the team arrows move a player to another open start of their own team.
 rmg.faction_terrain = Faction start terrain
 rmg.faction_terrain.help = On random maps each start zone gets its faction's ground and town. Every PC needs the add-on.
 coop.guard = Faster co-op timing
@@ -516,6 +524,8 @@ coop.segment_ms = Co-op step length
 coop.segment_ms.help = Shorter steps make the computer's moves faster.
 coop.undo_end_turn = Undo End Turn
 coop.undo_end_turn.help = With simultaneous turns, a player who ended the turn can take it back while another human still plays. Every PC needs the add-on.
+coop.endless_turns = Endless simultaneous turns
+coop.endless_turns.help = With simultaneous turns ticked in the waiting room, they last the whole game, as with MMH5.5's PEST (the original game stops them when heroes get close). Every PC needs the add-on.
 coop.script_rhythm = Original MMH5.5 pace
 coop.script_rhythm.help = With the faster co-op steps, MMH5.5's scripts would run four times as often as MMH5.5 intends, for a choppier map. This keeps their original pace. Every PC needs the add-on.
 coop.resume_save = Save when a player drops
@@ -568,6 +578,26 @@ after.failed = The settings could not be saved: {why}.
 
 # The question the first time the main menu shows (once; the answer goes to
 # h5-together.ini [update] check).
+# The waiting room's hero tooltip: lines added under the game's own "Starting hero: <name>,
+# <specialty>". {class}: the hero's class (the game's word); {skills}: its starting skills
+# and abilities, with their mastery (the game's words).
+[lobby]
+hero_class = Class: {class}
+hero_skills = Starting skills: {skills}
+
+# The skill wheel (the hero screen's small wheel button, or [ui] skill_wheel_key). {class}: the
+# class's name (the game's word); {hero}: the hero's name; {n}: a chance in %; {list}: abilities.
+[wheel]
+title = {class}
+title_hero = {class}: {hero}
+chance = {n}%
+needs = Needs first: {list}
+legend = Gold frame: the hero has it. Light frame: it can take it at a level up now. Grey: not yet. The dots: its mastery. The % is the skill's chance at a level up. The arrows show other classes.
+legend_other = Another class's wheel: the skills it can be offered (their chance at a level up) and the abilities it can take. The arrows show other classes.
+close = Close
+button_tip = Skill wheel
+no_data = The game's skill tables could not be read.
+
 [welcome]
 title = H5 Together
 question = Check for new versions of H5 Together once a day?

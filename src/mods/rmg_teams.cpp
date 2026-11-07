@@ -45,8 +45,9 @@
 //                       starts in zone N). Only when teams= is empty. They are
 //                       set as soon as the setup is built, so the solo custom
 //                       game screen and the multiplayer lobby show them from
-//                       the start; and on these maps the team arrows work as
-//                       with lobby_teams=1, so players can still change them.
+//                       the start; and on these maps the team arrows move a
+//                       player to another (open) start of its own team, by the
+//                       game's own move (MoveWithinTeam; since 0.3.5).
 // How: the setup constructor gets the map's description (NDb::SAdvMapDesc);
 // its sRMGProps (+0x254) names the template the map was made from (+0x28, a
 // database link, read by rmg_join.cpp). Right after the constructor, the
@@ -84,6 +85,8 @@ const DWORD kCanChangeTeamSlot = 0x00e92770;
 const DWORD kCanChangeTeam = 0x00c9d740;      // thiscall (int slot), ret 4
 const DWORD kSetTeamSlot = 0x00e92774;
 const DWORD kSetTeam = 0x00c9e660;            // thiscall (int slot, bool right), ret 8
+const DWORD kNextStart = 0x00c9d5b0;          // thiscall (int slot, bool right), ret 8: the colour (+8) of the start
+                                              // SetTeam moves the slot to (the next open one, its team's first)
 const DWORD kTeamCommandCheck = 0x0071e67d;   // cmp [esp+0x1c], eax; je 0x0071e6aa
 const DWORD kTeamCommandSend = 0x0071e683;
 const DWORD kTeamCommandSkip = 0x0071e6aa;
@@ -112,6 +115,7 @@ int g_ffa_next = 0;
 typedef void *(__fastcall *CtorFn)(void *self, void *edx, const BYTE *desc);
 typedef bool(__fastcall *CanChangeTeamFn)(void *self, void *edx, int slot);
 typedef void(__fastcall *SetTeamFn)(void *self, void *edx, int slot, int right);
+typedef DWORD(__fastcall *NextStartFn)(void *self, void *edx, int slot, int right);
 CtorFn g_ctor_next = nullptr;
 CanChangeTeamFn g_can_change_next = nullptr;
 SetTeamFn g_set_team_next = nullptr;
@@ -333,11 +337,54 @@ bool __fastcall CanChangeTeamHook(void *self, void *edx, int slot)
 	return slot >= 0 && slot < Slots(info) && Plays(Slot(info, slot));
 }
 
+// On a map made from a recipe, with its teams (recipe_teams=1; the owner's wish, 2026-11-06:
+// "being able to switch position would be nice but no clue how to do it well without moving to
+// other team"): the team arrows move the player to another start of their own team, by the
+// game's own move (SetTeam: to the next open start that the slot may take, its team's starts
+// first, found by 0x00c9d5b0), and only when that start is a teammate's. The team numbers stay
+// the recipe's (they belong to the starts). No open start in the team that way: nothing moves.
+bool RecipeStarts(const void *info)
+{
+	const FfaEntry *e = Find(info);
+	return g_mode == kOff && g_recipe_teams && e && e->ffa && e->recipe[0] && e->per_team > 1;
+}
+
+void MoveWithinTeam(void *self, void *edx, int slot, int right)
+{
+	const BYTE *info = static_cast<const BYTE *>(self);
+	const int n = Slots(info);
+	if (slot < 0 || slot >= n)
+		return;
+	const DWORD colour = reinterpret_cast<NextStartFn>(kNextStart)(self, nullptr, slot, right);
+	int target = -1;
+	for (int i = 0; i < n && target < 0; ++i)
+		if (Read(Slot(info, i), 8) == colour)
+			target = i;
+	const DWORD team = Read(Slot(info, slot), 0x1c);
+	if (target < 0 || target == slot) {
+		hooklog::Write("rmg teams: player %lu (team %lu) stays: no open start of its team that way", Read(Slot(info, slot), 4),
+		               team + 1);
+		return;
+	}
+	if (Read(Slot(info, target), 0x1c) != team) {
+		hooklog::Write("rmg teams: player %lu (team %lu) stays: the next open start (player %lu) is team %lu's",
+		               Read(Slot(info, slot), 4), team + 1, Read(Slot(info, target), 4), Read(Slot(info, target), 0x1c) + 1);
+		return;
+	}
+	hooklog::Write("rmg teams: the slot of player %lu moves to player %lu's start (both team %lu)", Read(Slot(info, slot), 4),
+	               Read(Slot(info, target), 4), team + 1);
+	g_set_team_next(self, edx, slot, right);
+}
+
 void __fastcall SetTeamHook(void *self, void *edx, int slot, int right)
 {
 	const BYTE *info = static_cast<const BYTE *>(self);
 	if (!Pickable(info)) {
 		g_set_team_next(self, edx, slot, right);
+		return;
+	}
+	if (RecipeStarts(info)) {
+		MoveWithinTeam(self, edx, slot, right);
 		return;
 	}
 	const int n = Slots(info);

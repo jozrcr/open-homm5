@@ -42,6 +42,8 @@ const char *Name(int feature)
 		return "parallel_ai";
 	case kAiBonus:
 		return "ai_bonus";
+	case kEndlessTurns:
+		return "endless_turns";
 	default:
 		return "?";
 	}

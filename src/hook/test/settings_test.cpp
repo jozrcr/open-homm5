@@ -363,6 +363,24 @@ void MenuDataTests(const std::string &texts_dir)
 	Check(AddCategory(game, options, &out) && out.find("<GlobalVar1>h5t_camera_wheel_fix</GlobalVar1>") != std::string::npos &&
 	          out.find("<GlobalVar1>h5t_lang_texts</GlobalVar1>") != std::string::npos,
 	      "Options screen: under Wine and with the French packs, their rows too");
+	Check(out.find("<GlobalVar1>h5t_audio_original_music</GlobalVar1>") != std::string::npos &&
+	          out.find("<GlobalVar1>h5t_rules_key</GlobalVar1>") != std::string::npos &&
+	          out.find("<GlobalVar1>h5t_coop_endless_turns</GlobalVar1>") == std::string::npos &&
+	          out.find("<GlobalVar1>h5t_video_hd_textures</GlobalVar1>") == std::string::npos,
+	      "Options screen: with MMH5.5, its rows (original music, the rules' key) and no endless turns (its PEST does that) "
+	      "nor HD textures (always there)");
+	options.mmh55 = false;
+	Check(AddCategory(game, options, &out) && out.find("<GlobalVar1>h5t_coop_endless_turns</GlobalVar1>") != std::string::npos &&
+	          out.find("<GlobalVar1>h5t_audio_original_music</GlobalVar1>") == std::string::npos &&
+	          out.find("<GlobalVar1>h5t_camera_edge_sky</GlobalVar1>") == std::string::npos &&
+	          out.find("<GlobalVar1>h5t_coop_script_rhythm</GlobalVar1>") == std::string::npos &&
+	          out.find("<GlobalVar1>h5t_rules_key</GlobalVar1>") == std::string::npos &&
+	          out.find("<GlobalVar1>h5t_rules_button</GlobalVar1>") == std::string::npos &&
+	          out.find("<GlobalVar1>h5t_lang_texts</GlobalVar1>") != std::string::npos &&
+	          out.find("<GlobalVar1>h5t_video_hd_textures</GlobalVar1>") != std::string::npos &&
+	          out.find("<GlobalVar1>h5t_notify_sound</GlobalVar1>") != std::string::npos,
+	      "Options screen: the 2008 game without MMH5.5: endless turns shown, MMH5.5's rows hidden, its own French packs' "
+	      "row shown (lang\\fr-original), the others as before");
 	printf("      (%d items in our category)\n", items);
 	Check(VarName(*Find("notify", "sound")) == "h5t_notify_sound" && VarName(*Find("coop", "segment_ms")) == "h5t_coop_segment_ms",
 	      "Options screen: the console variable of each row");

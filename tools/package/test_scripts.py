@@ -34,6 +34,8 @@ OURS_MARK = b"H5 Together hook DLL"
 
 failures = []
 checks = 0
+# the installers never offer to fetch the original game's exe from GitHub during the tests
+os.environ["H5_TOGETHER_NO_DOWNLOAD"] = "1"
 
 
 sys.stdout.reconfigure(errors="replace")
@@ -315,14 +317,50 @@ MAKE_PACKAGE = REPO / "tools" / "package" / "make_package.py"
 STEAM_API_LINE = "installed Valve's steam_api.dll in h5-together (online play over Steam, off until you turn it on in Options)"
 
 
-def fake_pe(machine=0x14C, characteristics=0x2102, note=b"a fake steam_api.dll for the tests"):
+def fake_pe(machine=0x14C, characteristics=0x2102, note=b"a fake steam_api.dll for the tests", date=0):
     """A tiny file with the headers of a Windows DLL (machine 0x14c: 32-bit), and nothing
-    else: it cannot be loaded. characteristics 0x2102 says DLL, 0x0102 a program."""
+    else: it cannot be loaded. characteristics 0x2102 says DLL, 0x0102 a program. date: the
+    build date in the header (seconds since 1970; PE_DATE_2008 = the 2008 game's)."""
     mz = bytearray(0x40)
     mz[0:2] = b"MZ"
     mz[0x3C:0x40] = (0x40).to_bytes(4, "little")  # where the PE header starts
-    coff = machine.to_bytes(2, "little") + bytes(16) + characteristics.to_bytes(2, "little")
+    coff = (machine.to_bytes(2, "little") + bytes(2) + date.to_bytes(4, "little") + bytes(10)
+            + characteristics.to_bytes(2, "little"))
     return bytes(mz) + b"PE\0\0" + coff + note
+
+
+PE_DATE_2008 = 1212587935  # 2008-06-04 13:58:55: the 2008 game's exe, and MMH5.5's exes made from it
+
+
+def fake_exe_2008(imports=b"um.dll", size=0x2000):
+    """A tiny stand-in for the 2008 game's exe without Steam's protection: its header (the 2008
+    date, 32-bit, the image size 0x00DD9000) and one section, `size` bytes in all, naming
+    `imports` (um.dll: the game's own; 55u.dll: one of MMH5.5's exes)."""
+    b = bytearray(size)
+    b[0:4] = b"MZ\x90\x00"
+    pe = 0x80
+    b[0x3C:0x40] = pe.to_bytes(4, "little")
+    b[pe:pe + 4] = b"PE\0\0"
+    b[pe + 4:pe + 6] = (0x14C).to_bytes(2, "little")
+    b[pe + 6:pe + 8] = (1).to_bytes(2, "little")
+    b[pe + 8:pe + 12] = PE_DATE_2008.to_bytes(4, "little")
+    b[pe + 20:pe + 22] = (0xE0).to_bytes(2, "little")
+    b[pe + 22:pe + 24] = (0x10E).to_bytes(2, "little")
+    b[pe + 24:pe + 26] = (0x10B).to_bytes(2, "little")
+    b[pe + 24 + 56:pe + 24 + 60] = (0x00DD9000).to_bytes(4, "little")
+    sec = pe + 24 + 0xE0
+    b[sec:sec + 8] = b".text\0\0\0"
+    b[sec + 16:sec + 20] = (size - 0x400).to_bytes(4, "little")
+    b[sec + 20:sec + 24] = (0x400).to_bytes(4, "little")
+    b[0x500:0x500 + len(imports)] = imports
+    return bytes(b)
+
+
+def fake_mmh55_installer(path):
+    """A stand-in for MMH5.5's installer: other bytes, one of MMH5.5's own exes (55u.dll, same
+    date), more bytes, then the 2008 game's exe, then more."""
+    path.write_bytes(b"Inno Setup stand-in " * 3000 + fake_exe_2008(b"55u.dll") + b"MZ junk " * 5000
+                     + fake_exe_2008(b"um.dll", 0x3000) + b" the end" * 1000)
 
 
 def steam_api_package_checks(work, zip_path):
@@ -527,8 +565,8 @@ def settings_tests(who, pkg, game_bin, install, uninstall):
     ini.write_bytes(old)
     code, out = install()
     want = replaced(tpl, [
-        ("\n;view_delay_ms=100\n", "\nview_delay_ms=50\n"),
-        ("\n;net_sleep_ms=2\n", f"\nnet_sleep_ms=1\n\n{KEPT}\nfast_turns=1\n"),
+        ("\n;view_delay_ms=50\n", "\nview_delay_ms=50\n"),
+        ("\n;net_sleep_ms=1\n", f"\nnet_sleep_ms=1\n\n{KEPT}\nfast_turns=1\n"),
         ("\n;language=auto\n", "\nlanguage=fr\n"),
         ("\n;builder_last=\n", "\nbuilder_last=OH-X1-321110nnxxxxxxxa\n"),
         ("\n;original_music=0\n", "\noriginal_music=1\n"),
@@ -561,7 +599,7 @@ def settings_tests(who, pkg, game_bin, install, uninstall):
     want = replaced(tpl, [
         ("same settings.\n\n[net]\n", f"same settings.\n\n{KEPT}\ntop=1\n\n[net]\n"),
         ("\n;tuning=1\n", "\ntuning=0\n"),
-        ("\n;net_sleep_ms=2\n", f"\n;net_sleep_ms=2\n\n{KEPT}\ntuning=1\nlonely line\n"),
+        ("\n;net_sleep_ms=1\n", f"\n;net_sleep_ms=1\n\n{KEPT}\ntuning=1\nlonely line\n"),
         ("\n;fast_paths=1\n", "\nfast_paths=0\n"),
     ])
     got = ini.read_bytes()
@@ -819,8 +857,8 @@ def game_tests(who, pkg, work, install, uninstall, o, p, start_fake_game):
     check("MMH5.5:     RC19k (tested with H5 Together)" in out and "Warning" not in out and "Reminder" not in out,
           "game: a known MMH5.5 is named (RC19k), with no warning", out)
     check(re.search(r"MMH55_Utility_64\.exe +MMH5\.5's co-op exe: H5 Together works with it", out)
-          and re.search(r"H5_Game\.exe +the game's own exe, not MMH5\.5's", out),
-          "game: the exes are explained (the co-op exe works; the game's own exe does nothing)", out)
+          and re.search(r"H5_Game\.exe +not the 2008 game \(Steam's 2025 update\?\): H5 Together does nothing with it", out),
+          "game: the exes are explained (the co-op exe works; another exe, not the 2008 game's, does nothing)", out)
     check("H5 Together has its panels in French" in out, "game: says the add-on's panels will be in the game's language", out)
     check(f"All done: H5 Together {version} is installed." in out and "What to do next" in out and "h5-together.log" in out
           and f'"H5 Together hook DLL {version} loaded"' in out,
@@ -839,17 +877,61 @@ def game_tests(who, pkg, work, install, uninstall, o, p, start_fake_game):
           and not (b / "dinput8.dll").exists(),
           "game: the uninstaller shows the game it works on and says it is done", out)
 
-    # no MMH5.5 (only the game's own exe): a plain warning at the start and the end, still installs
+    # no MMH5.5 and no 2008 exe (only Steam's 2025 rebuild): a plain warning at the start and the end, still installs
     b = make_game(work / "lib c", exes=("H5_Game.exe",))
     code, out = install(o["game"], p(b))
     check(code == 0 and (b / "dinput8.dll").exists() and "MMH5.5:     not found" in out
-          and "Warning: MMH5.5 was not found in this folder (there is no MMH55_Utility_64.exe)." in out
-          and "Reminder: MMH5.5 was not found" in out and "needs MMH5.5" in out,
-          "game: without MMH5.5 it says so plainly (warning and reminder), and still installs", out)
+          and "Warning: MMH5.5 was not found in this folder (there is no MMH55_Utility_64.exe), nor the" in out
+          and "Reminder: neither MMH5.5 nor the original 2008 game's exe was found" in out and "2025 rebuild" in out,
+          "game: without MMH5.5 or the 2008 exe it says so plainly (warning and reminder), and still installs", out)
     check("Language:" not in out and "Found in:" not in out, "game: a folder that is not a Steam copy shows no store and no language", out)
     code, out = uninstall(o["game"], p(b), stdin="y\n")
     check(code == 0 and "Your game" in out and "MMH5.5:     not found" in out and "Warning" not in out,
           "game: the uninstaller shows the facts but does not warn about MMH5.5", out)
+
+    # the original 2008 game without MMH5.5 (its exe: the 2008 date, no 55u.dll): works, no warning
+    b = make_game(work / "lib g", exes=())
+    (b / "H5_Game.exe").write_bytes(fake_pe(characteristics=0x0102, note=b"the 2008 game, um.dll", date=PE_DATE_2008))
+    code, out = install(o["game"], p(b))
+    check(code == 0 and (b / "dinput8.dll").exists()
+          and "MMH5.5:     not found (H5 Together works with the original 2008 game)" in out
+          and re.search(r"H5_Game\.exe +the original 2008 game: H5 Together works with it", out)
+          and "Warning" not in out and "Reminder" not in out,
+          "game: the original 2008 game without MMH5.5 is recognised, with no warning", out)
+
+    # MMH5.5 with the 2008 game's exe kept as H5_GameOLD.exe (the GameRanger guide), and an
+    # MMH5.5 exe under H5_Game.exe that is not a byte copy (the 2008 date, but it loads 55u.dll)
+    b = make_game(work / "lib h")
+    (b / "H5_GameOLD.exe").write_bytes(fake_pe(characteristics=0x0102, note=b"the 2008 game, um.dll", date=PE_DATE_2008))
+    (b / "H5_Game.exe").write_bytes(fake_pe(characteristics=0x0102, note=b"MMH5.5 exe, 55u.dll", date=PE_DATE_2008))
+    code, out = install(o["game"], p(b))
+    check(code == 0 and re.search(r"H5_GameOLD\.exe +the original 2008 game: works too \(H5 Together hides MMH5\.5 from it\)", out)
+          and re.search(r"H5_Game\.exe +not the 2008 game", out),
+          "game: H5_GameOLD.exe (the 2008 game) is recognised next to MMH5.5; an MMH5.5 exe with the same date is not taken for it", out)
+
+    # the original game with 4 GB: H5_Original_4GB.exe made from MMH5.5's installer file
+    b = make_game(work / "lib 4gb")
+    installer = work / "MMH55_RC19k stand-in.exe"
+    fake_mmh55_installer(installer)
+    code, out = install(o["game"], p(b), o["mmh55"], p(installer))
+    made = b / "H5_Original_4GB.exe"
+    data = made.read_bytes() if made.exists() else b""
+    check(code == 0 and data[:0x3000] == fake_exe_2008(b"um.dll", 0x3000)[:0x96] + bytes([0x2E]) + fake_exe_2008(b"um.dll", 0x3000)[0x97:]
+          and len(data) == 0x3000 and "made H5_Original_4GB.exe" in out and "MMH55_RC19k stand-in.exe" in out,
+          "4 GB: the 2008 exe is copied out of MMH5.5's installer (not MMH5.5's own exe), with the 4 GB mark", out)
+    code, out = install(o["game"], p(b))
+    check(code == 0 and "H5_Original_4GB.exe (the original game with 4 GB of memory) is already there" in out
+          and re.search(r"H5_Original_4GB\.exe +the original 2008 game", out),
+          "4 GB: a second install keeps it, and the game's description names it as the original game", out)
+    code, out = uninstall(o["game"], p(b), stdin="y\n")
+    check(code == 0 and not made.exists() and "removed H5_Original_4GB.exe" in out,
+          "4 GB: the uninstaller removes it", out)
+    b = make_game(work / "lib 4gb none")
+    other = work / "not the installer.exe"
+    other.write_bytes(b"MZ nothing here " * 4000)
+    code, out = install(o["game"], p(b), o["mmh55"], p(other))
+    check(code == 0 and not (b / "H5_Original_4GB.exe").exists() and "Could not make H5_Original_4GB.exe" in out,
+          "4 GB: a file without the 2008 exe: said plainly, nothing made, still installs", out)
 
     # H5_Game.exe that is a copy of the co-op exe (the GameRanger guide)
     b = make_game(work / "lib d")
@@ -1412,6 +1494,15 @@ def bug_report_windows_extra(pkg, work, run_report):
 def windows_tests(pkg, work, pkg_steam):
     print("\nWindows scripts (install.bat / uninstall.bat)")
     work.mkdir(parents=True, exist_ok=True)
+    # The installer looks for MMH5.5's installer file in Downloads (the original game's 4 GB
+    # exe): a fake profile folder, not this PC's real one (whose Downloads may hold it).
+    real_profile = os.environ.get("USERPROFILE", "")
+    fake_profile = work / "fake profile"
+    (fake_profile / "Downloads").mkdir(parents=True, exist_ok=True)
+    os.environ["USERPROFILE"] = str(fake_profile)
+    # (PowerShell keeps a module cache under the profile; with the fake one it wrote it into
+    # the current folder)
+    os.environ["PSModuleAnalysisCachePath"] = str(work / "ps module cache")
     steam_only = work / "steam_only"          # Steam folder, game in a second library with accents
     lib2 = work / "Bibliotheque \u00c9t\u00e9 Steam"
     steam_only.mkdir()
@@ -1624,7 +1715,7 @@ def windows_tests(pkg, work, pkg_steam):
     # what the scripts find and say: the found screen, MMH5.5 and its version, warnings, several
     # games, a game that is running; then what only Windows has (GOG, the folder window, the pause)
     game_tests("Windows", pkg, work / "game", install, uninstall,
-               {"game": "-GameDir", "steam": "-SteamDir", "known": "-TestKnown55u"}, str, start_fake_game_windows)
+               {"game": "-GameDir", "steam": "-SteamDir", "known": "-TestKnown55u", "mmh55": "-Mmh55Installer"}, str, start_fake_game_windows)
     windows_only_game_tests(pkg, work / "game windows", install, uninstall)
 
     # the bug report script
@@ -1632,6 +1723,7 @@ def windows_tests(pkg, work, pkg_steam):
         return run(bat(str(pkg / "bug-report.bat"), "-NoPause", "-TestRegistry", no_registry,
                        "-GameDir", str(game_bin), "-OutDir", str(out_dir), *extra))
 
+    os.environ["USERPROFILE"] = real_profile  # (the bug report's checks use the real profile)
     bug_report_tests("Windows", pkg, work / "bug report", run_report, known_flag="-TestKnown55u")
     bug_report_windows_extra(pkg, work / "bug report extra", run_report)
 
@@ -1783,7 +1875,7 @@ def linux_tests(pkg, work, bash, pkg_steam):
     # games, a game that is running
     game_tests("Linux", pkg, work / "game", lambda *a, stdin="": sh("install.sh", *a, stdin=stdin),
                lambda *a, stdin="": sh("uninstall.sh", *a, stdin=stdin),
-               {"game": "--game-dir", "steam": "--steam-dir", "known": "--test-known-55u"}, posix, start_fake_game_linux(proc_dir))
+               {"game": "--game-dir", "steam": "--steam-dir", "known": "--test-known-55u", "mmh55": "--mmh55-installer"}, posix, start_fake_game_linux(proc_dir))
 
     # Steam installed as a Snap
     home_snap = work / "home_snap"

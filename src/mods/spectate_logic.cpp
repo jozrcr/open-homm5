@@ -13,6 +13,9 @@ namespace {
 //   watch:  the followed player - 1 in bits 16-18, on in bit 15
 //   view:   the floor in bit 18, x in bits 9-17, y in bits 0-8 (tiles)
 //   status: the screen in bits 0-3
+//   placement: bit 18 = 0, a stack: its index in bits 15-17, slot in 12-14, placed in bit 11,
+//              hex x in bits 6-10, y in bits 1-5; bit 18 = 1, the list's end: the number of
+//              stacks in bits 15-17, the check in bits 0-14 (0.3.4 and older refuse kind 3)
 uint32_t Head(int kind, int player)
 {
 	return kMark << 24 | (static_cast<uint32_t>(kind) & 3) << 22 | (static_cast<uint32_t>(player - 1) & 7) << 19;
@@ -41,6 +44,35 @@ uint32_t EncodeStatus(int player, int screen)
 	return Head(kStatus, player) | (static_cast<uint32_t>(screen) & 0xf);
 }
 
+bool PlacementHexFits(int x, int y)
+{
+	return x >= 0 && x <= 31 && y >= 0 && y <= 31;
+}
+
+uint32_t EncodePlacementStack(int player, int index, int slot, bool placed, int x, int y)
+{
+	if (!placed || !PlacementHexFits(x, y))
+		x = y = 0;
+	return Head(kPlacement, player) | (static_cast<uint32_t>(index) & 7) << 15 | (static_cast<uint32_t>(slot) & 7) << 12 |
+	       (placed ? 1u : 0u) << 11 | (static_cast<uint32_t>(x) & 31) << 6 | (static_cast<uint32_t>(y) & 31) << 1;
+}
+
+uint32_t EncodePlacementEnd(int player, int count, int check)
+{
+	return Head(kPlacement, player) | 1u << 18 | (static_cast<uint32_t>(count) & 7) << 15 |
+	       (static_cast<uint32_t>(check) & 0x7fff);
+}
+
+int PlacementCheck(const int *types, const int *counts, int n)
+{
+	uint32_t h = 5381;
+	for (int i = 0; i < n; ++i) {
+		h = (h * 33) ^ static_cast<uint32_t>(types[i]);
+		h = (h * 33) ^ static_cast<uint32_t>(counts[i]);
+	}
+	return static_cast<int>((h ^ (h >> 15)) & 0x7fff);
+}
+
 Message Decode(uint32_t value)
 {
 	Message m;
@@ -64,6 +96,22 @@ Message Decode(uint32_t value)
 	case kStatus:
 		m.screen = static_cast<int>(value & 0xf);
 		m.valid = m.screen <= kElsewhere && (value & 0x7fff0) == 0;
+		break;
+	case kPlacement:
+		m.end = ((value >> 18) & 1) != 0;
+		if (m.end) {
+			m.count = static_cast<int>((value >> 15) & 7);
+			m.check = static_cast<int>(value & 0x7fff);
+			m.valid = m.count >= 1;
+		}
+		else {
+			m.index = static_cast<int>((value >> 15) & 7);
+			m.slot = static_cast<int>((value >> 12) & 7);
+			m.placed = ((value >> 11) & 1) != 0;
+			m.hx = static_cast<int>((value >> 6) & 31);
+			m.hy = static_cast<int>((value >> 1) & 31);
+			m.valid = m.index <= 6 && m.slot <= 6 && (value & 1) == 0;
+		}
 		break;
 	default:
 		break;

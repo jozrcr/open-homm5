@@ -250,13 +250,37 @@ function Find-GameBins {
 $LanguageNames = @{ "english" = "English"; "french" = "French"; "german" = "German"; "russian" = "Russian";
                     "polish" = "Polish"; "spanish" = "Spanish"; "italian" = "Italian"; "czech" = "Czech"; "hungarian" = "Hungarian" }
 
+# The build date in a program's header (seconds since 1970), or 0. The 2008 game's exe and
+# MMH5.5's exes made from it say 2008-06-04 13:58:55; Steam's 2025 rebuild says 2025.
+$PeDate2008 = 1212587935
+function Get-PeDate([string]$Path) {
+    try {
+        $fs = [System.IO.File]::OpenRead($Path)
+        try {
+            $buf = New-Object byte[] 1024
+            $n = $fs.Read($buf, 0, 1024)
+            if ($n -lt 64) { return 0 }
+            $pe = [BitConverter]::ToInt32($buf, 60)
+            if ($pe -lt 0 -or $pe + 12 -gt $n -or [BitConverter]::ToUInt32($buf, $pe) -ne 0x4550) { return 0 }
+            return [BitConverter]::ToUInt32($buf, $pe + 8)
+        } finally { $fs.Close() }
+    } catch { return 0 }
+}
+
+# The 2008 game's own exe (not MMH5.5's: those have the same date but load MMH5.5's 55u.dll).
+function Test-Exe2008([string]$Path) {
+    if ((Get-PeDate $Path) -ne $PeDate2008) { return $false }
+    try { $text = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($Path)) } catch { return $false }
+    return -not $text.Contains("55u.dll")
+}
+
 # What we can tell about a game, from its bin folder. Only looks. A hashtable:
 #   Bin, Root (the game folder), Store ("Steam", "GOG" or ""), Language (Steam's name for it, or ""),
-#   Exes (each: Name, Role = coop | copy | own), Mmh55 (ok | untested | missing),
-#   Mmh55Name ("RC19k", or ""), Mmh55Version (H55_Version, or "").
+#   Exes (each: Name, Role = coop | copy | 2008 | own), Has2008 (the 2008 game's exe is there),
+#   Mmh55 (ok | untested | missing), Mmh55Name ("RC19k", or ""), Mmh55Version (H55_Version, or "").
 function Get-GameInfo([string]$Bin) {
     $root = Split-Path -Parent $Bin
-    $info = @{ Bin = $Bin; Root = $root; Store = ""; Language = ""; Exes = @(); Mmh55 = "missing"; Mmh55Name = ""; Mmh55Version = "" }
+    $info = @{ Bin = $Bin; Root = $root; Store = ""; Language = ""; Exes = @(); Has2008 = $false; Mmh55 = "missing"; Mmh55Name = ""; Mmh55Version = "" }
     # Steam keeps the game in <library>\steamapps\common\<name>, and its file for the game next to that
     $common = Split-Path -Parent $root
     if ($common -and (Split-Path -Leaf $common) -ieq "common") {
@@ -271,21 +295,24 @@ function Get-GameInfo([string]$Bin) {
         @(Get-ChildItem -LiteralPath $root -Filter "goggame-*.info" -File -ErrorAction SilentlyContinue).Count -gt 0) {
         $info.Store = "GOG"
     }
-    # The exes. H5_Game.exe is a copy of the co-op exe when the player followed the GameRanger guide.
+    # The exes. H5_Game.exe is a copy of the co-op exe when the player followed the GameRanger
+    # guide, which keeps the 2008 game's own exe as H5_GameOLD.exe.
     $exes = New-Object System.Collections.ArrayList
     $coop = @()
     foreach ($name in $CoopExes) {
         $p = Join-Path $Bin $name
         if (Test-Path -LiteralPath $p -PathType Leaf) { $coop += $p; [void]$exes.Add(@{ Name = $name; Role = "coop" }) }
     }
-    $p = Join-Path $Bin "H5_Game.exe"
-    if (Test-Path -LiteralPath $p -PathType Leaf) {
+    foreach ($name in @("H5_Game.exe", "H5_GameOLD.exe", "H5_Original_4GB.exe")) {
+        $p = Join-Path $Bin $name
+        if (-not (Test-Path -LiteralPath $p -PathType Leaf)) { continue }
         $role = "own"
         $size = (Get-Item -LiteralPath $p).Length
         foreach ($c in $coop) {
             if ($role -eq "own" -and (Get-Item -LiteralPath $c).Length -eq $size -and (Get-Sha256Hex $c) -eq (Get-Sha256Hex $p)) { $role = "copy" }
         }
-        [void]$exes.Add(@{ Name = "H5_Game.exe"; Role = $role })
+        if ($role -eq "own" -and (Test-Exe2008 $p)) { $role = "2008"; $info.Has2008 = $true }
+        [void]$exes.Add(@{ Name = $name; Role = $role })
     }
     $info.Exes = @($exes)
     # MMH5.5 and its version: the version file in its pak, and which 55u.dll it has
@@ -316,6 +343,7 @@ function Get-Mmh55Text($Info) {
         if ($Info.Mmh55Version) { $v += " (its version file says " + $Info.Mmh55Version + ")" }
         return $v
     }
+    if ($Info.Has2008) { return "not found (H5 Together works with the original 2008 game)" }
     return "not found"
 }
 
@@ -333,23 +361,28 @@ function Write-GameInfo($Info, [string[]]$Notes = @(), [switch]$NoWarnings) {
         Write-Host ("  Language:   " + $lang + " (Steam's setting for the game)")
     }
     $color = "Green"
-    if ($Info.Mmh55 -ne "ok") { $color = "Yellow" }
+    if ($Info.Mmh55 -ne "ok" -and -not ($Info.Mmh55 -eq "missing" -and $Info.Has2008)) { $color = "Yellow" }
     Write-Host ("  MMH5.5:     " + (Get-Mmh55Text $Info)) -ForegroundColor $color
     $label = "  Game exes:  "
     foreach ($e in $Info.Exes) {
         $text = "MMH5.5's co-op exe: H5 Together works with it"
         if ($e.Role -eq "copy") { $text = "a copy of the co-op exe (made for GameRanger): works too" }
-        if ($e.Role -eq "own") { $text = "the game's own exe, not MMH5.5's: H5 Together does nothing with it" }
+        if ($e.Role -eq "2008") {
+            if ($Info.Mmh55 -eq "missing") { $text = "the original 2008 game: H5 Together works with it" }
+            else { $text = "the original 2008 game: works too (H5 Together hides MMH5.5 from it)" }
+        }
+        if ($e.Role -eq "own") { $text = "not the 2008 game (Steam's 2025 update?): H5 Together does nothing with it" }
         Write-Host ($label + $e.Name.PadRight(21) + " " + $text)
         $label = "              "
     }
     foreach ($n in $Notes) { Write-Host ("  " + $n) }
     if ($NoWarnings) { return }
-    if ($Info.Mmh55 -eq "missing") {
+    if ($Info.Mmh55 -eq "missing" -and -not $Info.Has2008) {
         Write-Host ""
-        Write-Host "Warning: MMH5.5 was not found in this folder (there is no MMH55_Utility_64.exe)." -ForegroundColor Yellow
-        Write-Host "H5 Together needs MMH5.5, the community version of the game, for now. The files can" -ForegroundColor Yellow
-        Write-Host "be copied anyway, but they only start working once MMH5.5 is installed." -ForegroundColor Yellow
+        Write-Host "Warning: MMH5.5 was not found in this folder (there is no MMH55_Utility_64.exe), nor the" -ForegroundColor Yellow
+        Write-Host "original 2008 game's exe. Since July 2025, Steam installs a rebuild of the game that" -ForegroundColor Yellow
+        Write-Host "H5 Together does not know. The files can be copied anyway; they start working with" -ForegroundColor Yellow
+        Write-Host "MMH5.5, or with the 2008 game's exe." -ForegroundColor Yellow
     } elseif ($Info.Mmh55 -eq "untested") {
         Write-Host ""
         Write-Host "Warning: this MMH5.5 is a version we have not tested (tested: $tested)." -ForegroundColor Yellow

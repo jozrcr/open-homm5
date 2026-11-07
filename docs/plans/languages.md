@@ -312,6 +312,20 @@ Kept in `build/lang/` of this worktree and copied to the main checkout's `build/
 
 Never put either pack in `data\`.
 
+### 3.5 The original game without MMH5.5 (0.3.5, 2026-11-07)
+
+The owner, on the 2008 game in French: "some descriptions surface in english in my french game". Without MMH5.5 the base texts are French (`texts.pak`), but the 3.1 patch's `a2p1-texts.pak` (253 texts) is English and newer, so it wins: hero specialties, skills, creature abilities, spells, week texts, the random map screen. MMH5.5's packs describe MMH5.5's rules, so the original game reads **its own folder, `bin\h5-together\lang\fr-original\`** (`languages.cpp`; the Options row "Game's texts" shows when a pack is there). Still private (Q11): the pack is shared within the group.
+
+| Path (build/, never in git) | What |
+|---|---|
+| `build/lang/gap-batches/b7-original-toe31/` | 61 texts of `a2p1-texts.pak` that no batch had (the English taken from the original game's own layers, not MMH5.5's): 1,225 English words, 0 errors, 6 length warnings (shrine tooltips) |
+| `build/lang/gap-batches/b8-original-reused/` | 183 texts of b1 to b3 whose English is exactly the original game's (b6: none) |
+| `build/lang/private-fr/open-homm5-fr-original.pak` | **The pack for the original game**: 244 texts (b8 + b7), 71,281 bytes, SHA-256 `515cccfb4299e3163c0309c24aac85d9c8535ae3039e8723d97cecadf09a2f17` |
+
+Left out on purpose: the campaigns' and single maps' texts (53 of the patch's, single player only) and texts that read the same in both languages (numbers, tag-only formats). Robot (the 2008 exe, `texts=fr`, `log_texts`): "244 French texts from h5-together\lang\fr-original", a hero's biography served in French.
+
+**Install for the original game:** put `open-homm5-fr-original.pak` in `bin\h5-together\lang\fr-original\`, then Options, H5 Together, "Game's texts": French (or `texts=fr` under `[lang]`), and restart the game.
+
 ## 4. Steps and night batches
 
 Done:

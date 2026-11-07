@@ -42,6 +42,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../hook/game_build.h"
 #include "../hook/log.h"
 #include "../hook/old_names.h"
 #include "../hook/patch.h"
@@ -85,6 +86,7 @@ OpenFn g_open_next = nullptr;
 
 Texts g_choice = Texts::Game;
 bool g_read = false;
+bool g_original_game = false;  // texts=fr asked for, but this is the 2008 game without MMH5.5
 LONG g_log_texts = 0;
 
 void ReadSettings()
@@ -106,6 +108,12 @@ void ReadSettings()
 			hooklog::Write("languages: texts=%ls is not game, fr or en: the game's own texts", text);
 	}
 	g_log_texts = static_cast<LONG>(GetPrivateProfileIntW(L"lang", L"log_texts", 0, ini));
+	// The 2008 game without MMH5.5: its base texts are the Steam language's already, but its
+	// 3.1 patch's (a2p1-texts.pak) are English. MMH5.5's packs describe MMH5.5's rules, so the
+	// original game reads its own folder, lang\fr-original (since 0.3.5: a pack of the 3.1
+	// patch's texts, shared privately like the others; docs/plans/languages.md).
+	if (g_choice == Texts::French && DetectGameBuild() == GameBuild::Vanilla31)
+		g_original_game = true;
 }
 
 // ---- zlib (the game's zlib1.dll, cdecl) ----
@@ -198,12 +206,23 @@ std::string Narrow(const std::wstring &w)
 }
 
 // <exe folder>\h5-together\lang\fr\ (the robot's copies have their own exe folder), or
-// open-homm5\lang\fr\, the folder's name until 0.2.7, while only that one is there
+// open-homm5\lang\fr\, the folder's name until 0.2.7, while only that one is there; the
+// original game without MMH5.5: h5-together\lang\fr-original (its own folder)
+const wchar_t *PackFolderName()
+{
+	return g_original_game ? L"lang\\fr-original" : L"lang\\fr";
+}
+
 std::wstring PackFolder()
 {
 	wchar_t dir[MAX_PATH];
-	oldnames::PathInOurFolder(L"lang\\fr", dir, MAX_PATH);
+	oldnames::PathInOurFolder(PackFolderName(), dir, MAX_PATH);
 	return std::wstring(dir) + L"\\";
+}
+
+const char *PackFolderShort()
+{
+	return g_original_game ? "h5-together\\lang\\fr-original" : "h5-together\\lang\\fr";
 }
 
 bool ReadDirectoryOf(HANDLE file, std::vector<lang::ZipEntry> *out)
@@ -296,8 +315,8 @@ bool BuildIndex()
 			}
 		}
 		if (!has_text && !inner.empty())
-			hooklog::Write("languages: %s holds %s, not texts: unzip it and put the .pak itself in h5-together\\lang\\fr",
-			               Narrow(name).c_str(), inner.c_str());
+			hooklog::Write("languages: %s holds %s, not texts: unzip it and put the .pak itself in %s",
+			               Narrow(name).c_str(), inner.c_str(), PackFolderShort());
 	}
 	if (g_texts.empty()) {
 		hooklog::Write("languages: texts=fr, but the packs in %s hold no .txt file: the game's own texts",
@@ -307,9 +326,9 @@ bool BuildIndex()
 	std::string list;
 	for (const Pack &p : g_packs)
 		list += (list.empty() ? "" : ", ") + p.name + " (" + std::to_string(p.texts) + ")";
-	hooklog::Write("languages: texts=fr: %u French texts from h5-together\\lang\\fr: %s; %d of them newer than "
+	hooklog::Write("languages: texts=fr: %u French texts from %s: %s; %d of them newer than "
 	               "another pack's; indexed in %lu ms",
-	               static_cast<unsigned>(g_texts.size()), list.c_str(), replaced, GetTickCount() - start);
+	               static_cast<unsigned>(g_texts.size()), PackFolderShort(), list.c_str(), replaced, GetTickCount() - start);
 	return true;
 }
 
@@ -508,7 +527,8 @@ void ApplyLanguagesFromSettings()
 		hooklog::Write("languages: texts=fr, but no French pack could be used (see above): the game's own texts");
 		return;
 	}
-	hooklog::Write("languages: texts=fr: the game's texts come from h5-together\\lang\\fr\\*.pak where they have them%s",
+	hooklog::Write("languages: texts=fr: the game's texts come from %s\\*.pak where they have them%s%s", PackFolderShort(),
+	               g_original_game ? " (the original game without MMH5.5: its own folder)" : "",
 	               g_early ? "" : " (installed late: texts read before now stay as they were)");
 }
 

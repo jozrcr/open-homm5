@@ -79,6 +79,28 @@ They go out after this PC's own segment report, as the other mods' messages do, 
 
 **Not tested yet:** Esc (the robot's keys do not reach the overlay's window messages), this PC's own battle starting while it watches, a real game between two PCs over Steam.
 
+### Built (2026-11-07): the sword in the player list
+
+While an ally fights, a sword (the game's attack cursor) replaces the turn mark on their row; a click follows them and opens their battle as soon as their status says it goes on (`SpectateWatchBattle`: 8 s at most). Every PC that shares its view sends its "status" to every PC when it enters a battle, every 4 s while in it, and once when it leaves (`TellBattle`); each PC keeps the allies' (`g_battle_heard`, 10 s lapse). The old way (a status only to followers, every 2 s) stays: a follower hears both.
+
+| Run | What | Result |
+|---|---|---|
+| `20261107-000337-lan` | The 2008 game; the host attacks a monster; the client follows nobody | The client: "Robot-host is in a battle (their PC says)", the sword on the host's row (screenshot); gone at the battle's end. 2293 world checks, all equal. |
+| `20261107-001130-lan` | The client's sword action (`panel|spectate sword 1`) | Followed the host and opened the battle 0.2 s later (screenshot: "Vous regardez Robot-host"); 74 commands dropped while watching; 2893 world checks, all equal. |
+
+### Built (2026-11-07): the army's placement before the battle
+
+The owner: "I still don't see updates during battle preparation" (0.3.4's known issue). Research (static reading of the 2008 exe, then three robot runs; full notes kept in the session's scratchpad `tactics-research.md`):
+
+- **During placement nothing is in the world.** At a battle's start the world auto-places each army into a list in the army (`A+0x68`; `A` = the `NWorld::CCombatArmy` interface at its `+0x20`, vftable `0x00e17bcc`). Each PC's `NUI::CCombatArenaScreen` (vftable `0x00e1da84`) copies it into its own `CPlacementInfo` (`screen+0x488`, vftable `0x00e202dc`, 0xa0 bytes: the list at `+0x0c`/`+0x10`, 0x24 bytes per stack: `+0x04` bar slot, `+0x08` count, `+0x10` placed, `+0x14`/`+0x18` hex, `+0x1c` creature type; `+0x24` the army, not 0 only while this screen's player places) and draws ghosts from it. The fighter's clicks (`0x005779d0`) change only that copy; the screen re-reads the world only when the army or its hero changes (`0x005782f0`).
+- **At Enter** `0x00541fa0` sends `NWorld::CMoveCreaturesOnBattlefield` (vftable `0x00e18218`, built only by `0x00577f30`: the whole list, absolute; Execute `0x004e1880` refuses more than 7 stacks or an army no longer placing) and `NWorld::CEndTactic` (`0x0054e920`), in the same millisecond.
+- **Chosen: mirror on the watcher only.** The fighter's PC sends its list to its followers (`kPlacement` messages, kind 3: one per stack, then an end with the number of stacks and a 15-bit check of their types and counts; when it changes and every 2 s). The watcher checks that its screen's list names the same stacks, writes slot, placed and hex, then calls the game's Reset (`0x00578290`) and Refresh (`0x00577420`), as the game's own auto-place does (`0x00578510`). The world is not touched. Rejected: sending the game's command early (the watcher's screen would still not re-read the world, and merges and splits would reach the world mid-placement, which the game never does).
+- Not mirrored: merges and splits (another number of stacks): the watcher sees them at Enter.
+
+| Run | What | Result |
+|---|---|---|
+| `20261107-142317-lan` | The 2008 game, A1M4; the host attacks, the client watches (sword); the host clicks bar slot 1 (`click|208 670`) then a hex (`click|305 528`); Enter | Host: "army placement sent ... (3 stack(s), 3 on the field)" at 78.3 s (the auto-placement, nothing to move) and 92.2 s; client: "army placement shown here (1 stack(s) moved)" 60 ms later. Screenshots: the same formation on both; after Enter the battle starts in it. 1689 world checks, all equal. |
+
 ## Tests
 
 - `test/spectate_test.cpp`: messages both ways, the glide, the "may follow" rule.

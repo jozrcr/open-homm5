@@ -29,6 +29,7 @@ struct MenuOptions {
 	bool wine = false;   // the mouse wheel fix only matters under Wine
 	bool packs = false;  // the game's French texts: only when the packs are in h5-together\lang\fr
 	bool steam_dll = false;  // Valve's steam_api.dll is in h5-together\ (online play over Steam can start)
+	bool mmh55 = true;       // the game runs with MMH5.5 (false: the 2008 game alone; its rows hide, endless_turns shows)
 	std::vector<std::string> languages;  // our texts files' codes besides en and fr ("de", "xx")
 	std::vector<std::pair<std::string, std::string>> names;  // a language's code -> its own name ("fr" -> "Français")
 	std::vector<std::pair<std::string, std::string>> extra;  // "section.key" -> a value of the file the choices lack

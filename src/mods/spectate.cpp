@@ -26,6 +26,13 @@
 //    its eye: a short line when the ally is not on the map ("in a town"), or, while the ally
 //    fights, a small button "Watch the battle". Nothing in the middle of the map: a click on
 //    the name or the eye starts and stops following (the owner's choice, 2026-11-05).
+// 5. The sword (the owner's wish, 2026-11-06: "a small sword icon on player list to indicate
+//    when in battle (maybe clickable to directly spectate)"): every PC that shares its view
+//    also tells every PC when it is in a battle (a "status" message, again every 4 s while it
+//    fights, and once when it leaves; 0.3.4 takes a status only from the ally it follows, so
+//    it ignores these). Each PC keeps the allies' (TellBattle, CheckHook); the player list
+//    draws a sword on an ally's row while it fights, and a click on it follows that ally and
+//    opens their battle as soon as it can (SpectateWatchBattle).
 //
 // Research probe ([debug] spectate_probe=1, robot runs): the camera's position, the floor
 // and the operator's object, every 2 s.
@@ -44,6 +51,7 @@
 #include "spectate_logic.h"
 
 #include "../hook/d3d9_hook.h"
+#include "../hook/game_build.h"
 #include "../hook/log.h"
 #include "../hook/overlay.h"
 #include "../hook/patch.h"
@@ -168,8 +176,9 @@ char g_names[9][64];      // by number: the player list's names ("" = not told)
 int g_me = 0;             // this PC's player number
 
 // Messages waiting for this PC's next step
-DWORD g_queue[16];
+DWORD g_queue[32];
 int g_queued = 0;
+const int kQueueSize = sizeof(g_queue) / sizeof(g_queue[0]);
 
 // As the followed: who follows, and what was last sent
 spectate::Watchers g_watchers;
@@ -188,6 +197,17 @@ int g_their_screen = spectate::kOnMap;
 bool g_set = false;  // we put the camera somewhere in the frame before
 float g_set_x = 0, g_set_y = 0;
 bool g_my_turn_before = false;
+
+// The sword (5.): this PC's own battle, told to every PC; the allies' battles, heard.
+const DWORD kBattleRepeat = 4000;  // "in a battle" again, this often (a PC that starts late hears it)
+const DWORD kBattleLapse = 10000;  // nothing more heard this long: no longer in a battle
+DWORD g_battle_checked_at = 0;     // this PC's screen, looked at (every 250 ms)
+int g_battle_code = spectate::kOnMap;
+bool g_battle_told = false;        // "in a battle" went out, and no "out of it" since
+DWORD g_battle_told_at = 0;
+DWORD g_battle_heard[9];           // by player: when its "in a battle" came (GetTickCount), 0 = not
+int g_auto_watch = 0;              // the sword's click: watch this ally's battle as soon as it can
+DWORD g_auto_watch_since = 0;
 LARGE_INTEGER g_last_frame = {};
 
 DWORD Read(const void *p, DWORD off)
@@ -202,7 +222,7 @@ BYTE ReadByte(const void *p, DWORD off)
 
 void Queue(DWORD value)
 {
-	if (g_queued < static_cast<int>(sizeof(g_queue) / sizeof(g_queue[0])))
+	if (g_queued < kQueueSize)
 		g_queue[g_queued++] = value;
 }
 
@@ -401,6 +421,236 @@ void ShareView(DWORD now)
 		g_sent_floor = floor;
 		g_sent_view_at = now;
 	}
+}
+
+// --- every PC: "this PC is in a battle" (the sword in the allies' player lists) -----------------
+void TellBattle(DWORD now)
+{
+	if (now - g_battle_checked_at >= 250) {
+		g_battle_checked_at = now;
+		g_battle_code = g_share ? ScreenCode() : spectate::kElsewhere;
+	}
+	const bool fighting = g_battle_code == spectate::kInBattle;
+	if (fighting ? g_battle_told && now - g_battle_told_at < kBattleRepeat : !g_battle_told)
+		return;
+	Queue(spectate::EncodeStatus(g_me, g_battle_code));
+	if (fighting != g_battle_told)
+		hooklog::Write("spectate: this PC %s (told every PC: the sword in their player lists)",
+		               fighting ? "is in a battle" : "left its battle");
+	g_battle_told = fighting;
+	g_battle_told_at = now;
+}
+
+// --- the army's placement before a battle (since 0.3.5) --------------------------------------------
+// During a battle's placement (tactics) phase nothing is in the world yet: each PC's battle
+// screen (NUI::CCombatArenaScreen) keeps a private list of the stacks (its CPlacementInfo at
+// +0x488), copied from the army's auto-placement, and the fighter's clicks change only that
+// list; at Enter the game sends it in one CMoveCreaturesOnBattlefield (0x00577f30, from
+// 0x00541fa0), with CEndTactic. So a watcher saw the auto-placement until the battle began.
+// Now the fighter's PC sends its list to the PCs that follow it (kPlacement messages: when it
+// changes, and every 2 s), and the watcher writes it into the watched screen's own list and
+// redraws it the game's way: Reset (0x00578290), then Refresh (0x00577420), as the game's own
+// auto-place does (0x00578510). The world is never touched; at Enter the game's own commands
+// place the real stacks where the watcher saw them. A merge or a split (another number of
+// stacks) shows only at Enter. (Research: 2026-11-07, docs/plans/spectate.md.)
+const DWORD kArenaVftable = 0x00e1da84;
+const char kArenaScreen[] = ".?AVCCombatArenaScreen@NUI@@";
+const DWORD kPlacementInfo = 0x488;      // CPtr CPlacementInfo (vftable 0x00e202dc)
+const DWORD kPlaceBegin = 0x0c;          // its list of stacks (begin, end), 0x24 bytes each:
+const DWORD kPlaceEnd = 0x10;            //   +0x04 bar slot, +0x08 count, +0x10 placed (byte),
+const DWORD kPlaceEntry = 0x24;          //   +0x14 / +0x18 hex x, y, +0x1c creature type
+const DWORD kPlaceArmy = 0x24;           // the army, not 0 only while the screen's player places
+const DWORD kPlaceReset = 0x00578290;    // __fastcall(info)
+const DWORD kPlaceRefresh = 0x00577420;  // __fastcall(info)
+const DWORD kPlaceRepeat = 2000;
+typedef void(__fastcall *PlaceFn)(void *info, void *edx);
+
+struct Placement {
+	int n;
+	int slot[7], count[7], type[7], x[7], y[7];
+	BYTE placed[7];
+};
+
+bool ReadPlacementUnsafe(const BYTE *screen, Placement *out, BYTE **info_out)
+{
+	if (!screen || Read(screen, 0) != kArenaVftable)
+		return false;
+	BYTE *info = reinterpret_cast<BYTE *>(Read(screen, kPlacementInfo));
+	if (!info || !Read(info, kPlaceArmy))
+		return false;
+	const DWORD begin = Read(info, kPlaceBegin), end = Read(info, kPlaceEnd);
+	if (!begin || end < begin || (end - begin) % kPlaceEntry)
+		return false;
+	const int n = static_cast<int>((end - begin) / kPlaceEntry);
+	if (n < 1 || n > 7)
+		return false;
+	out->n = n;
+	for (int i = 0; i < n; ++i) {
+		const BYTE *e = reinterpret_cast<const BYTE *>(begin + i * kPlaceEntry);
+		out->slot[i] = static_cast<int>(Read(e, 0x04));
+		out->count[i] = static_cast<int>(Read(e, 0x08));
+		out->placed[i] = ReadByte(e, 0x10) ? 1 : 0;
+		out->x[i] = out->placed[i] ? static_cast<int>(Read(e, 0x14)) : 0;
+		out->y[i] = out->placed[i] ? static_cast<int>(Read(e, 0x18)) : 0;
+		out->type[i] = static_cast<int>(Read(e, 0x1c));
+	}
+	if (info_out)
+		*info_out = info;
+	return true;
+}
+
+// The list of a battle screen while its player places its army; false otherwise.
+bool ReadPlacement(const BYTE *screen, Placement *out, BYTE **info_out)
+{
+	memset(out, 0, sizeof(*out));
+	__try {
+		return ReadPlacementUnsafe(screen, out, info_out);
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		return false;
+	}
+}
+
+// As the fighter
+Placement g_place_sent;  // n = 0: nothing sent for this placement yet
+DWORD g_place_sent_at = 0;
+int g_place_said = 0;
+bool g_place_said_hex = false;
+
+void SharePlacement(DWORD now)
+{
+	if (WatchingBattle() || g_battle_code != spectate::kInBattle || !g_watchers.Any(now)) {
+		g_place_sent.n = 0;
+		return;
+	}
+	Placement p;
+	if (!ReadPlacement(static_cast<const BYTE *>(overlay::ScreenObject(kArenaScreen)), &p, nullptr)) {
+		g_place_sent.n = 0;
+		return;
+	}
+	const bool changed = memcmp(&p, &g_place_sent, sizeof(p)) != 0;
+	if (!changed && now - g_place_sent_at < kPlaceRepeat)
+		return;
+	if (g_queued + p.n + 1 > kQueueSize)
+		return;  // (the next frame)
+	for (int i = 0; i < p.n; ++i) {
+		if (p.placed[i] && !spectate::PlacementHexFits(p.x[i], p.y[i])) {
+			if (!g_place_said_hex) {
+				g_place_said_hex = true;
+				hooklog::Write("spectate: this PC's army placement has a hex %d,%d that our message cannot carry: not sent",
+				               p.x[i], p.y[i]);
+			}
+			return;
+		}
+	}
+	for (int i = 0; i < p.n; ++i)
+		Queue(spectate::EncodePlacementStack(g_me, i, p.slot[i], p.placed[i] != 0, p.x[i], p.y[i]));
+	Queue(spectate::EncodePlacementEnd(g_me, p.n, spectate::PlacementCheck(p.type, p.count, p.n)));
+	if (changed && g_place_said < 8) {
+		++g_place_said;
+		int on_field = 0;
+		for (int i = 0; i < p.n; ++i)
+			on_field += p.placed[i];
+		hooklog::Write("spectate: this PC's army placement sent to the PCs that follow it (%d stack(s), %d on the field)",
+		               p.n, on_field);
+	}
+	g_place_sent = p;
+	g_place_sent_at = now;
+}
+
+// As the watcher: the followed ally's list, as it arrives (CheckHook), then shown (Frame).
+struct PlacementIn {
+	int player;
+	int slot[7], x[7], y[7];
+	bool placed[7];
+	unsigned got;  // bit i: stack i arrived since the last end
+};
+PlacementIn g_place_in;
+PlacementIn g_place_new;  // the last whole list
+int g_place_new_count = 0, g_place_new_check = 0;
+bool g_place_ready = false;
+int g_place_shown = 0, g_place_differ = 0;
+
+void HearPlacement(const spectate::Message &m)
+{
+	if (m.player != g_place_in.player) {
+		memset(&g_place_in, 0, sizeof(g_place_in));
+		g_place_in.player = m.player;
+	}
+	if (!m.end) {
+		g_place_in.slot[m.index] = m.slot;
+		g_place_in.placed[m.index] = m.placed;
+		g_place_in.x[m.index] = m.hx;
+		g_place_in.y[m.index] = m.hy;
+		g_place_in.got |= 1u << m.index;
+		return;
+	}
+	const unsigned all = (1u << m.count) - 1;
+	if ((g_place_in.got & all) == all) {
+		g_place_new = g_place_in;
+		g_place_new_count = m.count;
+		g_place_new_check = m.check;
+		g_place_ready = true;
+	}
+	g_place_in.got = 0;
+}
+
+// The ally's list into this PC's screen's list (the same stacks: checked before), then the
+// game's redraw; the number of stacks changed, or -1 if it crashed.
+int WritePlacement(BYTE *info, const Placement &mine, const PlacementIn &p)
+{
+	int changed = 0;
+	__try {
+		const DWORD begin = Read(info, kPlaceBegin);
+		for (int i = 0; i < mine.n; ++i) {
+			BYTE *e = reinterpret_cast<BYTE *>(begin + i * kPlaceEntry);
+			const bool same = mine.slot[i] == p.slot[i] && (mine.placed[i] != 0) == p.placed[i] &&
+			                  (!p.placed[i] || (mine.x[i] == p.x[i] && mine.y[i] == p.y[i]));
+			if (same)
+				continue;
+			*reinterpret_cast<DWORD *>(e + 0x04) = static_cast<DWORD>(p.slot[i]);
+			*(e + 0x10) = p.placed[i] ? 1 : 0;
+			if (p.placed[i]) {
+				*reinterpret_cast<DWORD *>(e + 0x14) = static_cast<DWORD>(p.x[i]);
+				*reinterpret_cast<DWORD *>(e + 0x18) = static_cast<DWORD>(p.y[i]);
+			}
+			++changed;
+		}
+		if (changed) {
+			reinterpret_cast<PlaceFn>(kPlaceReset)(info, nullptr);
+			reinterpret_cast<PlaceFn>(kPlaceRefresh)(info, nullptr);
+		}
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		return -1;
+	}
+	return changed;
+}
+
+void ShowPlacement()
+{
+	if (!g_place_ready || g_place_new.player != g_following)
+		return;
+	g_place_ready = false;
+	Placement mine;
+	BYTE *info = nullptr;
+	if (!ReadPlacement(static_cast<const BYTE *>(overlay::ScreenObject(kArenaScreen)), &mine, &info))
+		return;  // (not placing here: before the screen opened, or after Enter)
+	if (mine.n != g_place_new_count || spectate::PlacementCheck(mine.type, mine.count, mine.n) != g_place_new_check) {
+		if (g_place_differ++ < 3)
+			hooklog::Write("spectate: %s's army placement names other stacks than this PC's screen (%d here, %d there: "
+			               "a merge or a split?): shown when the battle starts",
+			               NameOf(g_following).c_str(), mine.n, g_place_new_count);
+		return;
+	}
+	const int changed = WritePlacement(info, mine, g_place_new);
+	if (changed < 0) {
+		hooklog::Write("spectate: showing %s's army placement crashed (caught)", NameOf(g_following).c_str());
+		return;
+	}
+	if (changed && g_place_shown++ < 8)
+		hooklog::Write("spectate: %s's army placement shown here (%d stack(s) moved)", NameOf(g_following).c_str(),
+		               changed);
 }
 
 // --- as the follower -------------------------------------------------------------------------------
@@ -872,16 +1122,44 @@ void FollowFrame(BYTE *screen, float dt)
 	g_set_y = pos[8];
 }
 
+// Watching while nobody is followed any more (Stop: the ally left the game, or this PC's game
+// ended): only the end of the close. The battle screen's close is queued (StopWatching) and,
+// until it is gone, this PC's commands are dropped (SendHook). 0.3.4 stopped looking once nobody
+// was followed, so watching never ended and the watcher's commands stayed dropped for good: no
+// click did anything, no way out of the game (the owner's game, 2026-11-06: the watched Natoune
+// left the game in his battle).
+void FinishWatching(DWORD now)
+{
+	char top[96];
+	if (!BattleScreens(top, sizeof(top))) {
+		EndWatching(top);
+		return;
+	}
+	if (!g_closing || now - g_closing_since > 5000) {  // (asked again every 5 s until the screens are gone)
+		g_closing = false;
+		StopWatching("nobody is followed any more");
+	}
+}
+
 void Frame(DWORD now, float dt)
 {
 	ReadPlayers();
+	if (g_watching_battle && !g_following) {
+		FinishWatching(now);
+		return;
+	}
 	if (!InMultiplayer() || g_me == 0) {
 		if (g_following)
 			Stop("not in a multiplayer game");
 		g_watchers.Clear();
+		memset(g_battle_heard, 0, sizeof(g_battle_heard));
+		g_battle_told = false;
+		g_auto_watch = 0;
 		return;
 	}
+	TellBattle(now);
 	ShareView(now);
+	SharePlacement(now);
 	// this PC's turn begins: stop following (the player plays again)
 	const PlayerInfo &me = g_players[g_me];
 	const bool my_turn = me.known && me.in_game && me.turn == 0 && !me.pressed;
@@ -903,6 +1181,8 @@ void Frame(DWORD now, float dt)
 			g_request_stop_watching = false;
 			StopWatching(g_request_how);
 		}
+		if (!g_closing)
+			ShowPlacement();
 		WatchFrame(now);
 		return;
 	}
@@ -917,6 +1197,20 @@ void Frame(DWORD now, float dt)
 		WatchNow(g_request_how);
 		if (g_watching_battle)
 			return;
+	}
+	if (g_auto_watch) {  // the sword's click: as soon as the ally's status says the battle goes on
+		if (g_auto_watch != g_following || now - g_auto_watch_since > 8000) {
+			if (g_auto_watch == g_following)
+				hooklog::Write("spectate: %s's battle could not be watched within 8 s (the sword's click)",
+				               NameOf(g_auto_watch).c_str());
+			g_auto_watch = 0;
+		}
+		else if (WatchableNotice()) {
+			g_auto_watch = 0;
+			WatchNow("the sword in the player list");
+			if (g_watching_battle)
+				return;
+		}
 	}
 	FollowFrame(screen, dt);
 }
@@ -1036,7 +1330,8 @@ void LookAt(int x, int y)
 
 void RobotCommand(const char *text)
 {
-	// robot steps "panel|spectate follow 2", "panel|spectate stop", "panel|spectate look 23 66"
+	// robot steps "panel|spectate follow 2", "panel|spectate stop", "panel|spectate look 23 66",
+	// "panel|spectate sword 1" (the robot's clicks do not reach the player list: GetAsyncKeyState)
 	// (the prefix is taken off)
 	int player = 0, x = 0, y = 0;
 	if (sscanf_s(text, "follow %d", &player) == 1)
@@ -1049,6 +1344,8 @@ void RobotCommand(const char *text)
 		StopWatching("robot");
 	else if (strcmp(text, "watch") == 0)
 		WatchNow("robot");
+	else if (sscanf_s(text, "sword %d", &player) == 1)  // what a click on the player list's sword does
+		SpectateWatchBattle(player, "robot: the sword");
 	else
 		hooklog::Write("spectate: robot command \"%s\" not known", text);
 }
@@ -1170,6 +1467,13 @@ void __fastcall CheckHook(void *self, void *edx, int pc, const BYTE *cmd)
 		if (value >> 24 == spectate::kMark) {
 			const spectate::Message m = spectate::Decode(value);
 			const DWORD now = GetTickCount();
+			if (m.valid && m.kind == spectate::kStatus && m.player != g_me) {  // (any PC's: the sword)
+				const bool fighting = m.screen == spectate::kInBattle;
+				if (fighting != (g_battle_heard[m.player] != 0))
+					hooklog::Write("spectate: %s %s (their PC says)", NameOf(m.player).c_str(),
+					               fighting ? "is in a battle" : "is out of their battle");
+				g_battle_heard[m.player] = fighting ? (now ? now : 1) : 0;
+			}
 			if (m.valid && m.kind == spectate::kWatch && m.target == g_me && g_me) {
 				if (m.on)
 					g_watchers.On(m.player, now);
@@ -1185,6 +1489,9 @@ void __fastcall CheckHook(void *self, void *edx, int pc, const BYTE *cmd)
 				g_view_x = m.x;
 				g_view_y = m.y;
 				g_view_floor = m.floor;
+			}
+			else if (m.valid && m.kind == spectate::kPlacement && g_following && m.player == g_following) {
+				HearPlacement(m);
 			}
 			else if (m.valid && m.kind == spectate::kStatus && g_following && m.player == g_following) {
 				if (!g_heard || m.screen != g_their_screen)
@@ -1420,7 +1727,9 @@ void Draw(const overlay::Frame &frame)
 		ImVec2 p0, p1;
 		ButtonRect(0, frame.width, frame.height, &p0, &p1);
 		overlay::BlockClicksIn(kName, p0.x, p0.y, p1.x, p1.y, frame.width, frame.height);
-		if (!ResultsOnTop())
+		// (those three buttons are MMH5.5's battle screen's: the original game has none there,
+		// and greyed discs over its battlefield looked odd, the owner, 2026-11-06)
+		if (!ResultsOnTop() && GameHasMmh55())
 			GreyBattleButtons(draw, frame.width, k);
 		DrawButton(draw, g_main, 0, ButtonLabel(), k);
 		// a small caption over the small button, centred on it
@@ -1528,6 +1837,26 @@ void SpectateToggle(int player, const char *how)
 bool SpectateFollowsMe(int player)
 {
 	return g_ready && InMultiplayer() && g_share && g_watchers.Active(player, GetTickCount()) && MayWatchMe(player);
+}
+
+bool SpectateInBattle(int player)
+{
+	if (!g_ready || player < 1 || player > 8 || player == g_me || !g_battle_heard[player] || !InMultiplayer())
+		return false;
+	return GetTickCount() - g_battle_heard[player] < kBattleLapse && Followable(player);
+}
+
+void SpectateWatchBattle(int player, const char *how)
+{
+	if (g_watching_battle)
+		return;
+	if (g_following != player)
+		Start(player, how);
+	if (g_following != player)
+		return;
+	g_auto_watch = player;
+	g_auto_watch_since = GetTickCount();
+	hooklog::Write("spectate: watch %s's battle as soon as it can (%s)", NameOf(player).c_str(), how);
 }
 
 void SpectateNoteName(int player, const char *name)

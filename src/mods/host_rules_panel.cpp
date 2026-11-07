@@ -27,6 +27,7 @@
 #include "host_rules_internal.h"
 #include "rmg_builder_widgets.h"
 
+#include "../hook/game_build.h"
 #include "../hook/log.h"
 #include "../hook/overlay.h"
 #include "../hook/robot.h"
@@ -361,7 +362,8 @@ bool Wanted()
 	char command[256];
 	if (robot::TakePanelCommand(command, sizeof(command), "rules "))
 		RobotCommand(command, top);
-	if (overlay::KeyPressed(g_key, &g_key_down)) {
+	// (the 2008 game without MMH5.5: no MMH5.5 rules to choose, so no key and no button)
+	if (overlay::KeyPressed(g_key, &g_key_down) && GameHasMmh55()) {
 		if (overlay::ModalOpen(kName))
 			Close("its key");
 		else if (PanelScreen(top))
@@ -397,7 +399,7 @@ bool Wanted()
 	const View::Role role = strcmp(top, kWaitScreen) == 0 ? rules::LobbyRole() : View::kNoGame;
 	g_versions = rules::GetVersions(role);
 	g_versions_shown = (role == View::kHost || role == View::kClient) && g_versions.state != rules::VersionsView::kNothing;
-	g_button_shown = g_button && (role == View::kHost || role == View::kClient);
+	g_button_shown = g_button && GameHasMmh55() && (role == View::kHost || role == View::kClient);
 	if (g_button_shown) {
 		ButtonInput(top);
 		const View v = rules::GetView(role);

@@ -1,7 +1,7 @@
 // Mod: the virtual LAN ([online] mode; off by default), the core of online play
 // over Steam (docs/plans/online-steam.md, "The design"; step 2 of its table).
 //
-// The game keeps its own LAN code. We put hooks on three of its Winsock imports
+// The game keeps its own LAN code. We put hooks on four of its Winsock imports
 // (WSOCK32.dll, by number; import table entries, data, not code), stacked with
 // lan_discovery.cpp's and the robot's:
 //   gethostbyname  The game asks "what are my addresses?" with
@@ -19,8 +19,11 @@
 //                  this PC goes out, and real LAN games do not show up and then
 //                  fail to join).
 //   recvfrom       The next message for this socket's port, as if it came from
-//                  the sender's fake address and source port. Whatever the real
-//                  network brings is read and dropped.
+//                  the sender's fake address and source port, however long it
+//                  waited (as a real socket keeps what arrived). Whatever the
+//                  real network brings is read and dropped.
+//   bind           A new socket starts empty: what was sent to its port before
+//                  is dropped there, once.
 // Hosting: once a second the game's discovery socket gets a copy of its own last
 // query, as if from 198.18.0.1; a game that hosts answers with its description
 // (03), which we swallow. Then the transport announces this PC as a host (the
@@ -60,9 +63,11 @@ namespace {
 typedef int(WINAPI *SendToFn)(SOCKET, const char *, int, int, const sockaddr *, int);
 typedef int(WINAPI *RecvFromFn)(SOCKET, char *, int, int, sockaddr *, int *);
 typedef hostent *(WINAPI *GetHostByNameFn)(const char *);
+typedef int(WINAPI *BindFn)(SOCKET, const sockaddr *, int);
 SendToFn g_sendto = nullptr;
 RecvFromFn g_recvfrom = nullptr;
 GetHostByNameFn g_gethostbyname = nullptr;
+BindFn g_bind = nullptr;
 
 bool g_install_tried = false;
 volatile bool g_on = false;  // (set before the game's network starts; off again if Steam does not start)
@@ -93,12 +98,19 @@ std::vector<online::Friend> g_test_friends;
 online::Invite g_test_invite;
 uint32_t g_test_invites = 0;
 
-const uint32_t kStaleMs = 3000;  // a message older than this when the game asks is dropped
+// Messages are never dropped for their age (until 0.3.5's test9 one older than 3 s was: a
+// Linux PC under Proton lost the host's one "accepted" answer to its join request that way,
+// "timeout 0.18.0" after a long map build). As on a real network, a socket gets what arrives
+// after its bind (VlanBind clears the port's queue) and nothing is lost after that. A message
+// older than this is still counted ("late") and the first ones logged.
+const uint32_t kLateMs = 3000;
+const int kLateLogged = 20;
+const int kHandshakeLogged = 12;
 const uint32_t kStatsEveryMs = 30000;
 
 struct Stats {
 	long to_peers, to_peers_bytes, to_self, fanned_out, from_peers, from_peers_bytes, probes, probe_answers;
-	long dropped_real, dropped_broadcasts, unknown_peer, send_failed, stale, host_answers;
+	long dropped_real, dropped_broadcasts, unknown_peer, send_failed, late, cleared, host_answers;
 	volatile LONG dropped_received;  // counted outside the lock
 	// how long the game's sends and reads waited for the lock (our Steam thread holds it
 	// while it talks to Steam): since the last stats line
@@ -108,6 +120,8 @@ struct Stats {
 Stats g_stats = {};
 uint32_t g_stats_at = 0;
 long g_stats_logged = -1;
+long g_handshake_in = 0, g_handshake_out = 0;  // join requests (01) and answers (04) logged
+int g_cleared_logged = 0;
 bool g_said_real = false, g_said_broadcast = false, g_said_unknown = false, g_said_received = false;
 
 // EnterCriticalSection(&g_lock) for the game's sends and reads, timed (Stats).
@@ -272,11 +286,13 @@ void LogStats(uint32_t now, bool force)
 	hooklog::Write("vlan: so far: %ld packets to peers (%ld KB), %ld from peers (%ld KB), %ld to ourselves; %ld queries "
 	               "sent to hosts; %ld hosting probes, %ld answered; %ld game descriptions sent; dropped: %ld to real "
 	               "addresses, %ld other broadcasts, %ld to unknown fake addresses, %ld received from the real network, "
-	               "%ld stale; %ld could not be sent; %d known peers",
+	               "%ld sent to a port before its socket was opened; %ld could not be sent; %ld given to the game over "
+	               "3 s after they arrived (late); %d known peers",
 	               g_stats.to_peers, g_stats.to_peers_bytes / 1024, g_stats.from_peers, g_stats.from_peers_bytes / 1024,
 	               g_stats.to_self, g_stats.fanned_out, g_stats.probes, g_stats.probe_answers, g_stats.host_answers,
 	               g_stats.dropped_real, g_stats.dropped_broadcasts, g_stats.unknown_peer,
-	               static_cast<long>(g_stats.dropped_received), g_stats.stale, g_stats.send_failed, g_peers.Count() - 1);
+	               static_cast<long>(g_stats.dropped_received), g_stats.cleared, g_stats.send_failed, g_stats.late,
+	               g_peers.Count() - 1);
 	if (g_stats.lock_waits)
 		hooklog::Write("vlan: the game's sends and reads since the last line: %ld, waited for our lock %lld us on average, "
 		               "%lld us at most, %ld times over 5 ms",
@@ -373,6 +389,13 @@ int WINAPI VlanSendTo(SOCKET s, const char *buf, int len, int flags, const socka
 					g_transport->PlaysWith(id);
 				}
 				SendMessageTo(id, port, LocalPort(s), packet, size);
+				if (size && (packet[0] == 0x01 || packet[0] == 0x04) && ++g_handshake_out <= kHandshakeLogged) {
+					Ip(destination, ip, sizeof(ip));
+					hooklog::Write("vlan: join: our game sent a %u-byte %02x (%s) to %s:%u from our port %u",
+					               static_cast<unsigned>(size), packet[0],
+					               packet[0] == 0x01 ? "its join request" : "its answer to a join request", ip, port,
+					               LocalPort(s));
+				}
 				if (vlan::IsGameInfo(packet, size))
 					++g_stats.host_answers;
 				++g_stats.to_peers;
@@ -440,10 +463,6 @@ int WINAPI VlanRecvFrom(SOCKET s, char *buf, int len, int flags, sockaddr *from,
 			return n;
 		}
 		while (port && g_transport->Receive(port, &g_received)) {
-			if (now - g_received.at_ms > kStaleMs) {
-				++g_stats.stale;
-				continue;
-			}
 			uint16_t source_port = 0;
 			uint32_t declared = 0;
 			const uint8_t *packet = nullptr;
@@ -455,6 +474,20 @@ int WINAPI VlanRecvFrom(SOCKET s, char *buf, int len, int flags, sockaddr *from,
 			const uint32_t address = LearnPeer(g_received.from, declared, where);
 			if (!address)
 				continue;  // (more than 31 peers)
+			const int32_t age = static_cast<int32_t>(now - g_received.at_ms);
+			if (age > static_cast<int32_t>(kLateMs) && ++g_stats.late <= kLateLogged)
+				hooklog::Write("vlan: a %u-byte packet (first byte %02x) from port %u for our port %u given to the game %ld ms "
+				               "after it arrived (late; until 0.3.5's test9 it was dropped)%s",
+				               static_cast<unsigned>(size), size ? packet[0] : 0, source_port, port, static_cast<long>(age),
+				               g_stats.late == kLateLogged ? " (the last one logged)" : "");
+			if (size && (packet[0] == 0x01 || packet[0] == 0x04) && ++g_handshake_in <= kHandshakeLogged) {
+				char ip[20];
+				Ip(address, ip, sizeof(ip));
+				hooklog::Write("vlan: join: a %u-byte %02x (%s) from %s:%u for our port %u, %ld ms after it arrived",
+				               static_cast<unsigned>(size), packet[0],
+				               packet[0] == 0x01 ? "a join request" : "the host's answer to a join request", ip, source_port,
+				               port, static_cast<long>(age));
+			}
 			++g_stats.from_peers;
 			g_stats.from_peers_bytes += static_cast<long>(size);
 			const int n = size < static_cast<size_t>(len > 0 ? len : 0) ? static_cast<int>(size) : (len > 0 ? len : 0);
@@ -483,6 +516,34 @@ int WINAPI VlanRecvFrom(SOCKET s, char *buf, int len, int flags, sockaddr *from,
 	}
 	WSASetLastError(WSAEWOULDBLOCK);
 	return SOCKET_ERROR;
+}
+
+// A new socket starts empty, as on a real network: what was sent to its port before the game
+// bound it (a closed socket's leftovers, for instance a dead join's stream to the discovery
+// port when the LAN screen opens again) is dropped here, once, and never later for its age.
+int WINAPI VlanBind(SOCKET s, const sockaddr *name, int name_len)
+{
+	const int result = g_bind(s, name, name_len);
+	if (!g_on || result != 0)
+		return result;
+	const uint16_t port = LocalPort(s);
+	if (!port)
+		return result;
+	EnterCriticalSection(&g_lock);
+	if (Ready()) {
+		long cleared = 0;
+		while (g_transport->Receive(port, &g_received))
+			++cleared;
+		g_stats.cleared += cleared;
+		if (cleared && g_cleared_logged < 10) {
+			++g_cleared_logged;
+			hooklog::Write("vlan: the game opened a socket on port %u: %ld message(s) sent to that port before were "
+			               "dropped (a new socket starts empty)",
+			               port, cleared);
+		}
+	}
+	LeaveCriticalSection(&g_lock);
+	return result;
 }
 
 // Our own host name, as the game's gethostname() gives it.
@@ -545,7 +606,7 @@ void InstallVirtualLan()
 	wchar_t path[MAX_PATH];
 	hooklog::PathNextToExe(L"h5-together", L".ini", path, MAX_PATH);
 	wchar_t text[64];
-	GetPrivateProfileStringW(L"online", L"mode", L"off", text, 64, path);
+	GetPrivateProfileStringW(L"online", L"mode", L"steam", text, 64, path);
 	const vlan::Mode mode = vlan::ParseMode(text);
 	if (mode == vlan::Mode::kOff)
 		return;
@@ -592,6 +653,10 @@ void InstallVirtualLan()
 		g_no_hooks = true;
 		return;
 	}
+	g_bind = reinterpret_cast<BindFn>(hookpatch::PatchImport("WSOCK32.dll", "bind", reinterpret_cast<void *>(&VlanBind)));
+	if (!g_bind)
+		hooklog::Write("vlan: the game's bind import was not found: a new socket may get messages sent to its port "
+		               "before it was opened");
 	g_mode = mode;
 	g_on = true;
 	char where[160];

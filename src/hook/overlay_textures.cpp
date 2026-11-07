@@ -210,7 +210,7 @@ struct Picture {
 	IDirect3DTexture9 *texture;  // nullptr: it could not be read
 	bool added;                  // light to add (AddedPicture)
 };
-const int kPictures = 64;
+const int kPictures = 256;  // (the skill wheel shows up to ~145 at once; it frees them when it closes)
 Picture g_pictures[kPictures];
 int g_count = 0;
 IDirect3DDevice9 *g_device = nullptr;
@@ -286,6 +286,21 @@ void *GameTexture(IDirect3DDevice9 *device, const char *path, int *loads_left, b
 	if (failed)
 		*failed = !p.texture;
 	return p.texture;
+}
+
+void ReleaseGameTextures(const char *prefix)
+{
+	const size_t n = strlen(prefix);
+	int kept = 0;
+	for (int i = 0; i < g_count; ++i) {
+		if (_strnicmp(g_pictures[i].path, prefix, n) == 0) {
+			if (g_pictures[i].texture)
+				g_pictures[i].texture->Release();
+			continue;
+		}
+		g_pictures[kept++] = g_pictures[i];
+	}
+	g_count = kept;
 }
 
 }  // namespace overlay

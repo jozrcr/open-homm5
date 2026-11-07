@@ -1301,7 +1301,11 @@ private:
 		lstrcpynW(path + n, L"55u.dll", MAX_PATH - n);
 		bool have = false;
 		uint32_t hash = 0;
-		HANDLE file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+		// (only MMH5.5's exe loads 55u.dll: the 2008 game in a folder where MMH5.5 is installed
+		// is the same game as without it, mmh55_files.cpp)
+		HANDLE file = build == GameBuild::Mmh55Utility
+		                  ? CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr)
+		                  : INVALID_HANDLE_VALUE;
 		if (file != INVALID_HANDLE_VALUE) {
 			const DWORD size = GetFileSize(file, nullptr);
 			if (size != INVALID_FILE_SIZE && size < (64u << 20)) {

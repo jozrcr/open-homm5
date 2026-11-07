@@ -773,10 +773,10 @@ void ApplyLockstepFromSettings()
 	hooklog::PathNextToExe(L"h5-together", L".ini", path, MAX_PATH);
 	g_drain = GetPrivateProfileIntW(L"net", L"drain_reports", 1, path) != 0;
 	g_trace = GetPrivateProfileIntW(L"net", L"trace_lockstep", 1, path) != 0;
-	const DWORD view = GetPrivateProfileIntW(L"net", L"view_delay_ms", 100, path);
+	const DWORD view = GetPrivateProfileIntW(L"net", L"view_delay_ms", 50, path);
 	const DWORD catch_up = GetPrivateProfileIntW(L"net", L"catch_up_ms", 600, path);
 	const bool scale_pacing = GetPrivateProfileIntW(L"net", L"scale_pacing", 1, path) != 0;
-	const DWORD net_sleep = GetPrivateProfileIntW(L"net", L"net_sleep_ms", 2, path);
+	const DWORD net_sleep = GetPrivateProfileIntW(L"net", L"net_sleep_ms", 1, path);
 	const bool catch_behind = GetPrivateProfileIntW(L"net", L"catch_up_behind", 1, path) != 0;
 
 	if (view != 400) {

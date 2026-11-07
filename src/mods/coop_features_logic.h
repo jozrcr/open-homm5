@@ -24,7 +24,10 @@ enum Feature {
 	kParallelAi = 1,    // the computer players side by side (parallel_ai.cpp, [ai] parallel_turns)
 	kAiBonus = 2,       // the host's MMH5.5 computer bonus, set in the game itself, also a loaded one
 	                    // ([rules] ai_cheat: H55_AICheatMode; coop_features.cpp, 0.3.4)
-	kFeatureCount = 3,
+	kEndlessTurns = 3,  // endless simultaneous turns on the 2008 game without MMH5.5, as MMH5.5's PEST
+	                    // ([coop] endless_turns: endless_turns.cpp, 0.3.5). Only a PC of the 2008 game
+	                    // knows it (with MMH5.5, its 55u.dll does PEST itself)
+	kFeatureCount = 4,  // (the wants byte has room for 4: bits 0-3)
 };
 const unsigned kKnown = (1u << kFeatureCount) - 1;  // what this version knows
 

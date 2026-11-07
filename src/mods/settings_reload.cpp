@@ -14,6 +14,7 @@
 #include "player_list.h"
 #include "rmg_builder.h"
 #include "rmg_teams.h"
+#include "skill_wheel.h"
 
 #include "../hook/log.h"
 #include "../hook/watchdog.h"
@@ -36,6 +37,8 @@ void Reload(const char *section, const char *key)
 		ReloadHeroSkinsPanelSettings();
 	else if (is("skins", "live_hero_screen"))
 		ReloadHeroSkinsSettings();
+	else if (is("ui", "skill_wheel") || is("ui", "skill_wheel_key"))
+		ReloadSkillWheelSettings();
 	else if (is("rmg", "builder_key"))
 		ReloadRmgBuilderSettings();
 	else if (is("rmg", "teams"))

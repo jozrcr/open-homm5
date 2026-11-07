@@ -992,7 +992,7 @@ void ApplyRmgFactionsFromSettings()
 {
 	wchar_t path[MAX_PATH];
 	hooklog::PathNextToExe(L"h5-together", L".ini", path, MAX_PATH);
-	g_host = GetPrivateProfileIntW(L"rmg", L"faction_terrain", 0, path) != 0;
+	g_host = GetPrivateProfileIntW(L"rmg", L"faction_terrain", 1, path) != 0;
 	g_trace = GetPrivateProfileIntW(L"rmg", L"trace_factions", 0, path) != 0;
 	// Every PC, whatever happens below: a rebuilt map of an earlier game never
 	// shows in the map lists.

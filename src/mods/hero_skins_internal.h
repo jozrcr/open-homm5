@@ -69,6 +69,11 @@ void RobotScreenCommand(const char *text);
 std::string InternalName(int hero);
 std::string NameFile(int hero);
 
+// The hero the hero screen on top shows (*on_hero_screen = true), else this PC's player's
+// selected hero (the adventure map, the town screen); its IHero (NWorld::CHero's IHero part), or
+// nullptr. Any owner's. The game's thread. (The skill wheel, skill_wheel.cpp.)
+void *ShownHero(bool *on_hero_screen);
+
 }  // namespace skins
 
 // The panel (hero_skins_panel.cpp): adds the overlay client. The key comes

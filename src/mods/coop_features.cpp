@@ -27,6 +27,10 @@
 //    too (MMH5.5 reads its settings file only at a map's start; a save keeps the values):
 //    from the next week on. The value: what the host's F2 panel shows (its [rules] ai_cheat
 //    choice, else its own H55-Settings.lua's; host_rules.cpp, HostComputerBonus).
+// 5. endless_turns (0.3.5; the 2008 game without MMH5.5): simultaneous turns that never end,
+//    as MMH5.5's PEST, switched on at the decision on every PC (endless_turns.cpp) and off
+//    again at the next game's start. Only a PC of the 2008 game knows it: with MMH5.5 its
+//    55u.dll does PEST itself.
 #include "coop_features.h"
 
 #include <windows.h>
@@ -35,7 +39,9 @@
 #include <string>
 
 #include "coop_features_logic.h"
+#include "endless_turns.h"
 #include "host_rules.h"
+#include "join_time.h"
 #include "script_rhythm.h"
 
 #include "../hook/log.h"
@@ -104,8 +110,17 @@ DWORD Read(const void *p, DWORD off)
 	return *reinterpret_cast<const DWORD *>(static_cast<const BYTE *>(p) + off);
 }
 
+// What this PC knows: every feature of this version, but endless_turns only on the 2008 game
+// (EndlessTurnsAvailable).
+unsigned Knows()
+{
+	return features::kKnown & ~(EndlessTurnsAvailable() ? 0u : 1u << features::kEndlessTurns);
+}
+
 void NewGame(const void *transceiver)
 {
+	// a new game: the game's own simultaneous turns until this game's decision
+	SetEndlessTurns(false);
 	g_transceiver = transceiver;
 	g_segments = 0;
 	g_last_reports = 0;
@@ -167,8 +182,10 @@ unsigned Wants(unsigned *ai_bonus)
 	}
 	if (GetPrivateProfileIntW(L"coop", L"script_rhythm", 1, path) != 0)
 		wants |= 1u << features::kScriptRhythm;
-	if (GetPrivateProfileIntW(L"ai", L"parallel_turns", 0, path) != 0)
+	if (GetPrivateProfileIntW(L"ai", L"parallel_turns", 1, path) != 0)
 		wants |= 1u << features::kParallelAi;
+	if (EndlessTurnsAvailable() && GetPrivateProfileIntW(L"coop", L"endless_turns", 1, path) != 0)
+		wants |= 1u << features::kEndlessTurns;
 	return wants;
 }
 
@@ -202,15 +219,15 @@ void __fastcall MpStepHook(void *self, void *edx)
 		g_hello_sent = true;
 		unsigned ai_bonus = 0;
 		const unsigned wants = me == 0 ? Wants(&ai_bonus) : 0;
-		const uint32_t value = features::EncodeHello(features::kKnown, wants, ai_bonus);
+		const uint32_t value = features::EncodeHello(Knows(), wants, ai_bonus);
 		g_hellos[me] = features::DecodeHello(value);
 		SendValue(t, value);
 		if (me == 0)
 			hooklog::Write("co-op features: hello sent (PC 0 of %d, the host; knows %s; wants %s%s)", pcs,
-			               Names(features::kKnown).c_str(), Names(wants).c_str(),
+			               Names(Knows()).c_str(), Names(wants).c_str(),
 			               (wants & (1u << features::kAiBonus)) ? (" = " + std::to_string(ai_bonus)).c_str() : "");
 		else
-			hooklog::Write("co-op features: hello sent (PC %d of %d; knows %s)", me, pcs, Names(features::kKnown).c_str());
+			hooklog::Write("co-op features: hello sent (PC %d of %d; knows %s)", me, pcs, Names(Knows()).c_str());
 	}
 }
 
@@ -273,6 +290,8 @@ void __fastcall SegmentHook(void *transceiver8, void *edx, DWORD time)
 		if (t != g_transceiver)
 			NewGame(t);
 		++g_segments;
+		if (g_segments == 1)
+			JoinTimeGameStarted();  // (the game's own time limit again, on every PC)
 		DebugScriptAt(g_segments);
 		int me = 0, pcs = 0;
 		if (g_segments == features::kDecideAt && !g_decided && Pcs(t, &me, &pcs)) {
@@ -287,6 +306,7 @@ void __fastcall SegmentHook(void *transceiver8, void *edx, DWORD time)
 			               missing.empty() ? "" : "; no hello from PC ", missing.c_str());
 			if (g_on & (1u << features::kAiBonus))
 				SetComputerBonus(g_hellos[0].ai_bonus);
+			SetEndlessTurns((g_on & (1u << features::kEndlessTurns)) != 0);
 		}
 	}
 	g_segment_next(transceiver8, edx, time);
@@ -361,8 +381,8 @@ void ApplyCoopFeaturesFromSettings()
 	unsigned ai_bonus = 0;
 	const unsigned wants = Wants(&ai_bonus);
 	hooklog::Write("co-op features: ready (knows %s; as host, this PC wants %s%s: [coop] script_rhythm, [ai] parallel_turns, "
-	               "[rules] ai_cheat)",
-	               Names(features::kKnown).c_str(), Names(wants).c_str(),
+	               "[rules] ai_cheat, [coop] endless_turns)",
+	               Names(Knows()).c_str(), Names(wants).c_str(),
 	               (wants & (1u << features::kAiBonus)) ? (" = " + std::to_string(ai_bonus)).c_str() : "");
 }
 

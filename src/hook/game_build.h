@@ -11,3 +11,8 @@ enum class GameBuild {
 GameBuild DetectGameBuild();
 const char *GameBuildName(GameBuild build);
 inline bool IsHookable(GameBuild b) { return b == GameBuild::Vanilla31 || b == GameBuild::Mmh55Utility; }
+
+// The game runs with MMH5.5 (its co-op exe, which loads 55u.dll and MMH5.5's data). False
+// on the 2008 game without MMH5.5 (Vanilla31): then the parts of the add-on that act only
+// on MMH5.5's data (the F2 rules, original music, the black map edge) stay hidden.
+inline bool GameHasMmh55() { return DetectGameBuild() == GameBuild::Mmh55Utility; }

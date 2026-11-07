@@ -360,7 +360,7 @@ void LogWaitSlots()
 		const bool info_ok = reinterpret_cast<BoolFn>(info_vt[19])(info, nullptr);
 		void **begin = *reinterpret_cast<void ***>(logic + 0x38);
 		void **end = *reinterpret_cast<void ***>(logic + 0x3c);
-		char line[512];
+		char line[1600];
 		_snprintf_s(line, sizeof(line), _TRUNCATE, "robot: waiting room: can start %d, game info ready %d, slots:",
 		            can_start, info_ok);
 		for (void **it = begin; it != end && it - begin < 16; ++it) {
@@ -368,9 +368,22 @@ void LogWaitSlots()
 			// The row's own copy (slot 14, also on clients): [0] state, [1] colour, [0xf] team.
 			const DWORD *row_state = reinterpret_cast<PtrFn>(slot_vt[14])(*it, nullptr);
 			const BYTE *slot_info = reinterpret_cast<InfoFn>(info_vt[8])(info, nullptr, static_cast<int>(it - begin));
-			char item[80];
-			_snprintf_s(item, sizeof(item), _TRUNCATE, " [state %lu, colour %lu, team %lu, +24 %ld]", row_state[0],
-			            row_state[1], row_state[0xf], slot_info ? *reinterpret_cast<const LONG *>(slot_info + 0x24) : -99);
+			char item[200];
+			// research (the hero card): the setup slot's faction (+0x18), hero flag (+0x28) and hero
+			// (+0x2c, a string: begin, end) and the other string at +0x60 (cleared when the hero changes)
+			char hero[48] = "", other[128] = "";
+			if (slot_info) {
+				const char *const *h = reinterpret_cast<const char *const *>(slot_info + 0x2c);
+				const char *const *o = reinterpret_cast<const char *const *>(slot_info + 0x40);  // (the reference's path: type +0x2c, path +0x2c+0x14)
+				if (h[0] && h[1] > h[0] && h[1] - h[0] < 47)
+					memcpy(hero, h[0], h[1] - h[0]);
+				if (o[0] && o[1] > o[0] && o[1] - o[0] < 120)
+					memcpy(other, o[0], o[1] - o[0]);
+			}
+			_snprintf_s(item, sizeof(item), _TRUNCATE, " [state %lu, colour %lu, team %lu, +24 %ld, race %ld, hero ok %d \"%s\" \"%s\"]",
+			            row_state[0], row_state[1], row_state[0xf], slot_info ? *reinterpret_cast<const LONG *>(slot_info + 0x24) : -99,
+			            slot_info ? *reinterpret_cast<const LONG *>(slot_info + 0x18) : -99, slot_info ? slot_info[0x28] : -1, hero,
+			            other);
 			strncat_s(line, sizeof(line), item, _TRUNCATE);
 		}
 		hooklog::Write("%s", line);

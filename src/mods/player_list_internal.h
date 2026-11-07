@@ -35,6 +35,14 @@ struct Row {
 	char face[160];  // that hero's portrait: a .dds file of the game's data, or ""
 	void *face_texture;  // the portrait as a texture (IDirect3DTexture9 *), or nullptr (overlay::GameTexture)
 	int eye;             // following views (spectate.cpp): kEyeNone, kEyeFollowsMe, kEyeFollowed, kEyeHover
+	int sword;           // an ally in a battle (spectate.cpp): kSwordNone, kSwordShown, kSwordHover
+};
+
+// The sword instead of the status mark: an ally in a battle; a click watches it.
+enum Sword {
+	kSwordNone,
+	kSwordShown,
+	kSwordHover,  // the cursor is over it
 };
 
 // The eye after a pill (following a friend's view, spectate.cpp).
@@ -51,6 +59,7 @@ struct Hits {
 	int id[kMaxPlayers];         // the player number
 	float rect[kMaxPlayers][4];  // x0, y0, x1, y1 in pixels: the portrait, the pill and the eye
 	float pill[kMaxPlayers][4];  // the pill alone (what is drawn beside the eye lines up with it)
+	float sword[kMaxPlayers][4]; // the sword, when the row has one (else all 0)
 };
 
 struct Snapshot {
@@ -77,9 +86,12 @@ struct Look {
 	void *font;       // ImFont *: names
 	void *font_bold;  // ImFont *: the day, team numbers
 	void *frame;      // the game's resource bar picture (IDirect3DTexture9 *), or nullptr: plain style
+	void *sword;      // the game's attack cursor (IDirect3DTexture9 *), or nullptr: the status mark stays
 };
 // The game's picture the panels are made of (the resource bar, 1024x64, DXT3).
 extern const char kFramePicture[];
+// The game's attack cursor on the adventure map (a sword, 48x48): an ally in a battle.
+extern const char kSwordPicture[];
 // The font sizes the panel wants at this screen height (pixels).
 void FontSizes(float screen_height, float *regular, float *bold);
 // Draws the panel; writes the rectangle it covers (x0, y0, x1, y1, in pixels) and,

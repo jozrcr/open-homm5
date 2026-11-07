@@ -104,7 +104,7 @@ void ApplyAudioVolumeFromSettings()
 	wchar_t ini[MAX_PATH];
 	hooklog::PathNextToExe(L"h5-together", L".ini", ini, MAX_PATH);  // h5-together-<instance>.ini for the robot
 	wchar_t curve[16] = L"";
-	GetPrivateProfileStringW(L"audio", L"volume_curve", L"game", curve, 16, ini);
+	GetPrivateProfileStringW(L"audio", L"volume_curve", L"wide", curve, 16, ini);
 	g_log_volume = static_cast<LONG>(GetPrivateProfileIntW(L"audio", L"log_volume", 0, ini));
 	if (lstrcmpiW(curve, L"wide") != 0) {
 		if (curve[0] && lstrcmpiW(curve, L"game") != 0)

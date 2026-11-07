@@ -1493,6 +1493,19 @@ Applied ApplyLook(int hero, int look, std::string *note)
 	return kAppliedSoon;
 }
 
+void *ShownHero(bool *on_hero_screen)
+{
+	*on_hero_screen = false;
+	BYTE *hero = nullptr;
+	if (BYTE *screen = HeroScreenOnTop()) {
+		*on_hero_screen = true;
+		hero = reinterpret_cast<BYTE *>(Read(screen, kHeroScreenHero));
+	}
+	else if (g_local_iplayer)
+		hero = reinterpret_cast<BYTE *>(Read(g_local_iplayer, kPlayerSelected));
+	return hero && Read(hero, 0) == kHeroVftable && !Dying(hero) ? hero : nullptr;
+}
+
 }  // namespace skins
 
 namespace {

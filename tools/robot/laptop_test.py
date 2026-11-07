@@ -64,9 +64,11 @@ def paths(game):
 def check_game(game):
     if not (game / "bin").is_dir():
         sys.exit("no game at %s (use --game DIR)" % game)
-    exe = game / "bin" / "MMH55_Utility_64.exe"
-    if not exe.is_file():
-        sys.exit("%s is missing: the virtual LAN needs MMH5.5 RC19k's exe" % exe)
+    # MMH5.5 RC19k's exe, or the original 2008 game (since 0.3.5: the installer's
+    # H5_Original_4GB.exe, or the 2008 exe itself as H5_Game.exe / H5_GameOLD.exe)
+    names = ["MMH55_Utility_64.exe", "H5_Original_4GB.exe", "H5_Game.exe", "H5_GameOLD.exe"]
+    if not any((game / "bin" / name).is_file() for name in names):
+        sys.exit("no game exe in %s (one of %s)" % (game / "bin", ", ".join(names)))
 
 
 def set_online(ini_path):

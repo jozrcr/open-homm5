@@ -75,7 +75,8 @@ bin_of() {
 
 # SHA-256 of a file as lower case hex.
 sha256_of() {
-    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" 2>/dev/null | awk '{print $1}'
+    # (sha256sum puts a "\" before the checksum when the file's path holds a backslash)
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" 2>/dev/null | awk '{sub(/^\\/, "", $1); print $1}'
     elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" 2>/dev/null | awk '{print $1}'
     elif command -v openssl >/dev/null 2>&1; then openssl dgst -sha256 "$1" 2>/dev/null | awk '{print $NF}'
     fi
@@ -188,13 +189,30 @@ language_name() {
     esac
 }
 
+# The build date in a program's header (seconds since 1970), or 0. The 2008 game's exe and
+# MMH5.5's exes made from it say 2008-06-04 13:58:55; Steam's 2025 rebuild says 2025.
+PE_DATE_2008=1212587935
+pe_date() {
+    local off
+    off="$(od -An -tu4 -j 60 -N 4 "$1" 2>/dev/null | tr -d ' ')"
+    if [ -z "$off" ] || [ "$(od -An -c -j "$off" -N 2 "$1" 2>/dev/null | tr -d ' ')" != "PE" ]; then echo 0; return; fi
+    off="$(od -An -tu4 -j $((off + 8)) -N 4 "$1" 2>/dev/null | tr -d ' ')"
+    echo "${off:-0}"
+}
+
+# The 2008 game's own exe (not MMH5.5's: those have the same date but load MMH5.5's 55u.dll).
+exe_2008() {
+    [ "$(pe_date "$1")" = "$PE_DATE_2008" ] && ! LC_ALL=C grep -q -a -F 55u.dll "$1"
+}
+
 # What we can tell about a game, from its bin folder $1. Only looks. Sets gi_bin, gi_root (the
 # game folder), gi_store (Steam, GOG or nothing), gi_language (Steam's name for it, or nothing),
-# gi_exes (each "name|role": coop, copy of the co-op exe, or own), gi_mmh55 (ok, untested or
-# missing), gi_mmh55_name (RC19k...) and gi_mmh55_version (H55_Version).
+# gi_exes (each "name|role": coop, copy of the co-op exe, 2008 (the 2008 game's exe) or own),
+# gi_has2008 (1: the 2008 game's exe is there), gi_mmh55 (ok, untested or missing),
+# gi_mmh55_name (RC19k...) and gi_mmh55_version (H55_Version).
 game_info() {
     local b="$1" common manifest f c name role pak u55 coop=()
-    gi_bin="$b"; gi_root="$(dirname "$b")"; gi_store=""; gi_language=""; gi_exes=()
+    gi_bin="$b"; gi_root="$(dirname "$b")"; gi_store=""; gi_language=""; gi_exes=(); gi_has2008=0
     gi_mmh55="missing"; gi_mmh55_name=""; gi_mmh55_version=""
     # Steam keeps the game in <library>/steamapps/common/<name>, and its file for the game next to that
     common="$(dirname "$gi_root")"
@@ -206,19 +224,22 @@ game_info() {
         fi
     fi
     if [ -z "$gi_store" ] && [ -n "$(find_ci "$gi_root" 'goggame-*.info')" ]; then gi_store="GOG"; fi
-    # The exes. H5_Game.exe is a copy of the co-op exe when the player followed the GameRanger guide.
+    # The exes. H5_Game.exe is a copy of the co-op exe when the player followed the GameRanger
+    # guide, which keeps the 2008 game's own exe as H5_GameOLD.exe.
     for name in MMH55_Utility_64.exe MMH55_Utility.exe; do
         f="$(find_ci "$b" "$name")"
         if [ -n "$f" ] && [ -f "$f" ]; then coop+=("$f"); gi_exes+=("$name|coop"); fi
     done
-    f="$(find_ci "$b" H5_Game.exe)"
-    if [ -n "$f" ] && [ -f "$f" ]; then
+    for name in H5_Game.exe H5_GameOLD.exe H5_Original_4GB.exe; do
+        f="$(find_ci "$b" "$name")"
+        if [ -z "$f" ] || [ ! -f "$f" ]; then continue; fi
         role="own"
         for c in "${coop[@]}"; do
             [ "$role" = "own" ] && cmp -s "$f" "$c" && role="copy"
         done
-        gi_exes+=("H5_Game.exe|$role")
-    fi
+        if [ "$role" = "own" ] && exe_2008 "$f"; then role="2008"; gi_has2008=1; fi
+        gi_exes+=("$name|$role")
+    done
     # MMH5.5 and its version: the version file in its pak, and which 55u.dll it has
     pak="$(find_ci "$gi_root/data" MMH55-Index.pak)"
     if [ -n "$pak" ] && [ -f "$pak" ]; then
@@ -240,7 +261,10 @@ mmh55_text() {
             if [ -n "$gi_mmh55_version" ]; then echo "a version we have not tested (its version file says $gi_mmh55_version)"
             else echo "a version we have not tested"; fi
             ;;
-        *) echo "not found" ;;
+        *)
+            if [ "$gi_has2008" = "1" ]; then echo "not found (H5 Together works with the original 2008 game)"
+            else echo "not found"; fi
+            ;;
     esac
 }
 
@@ -261,18 +285,23 @@ write_game_info() {
         case "${entry#*|}" in
             coop) text="MMH5.5's co-op exe: H5 Together works with it" ;;
             copy) text="a copy of the co-op exe (made for GameRanger): works too" ;;
-            *)    text="the game's own exe, not MMH5.5's: H5 Together does nothing with it" ;;
+            2008)
+                if [ "$gi_mmh55" = "missing" ]; then text="the original 2008 game: H5 Together works with it"
+                else text="the original 2008 game: works too (H5 Together hides MMH5.5 from it)"; fi
+                ;;
+            *)    text="not the 2008 game (Steam's 2025 update?): H5 Together does nothing with it" ;;
         esac
         printf '%s%-21s %s\n' "$label" "${entry%%|*}" "$text"
         label="              "
     done
     for note in "$@"; do echo "  $note"; done
     [ "${gi_quiet:-0}" = "1" ] && return 0
-    if [ "$gi_mmh55" = "missing" ]; then
+    if [ "$gi_mmh55" = "missing" ] && [ "$gi_has2008" != "1" ]; then
         echo
-        echo "Warning: MMH5.5 was not found in this folder (there is no MMH55_Utility_64.exe)."
-        echo "H5 Together needs MMH5.5, the community version of the game, for now. The files can"
-        echo "be copied anyway, but they only start working once MMH5.5 is installed."
+        echo "Warning: MMH5.5 was not found in this folder (there is no MMH55_Utility_64.exe), nor the"
+        echo "original 2008 game's exe. Since July 2025, Steam installs a rebuild of the game that"
+        echo "H5 Together does not know. The files can be copied anyway; they start working with"
+        echo "MMH5.5, or with the 2008 game's exe."
     elif [ "$gi_mmh55" = "untested" ]; then
         echo
         echo "Warning: this MMH5.5 is a version we have not tested (tested: $KNOWN_55U_NAMES)."
@@ -469,6 +498,18 @@ else
 fi
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# The original game's 4 GB exe that the installer made (install.sh): only that name, and only
+# when it is the 2008 game's exe.
+p="$(find_ci "$bin" H5_Original_4GB.exe)"
+if [ -n "$p" ] && [ -f "$p" ] && exe_2008 "$p"; then
+    if rm -f "$p"; then
+        echo "  - removed H5_Original_4GB.exe (the original game's 4 GB exe that the installer made)"
+    else
+        echo "  - could not remove H5_Original_4GB.exe"
+        failed=1
+    fi
+fi
 
 # Valve's steam_api.dll (online play over Steam): only if this package has it, and only if
 # the file in the game is byte for byte that one (the same SHA-256). Another copy (another

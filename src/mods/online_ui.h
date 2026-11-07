@@ -13,4 +13,9 @@ void InstallOnlineUiEarly();
 // handler of Steam's invites (the pop-up and the taskbar flash).
 void ApplyOnlineUiFromSettings();
 
+// This PC's top screen is a loaded game's waiting room (NUI::CMPUbiComLoadScreen): only
+// then does a host offer its resume save (resume_transfer.cpp), never in a new game's
+// lobby. Any thread; false when the online UI is off.
+bool OnlineInLoadedGameRoom();
+
 }  // namespace mods

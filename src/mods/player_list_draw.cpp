@@ -38,6 +38,7 @@ namespace plist {
 // The game's resource bar: 1024x64; the frame is rows 1..43, the left cap
 // columns 2..36, the right cap 660..694, the middle plain (black inside).
 const char kFramePicture[] = "Textures/AdventureScreen-FPP-2/ResourceBar-heavy.dds";
+const char kSwordPicture[] = "Textures/Interface/Cursors/Attack.dds";
 
 namespace {
 
@@ -59,6 +60,7 @@ const float kCircleToPill = 18.0f;
 const float kPillHeight = 30.0f, kPillGap = 14.0f;
 const float kFace = 40.0f;      // the portrait: bigger than the pill, over its left cap
 const float kFaceToName = 10.0f, kNameToMark = 10.0f, kMark = 14.0f, kMarkToCap = 6.0f;
+const float kSword = 26.0f;  // the sword over the mark's place (the cursor picture has a margin)
 const float kPillMinWidth = 140.0f, kPillMaxWidth = 230.0f;
 const float kTeamGap = 22.0f;   // after a team's last pill
 const float kLineToFace = 7.0f;  // the team line, then the portraits
@@ -281,8 +283,25 @@ void Pill(ImDrawList *draw, const Row &r, const Look &look, ImVec2 p, float w, f
 	const ImVec2 t = TextSize(font, size, fitted);
 	const ImU32 ink = r.status == kEnded ? Rgba(196, 200, 204, 1.0f, a) : Rgba(255, 255, 255, 1.0f, a);
 	Text(draw, font, size, ImVec2(x, p.y + (h - t.y) / 2), ink, fitted, a);
-	// the status mark, inside the right cap
-	StatusMark(draw, r.status, ImVec2(mark_x, p.y + h / 2), k, a);
+	// the status mark, inside the right cap; an ally in a battle: the game's attack cursor, a
+	// sword (a click watches the battle), with a soft gold halo under the cursor
+	const ImVec2 mc(mark_x, p.y + h / 2);
+	if (r.sword != kSwordNone && look.sword) {
+		if (r.sword == kSwordHover)
+			draw->AddCircleFilled(mc, kSword * k * 0.42f, Rgba(255, 214, 120, 0.35f, a));
+		const float s = kSword * k / 2;
+		draw->AddImage(static_cast<ImTextureID>(reinterpret_cast<uintptr_t>(look.sword)), ImVec2(mc.x - s, mc.y - s),
+		               ImVec2(mc.x + s, mc.y + s), ImVec2(0, 0), ImVec2(1, 1), Rgba(255, 255, 255, 1.0f, a));
+	}
+	else
+		StatusMark(draw, r.status, mc, k, a);
+}
+
+// Where the status mark (or the sword) of a pill at p, w wide, is.
+ImVec2 MarkCentre(const Look &look, ImVec2 p, float w, float k)
+{
+	const float h = kPillHeight * k;
+	return ImVec2(p.x + w - PillCap(look, h) - kMarkToCap * k - kMark * k / 2, p.y + h / 2);
 }
 
 // An eye after a pill (following a friend's view): almond lids and an iris, in the
@@ -468,6 +487,12 @@ void DrawPanel(const Snapshot &s, const Look &look, float rect[4], Hits *hits)
 			hits->pill[n][1] = y;
 			hits->pill[n][2] = px + pw;
 			hits->pill[n][3] = y + ph;
+			const ImVec2 mc = MarkCentre(look, ImVec2(px, y), pw, k);
+			const float half = r.sword != kSwordNone && look.sword ? kSword * k / 2 : 0.0f;
+			hits->sword[n][0] = half ? mc.x - half : 0;
+			hits->sword[n][1] = half ? mc.y - half : 0;
+			hits->sword[n][2] = half ? mc.x + half : 0;
+			hits->sword[n][3] = half ? mc.y + half : 0;
 		}
 		y += ph;
 		if (teams && last) {  // the team's line, a thin pewter one, down to its last pill

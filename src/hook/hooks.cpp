@@ -16,10 +16,14 @@
 #include "../mods/camera.h"
 #include "../mods/coop_guard.h"
 #include "../mods/edge_sky.h"
+#include "../mods/endless_turns.h"
 #include "../mods/frame_limit.h"
 #include "../mods/spectate.h"
 #include "../mods/fast_paths.h"
 #include "../mods/hero_skins.h"
+#include "../mods/join_time.h"
+#include "../mods/lobby_hero_tips.h"
+#include "../mods/skill_wheel.h"
 #include "../mods/turn_undo.h"
 #include "../mods/vertex_pool.h"
 #include "../mods/parallel_ai.h"
@@ -30,6 +34,7 @@
 #include "../mods/languages.h"
 #include "../mods/lockstep.h"
 #include "../mods/menu_scene.h"
+#include "../mods/mmh55_files.h"
 #include "../mods/net_tuning.h"
 #include "../mods/notify.h"
 #include "../mods/online_ui.h"
@@ -83,14 +88,12 @@ void InstallNetEarly()
 	mods::InstallVirtualLan();
 }
 
-void InstallEarly()
+namespace {
+
+// The data-table hooks that must be in place before the game reads its data.
+void InstallEarlyHooks(const char *when)
 {
-	// Only data-table hooks that must be in place before the game reads its
-	// data, and only in a build we know (an unwrapped exe: the Steam-wrapped
-	// one is still encrypted now, and gets them with InstallAll()).
-	if (NoHooks() || !IsHookable(DetectGameBuild()))
-		return;
-	crash::Install("from the DLL's load, before the game's own crash filter");  // first: before the game's code runs
+	crash::Install(when);  // first: before the game's code runs
 	mods::InstallLanguagesEarly();  // [lang] texts=fr, before the game reads its first text
 	mods::InstallOriginalMusicEarly();
 	mods::InstallMenuSceneEarly();  // [menu] scene: after original_music, so ours is the outer hook
@@ -102,6 +105,62 @@ void InstallEarly()
 	mods::InstallSettingsMenuEarly();  // our page in the Options screen: before the game reads its list
 	mods::InstallOnlineUiEarly();  // [online] mode=steam: its lines and button are drawn by the overlay
 	overlay::InstallTestPanelEarly();
+}
+
+// The Steam-wrapped exe (H5_GameOLD.exe, the 2008 game as Steam installed it): at the DLL's
+// load its code is still encrypted, so the build cannot be checked yet. Steam's wrapper
+// decrypts it and then jumps to the game's own start, whose C runtime first calls
+// MSVCR71.dll's __set_app_type: from there, before the game reads any data, the early hooks
+// go in (without this they came at the game's first DirectInput call, after the game had
+// read its Options list: no H5 Together page, 2026-11-06).
+typedef void(__cdecl *SetAppTypeFn)(int type);
+SetAppTypeFn g_set_app_type_next = nullptr;
+
+void __cdecl SetAppTypeHook(int type)
+{
+	g_set_app_type_next(type);
+	static bool done = false;
+	if (done)
+		return;
+	done = true;
+	const GameBuild build = DetectGameBuild();
+	if (IsHookable(build))
+		InstallEarlyHooks("at the game's start, after Steam's wrapper, before the game's own crash filter");
+	else
+		hooklog::Write("hooks: at the game's start the exe is %s: no early hooks", GameBuildName(build));
+}
+
+// Testing: [debug] early_at_start=1 takes the wrapped exe's way in an unwrapped one (the robot
+// cannot start the Steam-wrapped exe).
+bool EarlyAtStartTest()
+{
+	wchar_t ini[MAX_PATH];
+	hooklog::PathNextToExe(L"h5-together", L".ini", ini, MAX_PATH);
+	return GetPrivateProfileIntW(L"debug", L"early_at_start", 0, ini) != 0;
+}
+
+}  // namespace
+
+void InstallEarly()
+{
+	// Only data-table hooks that must be in place before the game reads its
+	// data, and only in a build we know.
+	if (NoHooks())
+		return;
+	// The 2008 exe in a folder with MMH5.5: its files hidden before the game looks for its
+	// data. Also in the Steam-wrapped exe (it reads only the header and the import table).
+	mods::InstallMmh55FilesEarly();
+	if (IsHookable(DetectGameBuild()) && !EarlyAtStartTest()) {
+		InstallEarlyHooks("from the DLL's load, before the game's own crash filter");
+		return;
+	}
+	// not known yet: perhaps the Steam-wrapped exe, still encrypted (see SetAppTypeHook)
+	g_set_app_type_next = reinterpret_cast<SetAppTypeFn>(
+		hookpatch::PatchImport("MSVCR71.dll", "__set_app_type", reinterpret_cast<void *>(&SetAppTypeHook)));
+	hooklog::Write(g_set_app_type_next ? "hooks: the exe cannot be checked yet (Steam's wrapper?): the early hooks wait for the "
+	                                     "game's start"
+	                                   : "hooks: the exe cannot be checked yet, and it has no __set_app_type import: the early "
+	                                     "hooks wait for the game's first DirectInput call");
 }
 
 void InstallAll()
@@ -117,6 +176,7 @@ void InstallAll()
 	mods::ApplySteamSpikeFromSettings();  // [online] spike (test only, off by default; not with mode=steam): early too
 	InstallAiTrace();
 	mods::ApplyNetTuningFromSettings();
+	mods::ApplyJoinTimeFromSettings();  // [net] join_timeout_s: more time for a PC that joins (its map build)
 	mods::ApplyFastPathsFromSettings();
 	mods::ApplyLanDiscoveryFromSettings();  // (after InstallVirtualLan: its hooks stack on the virtual LAN's)
 	mods::ApplyCoopGuardFromSettings();
@@ -144,8 +204,11 @@ void InstallAll()
 	mods::ApplyHostRulesFromSettings();  // [rules]: the host's rules, served as H55-Settings.lua
 	mods::ApplyOnlineUiFromSettings();  // [online] mode=steam: Steam's lines on the LAN screen, Invite friends... (after the rules' button)
 	mods::ApplyAudioVolumeFromSettings();
+	mods::ApplyLobbyHeroTipsFromSettings();  // [ui] hero_tips: the waiting room's hero tooltip tells class, skills, specialty
+	mods::ApplySkillWheelFromSettings();  // [ui] skill_wheel: the hero screen's button (the original game), a key
 	mods::ApplyHeroSkinsFromSettings();  // after notify and the co-op guard: it stacks on their hooks
 	mods::ApplyTurnUndoFromSettings();  // [coop] undo_end_turn (host's); after hero looks: it stacks on their hooks
+	mods::InstallEndlessTurns();  // the 2008 game: endless simultaneous turns, one of the co-op features
 	mods::ApplyCoopFeaturesFromSettings();  // the host's script_rhythm and parallel_turns, agreed at each game's start
 	mods::ApplyScriptRhythmFromSettings();  // [coop] script_rhythm (host's, on by default); after the co-op features
 	mods::ApplyQuickResumeFromSettings();  // [coop] resume_save (host's); after the autosave mod: it stacks on its save hook

@@ -440,6 +440,8 @@ video.fps_limit = Limite d'images par seconde
 video.fps_limit.help = Au plus ce nombre d'images par seconde : un PC plus frais et plus silencieux, surtout dans les menus (le jeu y dessine jusqu'à 400 images). Seulement votre écran.
 video.vsync = Synchronisation verticale
 video.vsync.help = Activée : chaque image au rythme de votre écran, sans déchirure. Désactivée : sans jamais attendre l'écran. Seulement votre écran.
+video.hd_textures = Textures HD de MMH5.5
+video.hd_textures.help = Avec le jeu d'origine lancé dans un dossier où MMH5.5 est installé : garder les textures plus fines de MMH5.5 (terrain, villes, ciel). Le reste de MMH5.5 reste caché. Seulement votre écran.
 menu.scene = Image du menu principal
 menu.scene.help = La scène derrière le menu principal, avec sa musique. Heroes V demande MMH5.5.
 audio.original_music = Musique de Heroes V
@@ -448,8 +450,14 @@ audio.volume_curve = Volume : plage élargie
 audio.volume_curve.help = Le cran le plus bas des curseurs de volume est 10 fois plus faible ; le plus haut ne change pas.
 ui.language = Langue du module
 ui.language.help = Les mots des panneaux de H5 Together et de cette page.
+ui.hero_tips = Détails des héros dans la salle d'attente
+ui.skill_wheel = Bouton roue des compétences sur l'écran du héros
+ui.skill_wheel.help = Une petite roue près du nom du héros sur son écran : ce que sa classe peut apprendre, ce que chaque capacité nécessite d'abord, et ce que le héros a déjà. Jeu d'origine seulement (MMH5.5 a la sienne).
+ui.skill_wheel_key = Touche de la roue des compétences
+ui.skill_wheel_key.help = Ouvre la roue des compétences du héros sélectionné sur la carte d'aventure (ou du héros de l'écran du héros).
+ui.hero_tips.help = L'info-bulle d'un héros de départ (dans la salle d'attente multijoueur) donne aussi sa classe, ses compétences de départ et ce que fait sa spécialité.
 lang.texts = Textes du jeu
-lang.texts.help = Packs français : aussi les textes que MMH5.5 laisse en anglais (depuis h5-together\lang\fr).
+lang.texts.help = Packs français : aussi les textes restés en anglais (depuis h5-together\lang\fr, ou lang\fr-original pour le jeu original).
 rmg.builder = Créateur de modèles
 rmg.builder.help = Un bouton « Modèle... » sur l'écran des cartes aléatoires, avec tous les choix du créateur de modèles.
 rmg.builder_key = Touche du créateur
@@ -459,7 +467,7 @@ rmg.teams.help = Les cartes aléatoires n'en ont pas : chaque joueur est seul, s
 rmg.lobby_teams = Flèches : n° d'équipe
 rmg.lobby_teams.help = En salle d'attente, sur les cartes sans équipes, les flèches d'équipe choisissent un numéro d'équipe.
 rmg.recipe_teams = Équipes des modèles
-rmg.recipe_teams.help = Les cartes faites d'une recette du créateur de modèles reçoivent les équipes du modèle.
+rmg.recipe_teams.help = Les cartes faites d'une recette du créateur de modèles reçoivent les équipes du modèle ; en salle d'attente, les flèches d'équipe déplacent un joueur vers un autre départ libre de son équipe.
 rmg.faction_terrain = Terrain de chaque faction
 rmg.faction_terrain.help = Sur les cartes aléatoires, chaque zone de départ reçoit le sol et la ville de sa faction. Chaque PC doit avoir le module.
 coop.guard = Coopération rapide
@@ -468,6 +476,8 @@ coop.segment_ms = Durée des étapes
 coop.segment_ms.help = Des étapes plus courtes accélèrent les mouvements de l'ordinateur.
 coop.undo_end_turn = Annuler la fin de tour
 coop.undo_end_turn.help = Avec les tours simultanés, un joueur qui a fini son tour peut le reprendre tant qu'un autre humain joue encore. Chaque PC doit avoir le module.
+coop.endless_turns = Tours simultanés sans fin
+coop.endless_turns.help = Avec les tours simultanés cochés dans la salle d'attente, ils durent toute la partie, comme avec le PEST de MMH5.5 (le jeu d'origine les arrête quand des héros se rapprochent). Chaque PC doit avoir le module.
 coop.script_rhythm = Rythme MMH5.5 d'origine
 coop.script_rhythm.help = Avec les étapes de coopération plus rapides, les scripts de MMH5.5 tourneraient quatre fois plus souvent que prévu, et la carte saccaderait. Ceci leur garde leur rythme d'origine. Chaque PC doit avoir le module.
 coop.resume_save = Sauvegarde si un joueur part
@@ -517,6 +527,21 @@ after.restart = {n} changements s'appliquent après un redémarrage du jeu.
 after.next_game_one = 1 changement s'applique à partir de la prochaine partie.
 after.next_game = {n} changements s'appliquent à partir de la prochaine partie.
 after.failed = Les réglages n'ont pas pu être enregistrés : {why}.
+
+[lobby]
+hero_class = Classe : {class}
+hero_skills = Compétences de départ : {skills}
+
+[wheel]
+title = {class}
+title_hero = {class} : {hero}
+chance = {n} %
+needs = Nécessite d'abord : {list}
+legend = Cadre doré : le héros l'a. Cadre clair : il peut la prendre à un passage de niveau maintenant. Gris : pas encore. Les points : sa maîtrise. Le % est la chance de la compétence à un passage de niveau. Les flèches montrent les autres classes.
+legend_other = La roue d'une autre classe : les compétences qui peuvent lui être proposées (leur chance à un passage de niveau) et les capacités qu'elle peut prendre. Les flèches montrent les autres classes.
+close = Fermer
+button_tip = Roue des compétences
+no_data = Les tables de compétences du jeu n'ont pas pu être lues.
 
 [welcome]
 title = H5 Together
